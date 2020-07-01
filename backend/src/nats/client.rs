@@ -1,5 +1,7 @@
 use reqwest;
 
+use super::connz::Connz;
+
 pub struct Client {
     url: String,
 }
@@ -11,8 +13,13 @@ impl Client {
         };
     }
 
-    pub async fn connz(&self, offset: u64, limit: u64) -> Result<(), reqwest::Error> {
-        reqwest::get(self.url.as_str()).await?;
-        Ok(())
+    pub async fn connz(&self, offset: u64, limit: u64) -> Result<Connz, reqwest::Error> {
+        let client = reqwest::Client::new();
+
+        let connz = client
+            .get(format!("{}/connz", self.url).as_str())
+            .query(&[("offset", offset), ("limit", limit)])
+            .send().await?.json::<Connz>().await?;
+        Ok(connz)
     }
 }
