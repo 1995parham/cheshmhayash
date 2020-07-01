@@ -1,2 +1,5 @@
-pub mod client;
-pub mod connz;
+mod client;
+mod connz;
+
+pub use client::*;
+pub use connz::*;
