@@ -1,7 +1,22 @@
-<nb-card status="warning">
-  <nb-card-header>{{ this.name }}</nb-card-header>
-  <nb-card-body *ngIf="this.connz">
-    <h4>Server ID: {{ this.connz.server_id }}</h4>
-    <h6>Number of Connections: {{ this.connz.num_connections }}</h6>
-  </nb-card-body>
-</nb-card>
+<nz-card nz-col nzSpan="12" nzTitle="{{ this.name }}">
+  <nz-space nzDirection="vertical" nzSize="large" style="width: 100%;">
+    <nz-space-item *ngIf="this.connz">
+    <nz-row [nzGutter]="16">
+      <nz-col [nzSpan]="12">
+        <nz-statistic [nzValue]="this.connz.num_connections" nzTitle="Active Connections"></nz-statistic>
+      </nz-col>
+      <nz-col [nzSpan]="12">
+        <nz-statistic nzValue="{{ this.connz.now | date:'fullTime' }}" nzTitle="Last Update"></nz-statistic>
+      </nz-col>
+    </nz-row>
+    </nz-space-item>
+    <nz-space-item>
+      <nz-descriptions nzTitle="Variables" *ngIf="this.varz" nzBordered>
+        <nz-descriptions-item nzTitle="Server ID" nzSpan="8">{{ this.varz.server_id }}</nz-descriptions-item>
+        <nz-descriptions-item nzTitle="Server Name" nzSpan="8">{{ this.varz.server_name }}</nz-descriptions-item>
+        <nz-descriptions-item nzTitle="Version">{{ this.varz.version }}</nz-descriptions-item>
+        <nz-descriptions-item nzTitle="Go">{{ this.varz.go }}</nz-descriptions-item>
+      </nz-descriptions>
+    </nz-space-item>
+  </nz-space>
+</nz-card>

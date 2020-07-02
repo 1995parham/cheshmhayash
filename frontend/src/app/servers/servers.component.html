@@ -1,2 +1,5 @@
-<app-server *ngFor="let server of this.servers" name="{{ server }}">
-</app-server>
+<nz-space nzDirection="vertical">
+  <nz-space-item *ngFor="let server of this.servers">
+    <app-server name="{{ server }}"></app-server>
+  </nz-space-item>
+</nz-space>

@@ -4,7 +4,7 @@ import { NATSService } from '../nats/nats.service';
 @Component({
   selector: 'app-servers',
   templateUrl: './servers.component.html',
-  styleUrls: ['./servers.component.scss']
+  styleUrls: ['./servers.component.less']
 })
 export class ServersComponent implements OnInit {
 

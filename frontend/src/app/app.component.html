@@ -1,16 +1,15 @@
-<nb-layout>
-  <nb-layout-header fixed>
-    <img src="https://github.com/nats-io.png" alt="nats-logo" class="logo">
-
-    <h2>NATS Monitoriing Dashboard</h2>
-  </nb-layout-header>
-
-  <nb-layout-column>
+<nz-layout style="height: 100vh">
+  <nz-header>
+    <img class="logo" src="https://github.com/nats-io.png">
+    <ul nz-menu nzTheme="dark" nzMode="horizontal" class="header-menu">
+      <li nz-menu-item>nav 1</li>
+      <li nz-menu-item>nav 2</li>
+      <li nz-menu-item>nav 3</li>
+    </ul>
+  </nz-header>
+  <nz-content>
+    <nz-page-header nzTitle="Dashboard" nzSubtitle="Your NATS servers at a glance"></nz-page-header>
     <app-servers></app-servers>
-  </nb-layout-column>
-
-  <nb-layout-footer fixed>
-    &copy; 1995parham with <nb-icon icon="heart" status="warning" class="heart"></nb-icon>
-  </nb-layout-footer>
-
-</nb-layout>
+  </nz-content>
+  <nz-footer>Footer</nz-footer>
+</nz-layout>
