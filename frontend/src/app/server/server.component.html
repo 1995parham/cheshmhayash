@@ -1,0 +1,7 @@
+<nb-card status="warning">
+  <nb-card-header>{{ this.name }}</nb-card-header>
+  <nb-card-body *ngIf="this.connz">
+    <h4>Server ID: {{ this.connz.server_id }}</h4>
+    <h6>Number of Connections: {{ this.connz.num_connections }}</h6>
+  </nb-card-body>
+</nb-card>
