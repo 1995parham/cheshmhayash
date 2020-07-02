@@ -3,6 +3,7 @@ mod handler;
 mod setting;
 
 use actix_web::{web, App, HttpServer};
+use actix_files as fs;
 
 use setting::Settings;
 
@@ -20,8 +21,9 @@ async fn main() {
                nats_handler.register(web::scope("/api"))
             )
             .service(
-                handler::Healthz::register(web::scope("/"))
+                handler::Healthz::register(web::scope("/healthz"))
             )
+            .service(fs::Files::new("/", "../frontend/dist/cheshmhayash/").index_file("index.html"))
     })
     .workers(12)
     .bind(
