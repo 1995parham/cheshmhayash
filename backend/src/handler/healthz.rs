@@ -11,6 +11,6 @@ impl Healthz {
 
     pub fn register(scope: Scope) -> Scope {
         scope
-            .route("/healthz", web::get().to(Self::healthz))
+            .route("/", web::get().to(Self::healthz))
     }
 }
