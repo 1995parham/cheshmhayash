@@ -32,7 +32,7 @@ impl NATS {
         HttpResponse::Ok().json(names)
     }
 
-    async fn varz(data: web::Data<Self>, query: web::Data<VarzQuery>) -> impl Responder {
+    async fn varz(data: web::Data<Self>, query: web::Query<VarzQuery>) -> impl Responder {
         match data.as_ref().clients.get(&query.name) {
             Some(client) => {
                 let res = client.varz().await;
