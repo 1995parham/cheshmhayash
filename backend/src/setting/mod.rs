@@ -10,12 +10,13 @@ pub struct Server {
 #[derive(Debug, Clone, Deserialize)]
 pub struct NATS {
     monitoring: String,
+    name: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     server: Server,
-    nats: NATS,
+    nats: Vec<NATS>,
 }
 
 impl Settings {
@@ -35,7 +36,7 @@ impl Settings {
         &self.server
     }
 
-    pub fn nats(&self) -> &NATS {
+    pub fn nats(&self) -> &[NATS] {
         &self.nats
     }
 }
@@ -53,5 +54,9 @@ impl Server {
 impl NATS {
     pub fn monitoring(&self) -> &str {
         self.monitoring.as_str()
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 }
