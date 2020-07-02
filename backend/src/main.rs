@@ -4,6 +4,7 @@ mod setting;
 
 use actix_web::{web, App, HttpServer};
 use actix_files as fs;
+use std::collections::HashMap;
 
 use setting::Settings;
 
@@ -13,8 +14,13 @@ async fn main() {
     let setting_clone = setting.clone();
 
     HttpServer::new(move || {
-        let client = nats::Client::new(setting_clone.nats().monitoring());
-        let nats_handler = handler::NATS::new(client);
+        let clients: HashMap<String, nats::Client> =
+            setting_clone.nats()
+                .iter()
+                .map(|s| (s.name().to_string(), nats::Client::new(s.monitoring())))
+                .collect();
+
+        let nats_handler = handler::NATS::new(clients);
 
         App::new()
             .service(

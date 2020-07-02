@@ -1,4 +1,5 @@
 use super::connz::Connz;
+use super::varz::Varz;
 
 #[derive(Clone)]
 pub struct Client {
@@ -19,6 +20,15 @@ impl Client {
             .get(format!("{}/connz", self.url).as_str())
             .query(&[("offset", offset), ("limit", limit), ("subs", 1)])
             .send().await?.json::<Connz>().await?;
+        Ok(connz)
+    }
+
+    pub async fn varz(&self) -> Result<Varz, reqwest::Error> {
+        let client = reqwest::Client::new();
+
+        let connz = client
+            .get(format!("{}/varz", self.url).as_str())
+            .send().await?.json::<Varz>().await?;
         Ok(connz)
     }
 }
