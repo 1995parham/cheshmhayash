@@ -29,3 +29,18 @@ steps:
       - cd frontend
       - npm install
       - npm run lint
+
+---
+kind: pipeline
+type: docker
+name: docker
+
+steps:
+  - name: docker
+    image: plugins/docker
+    settings:
+      username: 1995parham
+      password:
+        from_secret: docker_password
+      repo: 1995parham/cheshmhayash
+      tags: latest
