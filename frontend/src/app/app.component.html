@@ -1,4 +1,4 @@
-<nz-layout style="height: 100vh">
+<nz-layout>
   <nz-header>
     <img class="logo" src="https://github.com/nats-io.png">
     <ul nz-menu nzTheme="dark" nzMode="horizontal" class="header-menu">
@@ -8,8 +8,9 @@
     </ul>
   </nz-header>
   <nz-content>
-    <nz-page-header nzTitle="Dashboard" nzSubtitle="Your NATS servers at a glance"></nz-page-header>
-    <app-servers></app-servers>
+    <div nz-col [nzSpan]="24">
+      <router-outlet></router-outlet>
+    </div>
   </nz-content>
-  <nz-footer>Footer</nz-footer>
+  <nz-footer>@1995parham</nz-footer>
 </nz-layout>
