@@ -1,0 +1,31 @@
+---
+kind: pipeline
+type: docker
+name: backend
+
+steps:
+  - name: test
+    image: rust
+    commands:
+      - cd backend
+      - cargo build --verbose --all
+      - cargo test --verbose --all
+  - name: lint
+    image: rust
+    commands:
+      - cd backend
+      - rustup component add rustfmt && cargo fmt
+      - rustup component add clippy && cargo clippy
+
+---
+kind: pipeline
+type: docker
+name: frontend
+
+steps:
+  - name: lint
+    image: node
+    commands:
+      - cd frontend
+      - npm install
+      - npm run lint
