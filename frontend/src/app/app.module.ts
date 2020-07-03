@@ -18,13 +18,15 @@ import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzPageHeaderModule } from 'ng-zorro-antd/page-header';
 import { NzStatisticModule } from 'ng-zorro-antd/statistic';
+import { DashboardComponent } from './dashboard/dashboard.component';
 
 
 @NgModule({
   declarations: [
     AppComponent,
     ServerComponent,
-    ServersComponent
+    ServersComponent,
+    DashboardComponent
   ],
   imports: [
     BrowserModule,
