@@ -26,7 +26,7 @@ RUN npm run build --prod
 # Bundle Stage
 FROM scratch
 WORKDIR /cheshmhayash/frontend
-COPY --from=frontend /usr/src/frontend/dist/cheshmhayash dist
+COPY --from=frontend /usr/src/frontend/dist ./dist
 
 WORKDIR /cheshmhayash/backend
 COPY --from=backend /usr/src/backend/target/x86_64-unknown-linux-musl/release/cheshmhayash .
