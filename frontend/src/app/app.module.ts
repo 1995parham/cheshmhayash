@@ -9,6 +9,8 @@ import { NATSService } from './nats/nats.service';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ServerComponent } from './server/server.component';
 import { ServersComponent } from './servers/servers.component';
+import { DashboardComponent } from './dashboard/dashboard.component';
+import { ConnectionsComponent } from './connections/connections.component';
 
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
@@ -18,15 +20,15 @@ import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzPageHeaderModule } from 'ng-zorro-antd/page-header';
 import { NzStatisticModule } from 'ng-zorro-antd/statistic';
-import { DashboardComponent } from './dashboard/dashboard.component';
-
+import { NzTableModule } from 'ng-zorro-antd/table';
 
 @NgModule({
   declarations: [
     AppComponent,
     ServerComponent,
     ServersComponent,
-    DashboardComponent
+    DashboardComponent,
+    ConnectionsComponent
   ],
   imports: [
     BrowserModule,
@@ -40,6 +42,7 @@ import { DashboardComponent } from './dashboard/dashboard.component';
     NzCardModule,
     NzPageHeaderModule,
     NzMenuModule,
+    NzTableModule,
     NzStatisticModule
   ],
   providers: [

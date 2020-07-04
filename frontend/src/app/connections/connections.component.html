@@ -1,0 +1,32 @@
+<nz-page-header nzBackIcon nzTitle="Connections {{ this.id | async }}" nzSubtitle="">
+</nz-page-header>
+
+<nz-table
+  nzShowSizeChanger
+  [nzData]="connections"
+  [nzFrontPagination]="false"
+  [nzLoading]="loading"
+  [nzTotal]="total"
+  [nzPageSize]="pageSize"
+  [nzPageIndex]="pageIndex"
+  (nzQueryParams)="onQueryParamsChange($event)"
+  >
+  <thead>
+    <tr>
+      <th nzColumnKey="cid">ID</th>
+      <th nzColumnKey="connection">Connection</th>
+      <th nzColumnKey="since">Since</th>
+      <th nzColumnKey="subscriptions">Subscriptions</th>
+      <th nzColumnKey="subscriptions_list">Subscriptions List</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let data of connections">
+      <td>{{ data.cid }}</td>
+      <td>{{ data.ip }}:{{ data.port }}</td>
+      <td>{{ data.start | date:'full' }}</td>
+      <td>{{ data.subscriptions }}</td>
+      <td>{{ data.subscriptions_list }}<td>
+    </tr>
+  </tbody>
+</nz-table>
