@@ -49,6 +49,7 @@ export class ConnectionsComponent implements OnInit {
 
     this.pageSize = pageSize;
     this.pageIndex = pageIndex;
+    this.update();
   }
 
 }

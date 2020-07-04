@@ -26,7 +26,11 @@
       <td>{{ data.ip }}:{{ data.port }}</td>
       <td>{{ data.start | date:'full' }}</td>
       <td>{{ data.subscriptions }}</td>
-      <td>{{ data.subscriptions_list }}<td>
+      <td>
+        <ul>
+          <li *ngFor="let subscription of data.subscriptions_list">{{ subscription }}</li>
+        </ul>
+      </td>
     </tr>
   </tbody>
 </nz-table>
