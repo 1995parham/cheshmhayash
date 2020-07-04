@@ -1,5 +1,5 @@
 {{- range .Values.config.servers }}
 [[nats]]
-monitoring = {{ .address }}
-name = {{ .name }}
+monitoring = {{ .address | quote }}
+name = {{ .name | quote }}
 {{- end }}
