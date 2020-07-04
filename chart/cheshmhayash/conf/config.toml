@@ -1,0 +1,5 @@
+{{- range .Values.config.servers }}
+[[nats]]
+monitoring = {{ .address }}
+name = {{ .name }}
+{{- end }}

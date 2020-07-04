@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cheshmhayash.fullname" . }}
+  labels:
+    {{- include "cheshmhayash.labels" . | nindent 4 }}
+data:
+  settings.toml: {{ tpl (.Files.Get "conf/config.toml") . | quote }}
