@@ -7,6 +7,20 @@ import { catchError } from 'rxjs/operators';
 export interface Connz {
   server_id: string;
   num_connections: number;
+  total: number;
+  limit: number;
+  offset: number;
+  connections: Connection[];
+}
+
+export interface Connection {
+  cid: number;
+  ip: string;
+  port: number;
+  start: string;
+  last_activity: string;
+  subscriptions: number;
+  subscriptions_list: string[];
 }
 
 export interface Varz {

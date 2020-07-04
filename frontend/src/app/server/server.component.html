@@ -1,9 +1,9 @@
-<nz-card nz-col [nzSpan]="24" nzTitle="{{ this.name }}">
+<nz-card nz-col [nzSpan]="24" nzTitle="{{ this.name }}" [nzExtra]="more">
   <nz-space nzDirection="vertical" nzSize="large" style="width: 100%;">
     <nz-space-item *ngIf="this.connz">
     <nz-row [nzGutter]="16">
       <nz-col [nzSpan]="12">
-        <nz-statistic [nzValue]="this.connz.num_connections" nzTitle="Active Connections"></nz-statistic>
+        <nz-statistic [nzValue]="this.connz.total" nzTitle="Active Connections"></nz-statistic>
       </nz-col>
       <nz-col [nzSpan]="12">
         <nz-statistic nzValue="{{ this.connz.now | date:'fullTime' }}" nzTitle="Last Update"></nz-statistic>
@@ -20,3 +20,6 @@
     </nz-space-item>
   </nz-space>
 </nz-card>
+<ng-template #more>
+  <a [routerLink]="['/connections', name]">More</a>
+</ng-template>
