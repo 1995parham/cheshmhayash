@@ -15,6 +15,7 @@ async fn index() -> Result<fs::NamedFile> {
 #[actix_rt::main]
 async fn main() {
     let setting = Settings::new().expect("loading configuration failed");
+    println!("settings: {:?}", setting);
     let setting_clone = setting.clone();
 
     HttpServer::new(move || {
