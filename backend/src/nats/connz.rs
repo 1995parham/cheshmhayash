@@ -32,5 +32,5 @@ pub struct Connection {
     subscriptions: u64,
     lang: String,
     version: String,
-    subscriptions_list: Vec<String>,
+    subscriptions_list: Option<Vec<String>>,
 }
