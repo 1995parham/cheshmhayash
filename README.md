@@ -1,13 +1,15 @@
 # cheshmhayash
 
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/1995parham/cheshmhayash/ci?label=ci&logo=github&style=flat-square)
+
 ## Introduction
 
 [NATS Messaging System](https://nats.io/) report its metrics and state over its monitoring endpoint. This project aims to visulize and proxy these metrics.
 For example your can deploy this project with following architecture and transprant your servers from users:
 
 ```
- o
--|-   --- cheshmhayash -- NATS
+  o
+ -|-   --- cheshmhayash -- NATS
  /\
 ```
 
