@@ -1,8 +1,8 @@
 use actix_web::{web, HttpResponse, Responder, Scope};
 use serde::Deserialize;
 
-use crate::nats;
 use super::Error;
+use crate::nats;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -39,28 +39,30 @@ impl NATS {
 
                 match res {
                     Ok(varz) => HttpResponse::Ok().json(varz),
-                    Err(err) => HttpResponse::InternalServerError().json(
-                        Error{message: err.to_string()}
-                        ),
+                    Err(err) => HttpResponse::InternalServerError().json(Error {
+                        message: err.to_string(),
+                    }),
                 }
-        },
-        None => HttpResponse::NotFound().json("nats server not found"),
+            }
+            None => HttpResponse::NotFound().json("nats server not found"),
         }
     }
 
     async fn connz(data: web::Data<Self>, query: web::Query<ConnzQuery>) -> impl Responder {
         match data.as_ref().clients.get(&query.name) {
             Some(client) => {
-                let res = client.connz(query.offset.unwrap_or(0), query.limit.unwrap_or(1024)).await;
+                let res = client
+                    .connz(query.offset.unwrap_or(0), query.limit.unwrap_or(1024))
+                    .await;
 
                 match res {
                     Ok(connz) => HttpResponse::Ok().json(connz),
-                    Err(err) => HttpResponse::InternalServerError().json(
-                        Error{message: err.to_string()}
-                        ),
+                    Err(err) => HttpResponse::InternalServerError().json(Error {
+                        message: err.to_string(),
+                    }),
                 }
-        },
-        None => HttpResponse::NotFound().json("nats server not found"),
+            }
+            None => HttpResponse::NotFound().json("nats server not found"),
         }
     }
 
