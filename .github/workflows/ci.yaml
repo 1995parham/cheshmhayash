@@ -1,0 +1,35 @@
+---
+name: ci
+on:
+  push:
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout sources
+        uses: actions/checkout@v2
+
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: run cargo fmt
+        run: |
+          cargo fmt --all -- --check
+
+      - name: run cargo clippy
+        run: |
+          cargo clippy -- -D warnings
+
+      - run: |
+          if [ -f docker-compose.yml ]; then
+            docker-compose up -d
+          fi
+      - run: |
+          cargo test
