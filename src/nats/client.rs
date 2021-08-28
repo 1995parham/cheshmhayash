@@ -21,7 +21,10 @@ impl Client {
         let connz = client
             .get(format!("{}/connz", self.url).as_str())
             .query(&[("offset", offset), ("limit", limit), ("subs", 1)])?
-            .send().await?.json::<Connz>().await?;
+            .send()
+            .await?
+            .json::<Connz>()
+            .await?;
         Ok(connz)
     }
 
@@ -30,7 +33,10 @@ impl Client {
 
         let connz = client
             .get(format!("{}/varz", self.url).as_str())
-            .send().await?.json::<Varz>().await?;
+            .send()
+            .await?
+            .json::<Varz>()
+            .await?;
         Ok(connz)
     }
 }
