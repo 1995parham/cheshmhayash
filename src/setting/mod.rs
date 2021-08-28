@@ -1,4 +1,3 @@
-use config;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -8,7 +7,7 @@ pub struct Server {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct NATS {
+pub struct Nats {
     monitoring: String,
     name: String,
 }
@@ -16,7 +15,7 @@ pub struct NATS {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     server: Server,
-    nats: Vec<NATS>,
+    nats: Vec<Nats>,
 }
 
 impl Settings {
@@ -36,7 +35,7 @@ impl Settings {
         &self.server
     }
 
-    pub fn nats(&self) -> &[NATS] {
+    pub fn nats(&self) -> &[Nats] {
         &self.nats
     }
 }
@@ -51,7 +50,7 @@ impl Server {
     }
 }
 
-impl NATS {
+impl Nats {
     pub fn monitoring(&self) -> &str {
         self.monitoring.as_str()
     }
