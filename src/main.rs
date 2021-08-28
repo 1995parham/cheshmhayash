@@ -20,6 +20,11 @@ async fn main() {
     println!("settings: {:?}", setting);
     let setting_clone = setting.clone();
 
+    println!(
+        "listen on {}:{}",
+        setting.server().host(),
+        setting.server().port()
+    );
     HttpServer::new(move || {
         let clients: HashMap<String, nats::Client> = setting_clone
             .nats()
@@ -32,7 +37,7 @@ async fn main() {
         App::new()
             .service(nats_handler.register(web::scope("/api")))
             .service(handler::Healthz::register(web::scope("/healthz")))
-            .service(fs::Files::new("/", "../frontend/dist/cheshmhayash/").index_file("index.html"))
+            .service(fs::Files::new("/", "web/dist/cheshmhayash/").index_file("index.html"))
             .default_service(
                 web::resource("").route(web::get().to(index)).route(
                     web::route()
