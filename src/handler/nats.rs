@@ -6,7 +6,7 @@ use crate::nats;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct NATS {
+pub struct Nats {
     clients: HashMap<String, nats::Client>,
 }
 
@@ -22,9 +22,9 @@ pub struct VarzQuery {
     name: String,
 }
 
-impl NATS {
-    pub fn new(clients: HashMap<String, nats::Client>) -> NATS {
-        NATS { clients }
+impl Nats {
+    pub fn new(clients: HashMap<String, nats::Client>) -> Nats {
+        Nats { clients }
     }
 
     async fn list(data: web::Data<Self>) -> impl Responder {

@@ -14,7 +14,7 @@ async fn index() -> Result<fs::NamedFile> {
     )?)
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() {
     let setting = Settings::new().expect("loading configuration failed");
     println!("settings: {:?}", setting);
@@ -27,7 +27,7 @@ async fn main() {
             .map(|s| (s.name().to_string(), nats::Client::new(s.monitoring())))
             .collect();
 
-        let nats_handler = handler::NATS::new(clients);
+        let nats_handler = handler::Nats::new(clients);
 
         App::new()
             .service(nats_handler.register(web::scope("/api")))
@@ -37,7 +37,7 @@ async fn main() {
                 web::resource("").route(web::get().to(index)).route(
                     web::route()
                         .guard(guard::Not(guard::Get()))
-                        .to(|| HttpResponse::MethodNotAllowed()),
+                        .to(HttpResponse::MethodNotAllowed),
                 ),
             )
     })
