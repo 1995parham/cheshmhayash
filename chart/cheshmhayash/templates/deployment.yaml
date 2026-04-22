@@ -47,7 +47,7 @@ spec:
               value: {{ .Release.Revision | quote }}
           volumeMounts:
             - name: configuration
-              mountPath: "/cheshmhayash/backend/settings.toml"
+              mountPath: "/app/settings.toml"
               subPath: "settings.toml"
               readOnly: true
       volumes:

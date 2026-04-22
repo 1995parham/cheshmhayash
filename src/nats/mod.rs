@@ -1,7 +1,7 @@
-mod client;
-mod connz;
-mod varz;
+mod admin;
+mod cluster;
+mod jsm;
 
-pub use client::*;
-pub use connz::*;
-pub use varz::*;
+pub use admin::*;
+pub use cluster::*;
+pub use jsm::*;

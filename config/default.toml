@@ -2,6 +2,15 @@
 host = "0.0.0.0"
 port = 1378
 
+# Each [[nats]] block describes a NATS cluster to manage. The `url` is the
+# client port. Administrative endpoints ($SYS.REQ.*) require the connection
+# to be authenticated against the system account — supply either a creds
+# file or user/password below.
 [[nats]]
-monitoring = "http://127.0.0.1:8222"
-name = "localhost"
+name = "local"
+url = "nats://127.0.0.1:4222"
+# creds_file = "./sys.creds"
+# user = "sys"
+# password = "changeme"
+# request_timeout_ms = 2000
+# discovery_timeout_ms = 500

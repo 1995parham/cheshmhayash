@@ -1,5 +1,17 @@
-{{- range .Values.config.servers }}
+[server]
+host = "0.0.0.0"
+port = 1378
+{{ range .Values.config.servers }}
 [[nats]]
-monitoring = {{ .address | quote }}
 name = {{ .name | quote }}
+url = {{ .url | quote }}
+{{- with .credsFile }}
+creds_file = {{ . | quote }}
 {{- end }}
+{{- with .user }}
+user = {{ . | quote }}
+{{- end }}
+{{- with .password }}
+password = {{ . | quote }}
+{{- end }}
+{{ end }}

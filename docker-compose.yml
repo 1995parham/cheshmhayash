@@ -1,9 +1,14 @@
 ---
-version: "3.1"
 services:
   nats:
-    image: nats
+    image: nats:2
+    command: ["-m", "8222"]
     ports:
-      - 4222:4222
-      - 6222:6222
-      - 8222:8222
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/varz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

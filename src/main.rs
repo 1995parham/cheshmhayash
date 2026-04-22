@@ -2,62 +2,89 @@ mod handler;
 mod nats;
 mod setting;
 
-use actix_files as fs;
-use actix_web::{guard, web, App, HttpResponse, HttpServer, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 
+use actix_cors::Cors;
+use actix_files as fs;
+use actix_web::http::Method;
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use anyhow::Context;
+use tracing_actix_web::TracingLogger;
+use tracing_subscriber::EnvFilter;
+
+use handler::Clusters;
 use setting::Settings;
 
-async fn index() -> Result<fs::NamedFile> {
-    Ok(fs::NamedFile::open("web/dist/cheshmhayash/index.html")?)
+const FRONTEND_DIR: &str = "web/dist/cheshmhayash";
+
+async fn spa_fallback(req: HttpRequest) -> actix_web::Result<HttpResponse> {
+    if req.method() == Method::GET {
+        let file = fs::NamedFile::open(format!("{FRONTEND_DIR}/index.html"))?;
+        Ok(file.into_response(&req))
+    } else {
+        Ok(HttpResponse::MethodNotAllowed().finish())
+    }
 }
 
 #[actix_web::main]
-async fn main() {
-    let setting = Settings::new().expect("loading configuration failed");
-    println!("settings: {:?}", setting);
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .init();
 
-    println!(
-        "listen on {}:{}",
-        setting.server().host(),
-        setting.server().port()
+    let settings = Settings::new().context("loading configuration failed")?;
+
+    let bind = format!("{}:{}", settings.server().host(), settings.server().port());
+
+    let mut clusters_map: HashMap<String, nats::Cluster> =
+        HashMap::with_capacity(settings.nats().len());
+    for cfg in settings.nats() {
+        tracing::info!(cluster = cfg.name(), url = cfg.url(), "connecting");
+        let cluster = nats::Cluster::connect(cfg)
+            .await
+            .with_context(|| format!("connect to cluster '{}' failed", cfg.name()))?;
+        clusters_map.insert(cfg.name().to_string(), cluster);
+    }
+    let clusters: Clusters = Arc::new(clusters_map);
+    let clusters_data = web::Data::new(clusters);
+
+    tracing::info!(
+        address = %bind,
+        clusters = clusters_data.len(),
+        "starting cheshmhayash"
     );
 
-    let http_server = {
-        let setting = setting.clone();
+    HttpServer::new(move || {
+        App::new()
+            .wrap(TracingLogger::default())
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header(),
+            )
+            .app_data(clusters_data.clone())
+            .service(handler::Admin::register(web::scope("/api/admin")))
+            .service(handler::Jsm::register(web::scope("/api/jsm")))
+            .service(handler::Healthz::register(web::scope("/healthz")))
+            .service(fs::Files::new("/", FRONTEND_DIR).index_file("index.html"))
+            .default_service(web::to(spa_fallback))
+    })
+    .workers(num_workers())
+    .bind(&bind)
+    .with_context(|| format!("binding to {bind} failed"))?
+    .run()
+    .await
+    .context("http server failed")?;
 
-        HttpServer::new(move || {
-            let clients: HashMap<String, nats::Client> = setting
-                .nats()
-                .iter()
-                .map(|s| (s.name().to_string(), nats::Client::new(s.monitoring())))
-                .collect();
+    Ok(())
+}
 
-            let nats_handler = handler::Nats::new(clients);
-
-            App::new()
-                .service(nats_handler.register(web::scope("/api")))
-                .service(handler::Healthz::register(web::scope("/healthz")))
-                .service(fs::Files::new("/", "web/dist/cheshmhayash/").index_file("index.html"))
-                .default_service(
-                    web::resource("").route(web::get().to(index)).route(
-                        web::route()
-                            .guard(guard::Not(guard::Get()))
-                            .to(HttpResponse::MethodNotAllowed),
-                    ),
-                )
-        })
-    };
-
-    http_server
-        .workers(12)
-        .bind(format!(
-            "{}:{}",
-            setting.server().host(),
-            setting.server().port()
-        ))
-        .expect("http server failed to bind")
-        .run()
-        .await
-        .expect("http server failed to run");
+fn num_workers() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
 }
