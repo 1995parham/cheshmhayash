@@ -2,34 +2,56 @@
 name: ci
 on:
   push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  check:
-    name: check
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - name: checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v5
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
-          override: true
           components: rustfmt, clippy
 
       - name: run cargo fmt
-        run: |
-          cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: run cargo clippy
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - run: |
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout sources
+        uses: actions/checkout@v5
+
+      - name: install stable toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: start services
+        run: |
           if [ -f docker-compose.yml ]; then
-            docker-compose up -d
+            docker compose up -d --wait
           fi
-      - run: |
-          cargo test
+
+      - name: run cargo test
+        run: cargo test --all-features
