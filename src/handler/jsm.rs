@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse, Scope};
 use serde::Deserialize;
+use serde_json::Value;
 
 use super::admin::Clusters;
 use super::ApiError;
@@ -23,12 +24,20 @@ impl Jsm {
     pub fn register(scope: Scope) -> Scope {
         scope
             .route(
+                "/clusters/{cluster}/overview",
+                web::get().to(Self::overview),
+            )
+            .route(
                 "/clusters/{cluster}/streams",
                 web::get().to(Self::list_streams),
             )
             .route(
                 "/clusters/{cluster}/streams/{stream}",
                 web::get().to(Self::stream_info),
+            )
+            .route(
+                "/clusters/{cluster}/streams/{stream}",
+                web::put().to(Self::update_stream),
             )
             .route(
                 "/clusters/{cluster}/streams/{stream}",
@@ -52,6 +61,17 @@ impl Jsm {
             )
     }
 
+    async fn overview(
+        data: web::Data<Clusters>,
+        path: web::Path<String>,
+    ) -> actix_web::Result<HttpResponse> {
+        let cluster = resolve(&data, &path)?;
+        Ok(match nats::jsm_overview(cluster).await {
+            Ok(v) => HttpResponse::Ok().json(v),
+            Err(err) => upstream_error(err),
+        })
+    }
+
     async fn list_streams(
         data: web::Data<Clusters>,
         path: web::Path<String>,
@@ -71,6 +91,38 @@ impl Jsm {
         let (cluster_name, stream) = path.into_inner();
         let cluster = resolve(&data, &cluster_name)?;
         Ok(match nats::stream_info(cluster, &stream).await {
+            Ok(v) => HttpResponse::Ok().json(v),
+            Err(err) => upstream_error(err),
+        })
+    }
+
+    async fn update_stream(
+        data: web::Data<Clusters>,
+        path: web::Path<(String, String)>,
+        body: web::Json<Value>,
+    ) -> actix_web::Result<HttpResponse> {
+        let (cluster_name, stream) = path.into_inner();
+        let cluster = resolve(&data, &cluster_name)?;
+        let mut config = body.into_inner();
+        // Ensure the URL name and config name agree to avoid silently
+        // renaming or targeting the wrong stream.
+        if let Some(obj) = config.as_object_mut() {
+            match obj.get("name") {
+                Some(Value::String(n)) if n != &stream => {
+                    return Ok(HttpResponse::BadRequest().json(ApiError::new(format!(
+                        "config name '{n}' does not match URL stream '{stream}'"
+                    ))));
+                }
+                None => {
+                    obj.insert("name".to_string(), Value::String(stream.clone()));
+                }
+                _ => {}
+            }
+        } else {
+            return Ok(HttpResponse::BadRequest()
+                .json(ApiError::new("body must be a StreamConfig JSON object")));
+        }
+        Ok(match nats::update_stream(cluster, &stream, config).await {
             Ok(v) => HttpResponse::Ok().json(v),
             Err(err) => upstream_error(err),
         })

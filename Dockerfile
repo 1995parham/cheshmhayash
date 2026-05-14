@@ -22,22 +22,14 @@ COPY src ./src
 COPY config ./config
 RUN cargo build --release --target x86_64-unknown-linux-musl
 
-# --- frontend build -------------------------------------------------------
-FROM node:20-alpine AS frontend
-
-WORKDIR /src
-COPY web/package.json web/package-lock.json ./
-RUN npm ci
-COPY web ./
-RUN npm run build -- --configuration production
-
 # --- runtime image --------------------------------------------------------
+# Frontend is a static, build-less SPA committed under web/dist/cheshmhayash/.
 FROM scratch
 
 WORKDIR /app
 COPY --from=backend /src/target/x86_64-unknown-linux-musl/release/cheshmhayash ./cheshmhayash
 COPY --from=backend /src/config ./config
-COPY --from=frontend /src/dist ./web/dist
+COPY web/dist ./web/dist
 
 EXPOSE 1378
 ENTRYPOINT ["/app/cheshmhayash"]

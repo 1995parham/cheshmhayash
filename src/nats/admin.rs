@@ -127,7 +127,7 @@ pub(crate) async fn request_json(
     Ok(value)
 }
 
-async fn discover(
+pub(crate) async fn discover(
     cluster: &Cluster,
     subject: String,
     payload: Bytes,
