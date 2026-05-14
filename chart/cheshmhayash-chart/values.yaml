@@ -124,6 +124,18 @@ service:
   # Use a specific nodePort/targetPort if you switch type: NodePort.
   annotations: {}
 
+# --- ingress routing ------------------------------------------------------
+# The chart ships two ingress mechanisms; enable whichever fits your cluster.
+# Don't enable both with the same hostname — most controllers (including
+# Contour) will pick a winner unpredictably.
+#
+#   ingress.*   — vanilla networking.k8s.io/v1 Ingress. Works on
+#                 nginx-ingress, AWS ALB, GCE, OpenShift route-from-ingress,
+#                 Contour, Traefik, …
+#   httpProxy.* — Contour-native projectcontour.io/v1 HTTPProxy. Use this
+#                 when you need Contour features that Ingress can't express
+#                 (cross-namespace TLS delegation, includes, weighted
+#                 services, retries, request mirroring, …).
 ingress:
   enabled: false
   className: ""
@@ -140,7 +152,7 @@ ingress:
 
 # Contour HTTPProxy (projectcontour.io/v1). Use this on clusters that run
 # Contour as the ingress controller (e.g. Snappcloud's OKD clusters) where
-# `Ingress` is not the preferred mechanism.
+# Contour-specific features beat plain Ingress.
 httpProxy:
   enabled: false
   # IngressClass / Contour shard. Snappcloud private: "private",
