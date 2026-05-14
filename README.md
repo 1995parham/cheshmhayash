@@ -1,6 +1,17 @@
-# cheshmhayash
+# cheshmhayash 👀
 
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/1995parham/cheshmhayash/ci.yaml?label=ci&logo=github&style=flat-square&branch=main)
+<p align="center">
+  <img src="./banner.png" alt="cheshmhayash" width="640" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/1995parham/cheshmhayash/actions/workflows/ci.yaml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/1995parham/cheshmhayash/ci.yaml?label=ci&logo=github&style=flat-square&branch=main" /></a>
+  <img alt="Go" src="https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white&style=flat-square" />
+  <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white&style=flat-square" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-6-3178C6?logo=typescript&logoColor=white&style=flat-square" />
+  <img alt="NATS" src="https://img.shields.io/badge/NATS-2.14-27AAE1?logo=natsdotio&logoColor=white&style=flat-square" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" />
+</p>
 
 ## Introduction
 
@@ -10,15 +21,9 @@ channels (`$SYS.REQ.*`) and JetStream API (`$JS.API.*`) that
 [`natscli`](https://github.com/nats-io/natscli) uses — and exposes them as
 plain HTTP + JSON for browsers, scripts, and internal tooling.
 
-```
-  o
- -|-   --- cheshmhayash --- NATS (cluster)
- /\
-```
-
 Because every endpoint is served through a single authenticated NATS
-connection, you do **not** need the server's HTTP monitoring port
-(`:8222`) open; only the client port (`:4222`, or wherever) is required.
+connection, you do **not** need the server's HTTP monitoring port (`:8222`)
+open; only the client port (`:4222`, or wherever) is required.
 
 ## Features
 
@@ -31,12 +36,16 @@ the same one you would get from the HTTP monitoring interface.
 - Targeted per-server endpoints: `VARZ`, `CONNZ`, `ROUTEZ`, `GATEWAYZ`,
   `LEAFZ`, `SUBSZ`, `JSZ`, `ACCOUNTZ`, `HEALTHZ`, `STATSZ`
 - Account-scoped endpoints: `CONNZ`, `LEAFZ`, `SUBSZ`, `JSZ`, `INFO`
+- Cluster-wide JetStream overview built from
+  `$SYS.REQ.SERVER.PING.JSZ` — every account, every stream, every
+  consumer, in a single round-trip
 - JetStream: list streams, stream info, list consumers, consumer info
 
 ### Actions
 
 - Server: config reload, lame-duck mode, kick a connection by CID
-- JetStream: purge stream, delete stream, delete consumer
+- JetStream: **edit** stream config (CodeMirror JSON editor with syntax
+  highlighting), purge, delete, delete consumer
 
 Destructive JetStream actions require `?confirm=true`; without it the
 server responds with `428 Precondition Required`.
@@ -53,8 +62,10 @@ server responds with `428 Precondition Required`.
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/reload` | reload config |
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/lame-duck` | graceful drain |
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/kick` | body: `{"cid": N}` |
+| `GET` | `/api/jsm/clusters/{c}/overview` | cluster-wide JetStream (sys-account) |
 | `GET` | `/api/jsm/clusters/{c}/streams?offset=N` | paginated |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}` | stream info |
+| `PUT` | `/api/jsm/clusters/{c}/streams/{s}` | full `StreamConfig` update |
 | `POST` | `/api/jsm/clusters/{c}/streams/{s}/purge?confirm=true` | purge all messages |
 | `DELETE` | `/api/jsm/clusters/{c}/streams/{s}?confirm=true` | delete stream |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}/consumers?offset=N` | list consumers |
@@ -66,7 +77,8 @@ server responds with `428 Precondition Required`.
 
 Settings are loaded from `config/default.toml`, overlaid with an optional
 `settings.toml`, and finally with environment variables prefixed
-`CHESHMHAYASH__` (double-underscore separates nested keys).
+`CHESHMHAYASH__` (double-underscore separates nested keys; list elements
+are indexed, e.g. `CHESHMHAYASH__NATS__0__USER`).
 
 ```toml
 [server]
@@ -80,7 +92,7 @@ port = 1378
 name = "local"
 url = "nats://127.0.0.1:4222"
 # creds_file = "./sys.creds"
-# user = "sys"
+# user = "admin"
 # password = "changeme"
 # request_timeout_ms = 2000     # single-reply request timeout
 # discovery_timeout_ms = 500    # window for multi-reply collection
@@ -90,20 +102,42 @@ url = "nats://127.0.0.1:4222"
 
 `$SYS.REQ.*` subjects are only routed when the connecting client is bound
 to the server's system account. Without system-account credentials, admin
-endpoints will time out. JetStream endpoints (`$JS.API.*`) work against
-whichever account the credentials grant you access to.
+endpoints time out and the cluster-wide JetStream overview comes back
+empty. The per-account `$JS.API.*` endpoints (list streams, stream info,
+update/purge/delete, consumers) run against whichever account the
+credentials grant; they will return `JetStream not enabled` (err_code
+10039) on a connection bound to `$SYS`.
+
+## Tech stack
+
+- **Backend** — Go 1.26, stdlib `net/http` (1.22+ pattern syntax),
+  `log/slog`, [`nats.go`](https://github.com/nats-io/nats.go) v1.52,
+  `BurntSushi/toml` for config.
+- **Frontend** — React 19 + TypeScript 6 on Vite 8. JSON editor uses
+  CodeMirror 6 (`@uiw/react-codemirror`, `@codemirror/lang-json`,
+  `@codemirror/theme-one-dark`).
+- **Runtime image** — `gcr.io/distroless/static-debian12:nonroot` (~10 MB).
 
 ## Running
 
 ### Local
 
 ```sh
-cargo run --release
+# Backend
+go run .                              # serves API + built SPA on :1378
+
+# Frontend (dev — separate terminal)
+cd frontend && npm install
+npm run dev                           # HMR on :5173, /api proxied to :1378
 ```
 
-Point your NATS server at the configured URL and hit
-`http://127.0.0.1:1378/api/admin/clusters/local/servers` to see discovery
-replies.
+For a single-binary production build:
+
+```sh
+cd frontend && npm install && npm run build
+go build -o ./bin/cheshmhayash .
+./bin/cheshmhayash                    # http://127.0.0.1:1378
+```
 
 ### Docker
 
@@ -130,9 +164,17 @@ config:
 ## Development
 
 ```sh
-cargo fmt --all
-cargo clippy --all-targets -- -D warnings
-cargo build --release
+# backend
+go fmt ./...
+go vet ./...
+go test -race ./...
+golangci-lint run
+
+# frontend
+cd frontend
+npm run typecheck
+npm run lint
+npm run build
 ```
 
 A `docker-compose.yml` is included for spinning up a local NATS server
@@ -140,4 +182,13 @@ with monitoring enabled, so the dashboard has something to talk to.
 
 ## License
 
-MIT
+Free and open source **forever**, just like
+[NATS](https://nats.io). Released under the
+[MIT License](LICENSE) — see the file for details.
+
+---
+
+<p align="center">
+  Built with ❤️ by <a href="https://github.com/1995parham">@1995parham</a> ·
+  <a href="https://github.com/1995parham/cheshmhayash">1995parham/cheshmhayash</a>
+</p>

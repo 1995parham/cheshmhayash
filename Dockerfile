@@ -1,35 +1,40 @@
-# syntax=docker/dockerfile:1.6
+# syntax=docker/dockerfile:1.7
 
-# --- backend build --------------------------------------------------------
-FROM rust:1-slim AS backend
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends musl-tools pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-RUN rustup target add x86_64-unknown-linux-musl
+# ---------- frontend build ------------------------------------------------
+FROM node:22-alpine AS frontend
 
 WORKDIR /src
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-# Prime the dependency cache with a stub main.rs so dependency compilation
-# is reused across source-only changes.
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src \
-    && echo 'fn main() {}' > src/main.rs \
-    && cargo build --release --target x86_64-unknown-linux-musl \
-    && rm -rf src target/x86_64-unknown-linux-musl/release/deps/cheshmhayash*
+COPY frontend ./
+RUN npm run build
 
-COPY src ./src
-COPY config ./config
-RUN cargo build --release --target x86_64-unknown-linux-musl
+# ---------- backend build -------------------------------------------------
+FROM golang:1.26-alpine AS backend
 
-# --- runtime image --------------------------------------------------------
-# Frontend is a static, build-less SPA committed under web/dist/cheshmhayash/.
-FROM scratch
+# Static binary, no CGO, smaller image.
+ENV CGO_ENABLED=0 GOFLAGS=-trimpath
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
+
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -ldflags="-s -w" -o /out/cheshmhayash .
+
+# ---------- runtime -------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
-COPY --from=backend /src/target/x86_64-unknown-linux-musl/release/cheshmhayash ./cheshmhayash
-COPY --from=backend /src/config ./config
-COPY web/dist ./web/dist
+COPY --from=backend /out/cheshmhayash ./cheshmhayash
+COPY config ./config
+COPY --from=frontend /src/dist ./frontend/dist
 
 EXPOSE 1378
+USER nonroot:nonroot
 ENTRYPOINT ["/app/cheshmhayash"]
