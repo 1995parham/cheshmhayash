@@ -45,14 +45,18 @@ serviceAccount:
   automountServiceAccountToken: false
 
 # ---- pod security ----------------------------------------------------------
-# Pod-level securityContext — satisfies the Restricted Pod Security Standard.
-# The distroless:nonroot base image runs as uid/gid 65532.
+# Pod-level securityContext — satisfies the Restricted Pod Security Standard
+# without pinning uid/gid (OpenShift's restricted-v2 SCC injects them from
+# the namespace's allowed range; vanilla Kubernetes inherits the
+# distroless:nonroot image's baked-in 65532 when nothing is set).
+# To pin them anyway:
+#   podSecurityContext:
+#     runAsUser: 65532
+#     runAsGroup: 65532
+#     fsGroup: 65532
+#     fsGroupChangePolicy: OnRootMismatch
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 65532
-  runAsGroup: 65532
-  fsGroup: 65532
-  fsGroupChangePolicy: OnRootMismatch
   seccompProfile:
     type: RuntimeDefault
 

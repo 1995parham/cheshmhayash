@@ -4,13 +4,15 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.0.0
+version: 1.0.1
 
 # Application version — matches the cheshmhayash binary release.
 appVersion: "0.5.0"
 
-# Lower bound for the Kubernetes API. Tracks the in-support minors.
-kubeVersion: ">=1.34.0-0"
+# Lower bound for the Kubernetes API. autoscaling/v2 is the strictest
+# requirement (GA in 1.23). The chart is tested against the in-support
+# minors but doesn't need newer APIs.
+kubeVersion: ">=1.23.0-0"
 
 home: https://github.com/1995parham/cheshmhayash
 sources:

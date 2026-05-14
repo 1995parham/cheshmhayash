@@ -32,7 +32,6 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=backend /out/cheshmhayash ./cheshmhayash
-COPY config ./config
 COPY --from=frontend /src/dist ./frontend/dist
 
 EXPOSE 1378
