@@ -126,4 +126,17 @@ creds_file = "/etc/cheshmhayash/creds/{{ $c.name }}.creds"
 user = "{{ $c.auth.userPassword.user }}"
 {{- end }}
 {{ end }}
+{{- range $i, $n := .Values.notify }}
+[[notify]]
+provider = "{{ $n.provider }}"
+{{- if $n.url }}
+url = "{{ $n.url }}"
+{{- end }}
+{{- if $n.channel }}
+channel = "{{ $n.channel }}"
+{{- end }}
+{{- if $n.username }}
+username = "{{ $n.username }}"
+{{- end }}
+{{ end }}
 {{- end }}

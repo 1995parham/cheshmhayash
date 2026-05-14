@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.0.6
+version: 1.0.7
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -41,7 +41,5 @@ annotations:
     - name: nats.io
       url: https://nats.io
   artifacthub.io/changes: |
-    - kind: changed
-      description: Modernize chart — full app.kubernetes.io/* labels, restricted-PSS securityContext, startup probe, HPA v2, PDB, optional NetworkPolicy.
     - kind: added
-      description: TOML config rendered via ConfigMap; NATS auth via chart-managed or existing Secret (user/password or .creds file).
+      description: Render `[[notify]]` blocks from `.Values.notify`. Webhook URL may be inline or sourced from a Secret via `urlSecret`.

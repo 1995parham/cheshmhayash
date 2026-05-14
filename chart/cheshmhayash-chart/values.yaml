@@ -243,6 +243,25 @@ clusters:
     #     userKey: user
     #     passwordKey: password
 
+# Each entry becomes a `[[notify]]` block in the rendered settings.toml.
+# `provider` selects the webhook flavor (slack | mattermost | matrix —
+# matrix assumes a Slack-compat bridge like matrix-hookshot).
+# The URL is supplied via exactly one of:
+#
+#   url: https://chat.example.com/hooks/abc…    # inline, lands in ConfigMap
+#
+#   urlSecret:                                  # recommended for production
+#     name: cheshmhayash-notify
+#     key: url
+#
+# Inline URLs are visible to anyone who can read the ConfigMap; use
+# `urlSecret` when the webhook is sensitive.
+notify: []
+# - provider: mattermost
+#   url: https://chat.example.com/hooks/abcdef
+#   channel: "#nats-events"
+#   username: cheshmhayash
+
 # Extra environment variables to inject into the container.
 extraEnv: []
 # - name: LOG_LEVEL

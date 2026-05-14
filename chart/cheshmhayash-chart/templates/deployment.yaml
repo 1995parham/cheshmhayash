@@ -60,7 +60,13 @@ spec:
               {{- $hasAuthEnv = true }}
             {{- end }}
           {{- end }}
-          {{- if or $hasAuthEnv .Values.extraEnv }}
+          {{- $hasNotifyEnv := false }}
+          {{- range $n := .Values.notify }}
+            {{- if $n.urlSecret }}
+              {{- $hasNotifyEnv = true }}
+            {{- end }}
+          {{- end }}
+          {{- if or $hasAuthEnv $hasNotifyEnv .Values.extraEnv }}
           env:
             {{- range $i, $c := .Values.clusters }}
             {{- if and $c.auth $c.auth.existingSecret }}
@@ -85,6 +91,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "cheshmhayash-chart.secretName" $ }}
                   key: {{ $c.name }}-password
+            {{- end }}
+            {{- end }}
+            {{- range $i, $n := .Values.notify }}
+            {{- if $n.urlSecret }}
+            - name: CHESHMHAYASH__NOTIFY__{{ $i }}__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $n.urlSecret.name }}
+                  key: {{ $n.urlSecret.key | default "url" }}
             {{- end }}
             {{- end }}
             {{- with .Values.extraEnv }}
