@@ -13,20 +13,20 @@ Reach the panel:
 {{- end }}
 {{- end }}
 {{- else if eq .Values.service.type "NodePort" }}
-  export NODE_PORT=$(kubectl --namespace {{ .Release.Namespace }} get svc {{ include "cheshmhayash.fullname" . }} -o jsonpath='{.spec.ports[0].nodePort}')
+  export NODE_PORT=$(kubectl --namespace {{ .Release.Namespace }} get svc {{ include "cheshmhayash-chart.fullname" . }} -o jsonpath='{.spec.ports[0].nodePort}')
   export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
   echo "http://$NODE_IP:$NODE_PORT"
 {{- else if eq .Values.service.type "LoadBalancer" }}
   NOTE: the LoadBalancer IP may take a couple of minutes.
-  kubectl --namespace {{ .Release.Namespace }} get svc -w {{ include "cheshmhayash.fullname" . }}
+  kubectl --namespace {{ .Release.Namespace }} get svc -w {{ include "cheshmhayash-chart.fullname" . }}
 {{- else }}
   kubectl --namespace {{ .Release.Namespace }} port-forward \
-    svc/{{ include "cheshmhayash.fullname" . }} 1378:{{ .Values.service.port }}
+    svc/{{ include "cheshmhayash-chart.fullname" . }} 1378:{{ .Values.service.port }}
   open http://127.0.0.1:1378
 {{- end }}
 
 Health check:
-  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "cheshmhayash.fullname" . }} \
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "cheshmhayash-chart.fullname" . }} \
     -- wget -qO- http://127.0.0.1:{{ .Values.server.port }}/healthz && echo "ok"
 
 Helm tests:

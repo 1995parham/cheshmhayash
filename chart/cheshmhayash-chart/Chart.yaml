@@ -1,5 +1,5 @@
 apiVersion: v2
-name: cheshmhayash
+name: cheshmhayash-chart
 description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 

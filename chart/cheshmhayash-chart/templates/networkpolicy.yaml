@@ -2,13 +2,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cheshmhayash.fullname" . }}
+  name: {{ include "cheshmhayash-chart.fullname" . }}
   labels:
-    {{- include "cheshmhayash.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "cheshmhayash.selectorLabels" . | nindent 6 }}
+      {{- include "cheshmhayash-chart.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
     - Egress

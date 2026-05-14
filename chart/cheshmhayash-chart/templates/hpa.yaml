@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "cheshmhayash.fullname" . }}
+  name: {{ include "cheshmhayash-chart.fullname" . }}
   labels:
-    {{- include "cheshmhayash.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "cheshmhayash.fullname" . }}
+    name: {{ include "cheshmhayash-chart.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

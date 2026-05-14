@@ -150,15 +150,34 @@ docker run --rm -p 1378:1378 \
 
 ### Kubernetes (Helm)
 
-The chart lives in `chart/cheshmhayash/`. Clusters are declared via
-`values.yaml`:
+The chart lives in `chart/cheshmhayash-chart/` and is published as an OCI
+artifact to GHCR on every tagged release.
+
+```sh
+# install from GHCR
+helm install panel \
+  oci://ghcr.io/1995parham/cheshmhayash-chart \
+  --version 1.0.0 \
+  -f my-values.yaml
+
+# or from a local checkout
+helm install panel chart/cheshmhayash-chart -f my-values.yaml
+```
+
+Clusters and authentication mode are declared in `values.yaml`. Each entry
+becomes a `[[nats]]` block. `auth` accepts exactly one of three modes —
+`userPassword` (chart-managed Secret), `existingSecret` (env vars from an
+external Secret), or `credsFileSecret` (a `.creds` file mounted read-only):
 
 ```yaml
-config:
-  servers:
-    - name: prod
-      url: nats://nats.nats.svc.cluster.local:4222
-      credsFile: /etc/cheshmhayash/sys.creds
+clusters:
+  - name: prod
+    url: nats://nats.nats.svc.cluster.local:4222
+    auth:
+      existingSecret:
+        name: nats-prod-creds
+        userKey: user
+        passwordKey: password
 ```
 
 ## Development

@@ -6,9 +6,9 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "cheshmhayash.fullname" . }}
+  name: {{ include "cheshmhayash-chart.fullname" . }}
   labels:
-    {{- include "cheshmhayash.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
 spec:
   {{- if .Values.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
@@ -17,5 +17,5 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      {{- include "cheshmhayash.selectorLabels" . | nindent 6 }}
+      {{- include "cheshmhayash-chart.selectorLabels" . | nindent 6 }}
 {{- end }}

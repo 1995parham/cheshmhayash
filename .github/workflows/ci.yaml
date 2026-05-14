@@ -133,7 +133,7 @@ jobs:
           version: v4.1.4
 
       - name: helm lint
-        run: helm lint chart/cheshmhayash
+        run: helm lint chart/cheshmhayash-chart
 
       - name: helm template (defaults)
-        run: helm template cheshmhayash chart/cheshmhayash > /dev/null
+        run: helm template cheshmhayash chart/cheshmhayash-chart > /dev/null

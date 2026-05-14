@@ -191,9 +191,12 @@ jobs:
         run: |
           # Sync chart appVersion to the released tag (strip leading 'v').
           version="${GITHUB_REF_NAME#v}"
-          sed -i -E "s/^appVersion:.*/appVersion: \"${version}\"/" chart/cheshmhayash/Chart.yaml
-          helm package chart/cheshmhayash --destination dist
+          sed -i -E "s/^appVersion:.*/appVersion: \"${version}\"/" chart/cheshmhayash-chart/Chart.yaml
+          helm package chart/cheshmhayash-chart --destination dist
 
       - name: push chart to ghcr.io
+        # Result: ghcr.io/<owner>/cheshmhayash-chart:<version>
+        # (helm push appends the chart's name from Chart.yaml as the final
+        # repository path segment.)
         run: |
-          helm push dist/cheshmhayash-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+          helm push dist/cheshmhayash-chart-*.tgz oci://ghcr.io/${{ github.repository_owner }}

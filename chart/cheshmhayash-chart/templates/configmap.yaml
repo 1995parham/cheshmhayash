@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cheshmhayash-chart.configMapName" . }}
+  labels:
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
+data:
+  settings.toml: |
+    {{- include "cheshmhayash-chart.settingsToml" . | nindent 4 }}

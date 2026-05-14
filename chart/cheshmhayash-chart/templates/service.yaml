@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cheshmhayash.fullname" . }}
+  name: {{ include "cheshmhayash-chart.fullname" . }}
   labels:
-    {{- include "cheshmhayash.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -16,4 +16,4 @@ spec:
       targetPort: http
       protocol: TCP
   selector:
-    {{- include "cheshmhayash.selectorLabels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.selectorLabels" . | nindent 4 }}

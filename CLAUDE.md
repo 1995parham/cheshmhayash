@@ -31,7 +31,7 @@ that talks to that JSON API. There is **no** HTTP monitoring port
 ├── config/default.toml              # ships in image
 ├── settings.toml                    # operator override (gitignored)
 ├── Dockerfile                       # multi-stage: node → go → distroless
-├── chart/                           # Helm chart for k8s deploys
+├── chart/cheshmhayash-chart/        # Helm chart — pushed to ghcr.io/1995parham/cheshmhayash-chart on tags
 └── .github/workflows/ci.yaml        # backend lint+test, frontend build, docker
 ```
 

@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cheshmhayash.fullname" . }}
+  name: {{ include "cheshmhayash-chart.fullname" . }}
   labels:
-    {{- include "cheshmhayash.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -13,23 +13,23 @@ spec:
     {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
-      {{- include "cheshmhayash.selectorLabels" . | nindent 6 }}
+      {{- include "cheshmhayash-chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "cheshmhayash.selectorLabels" . | nindent 8 }}
+        {{- include "cheshmhayash-chart.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
         {{- if .Values.restartOnConfigChange }}
-        checksum/config: {{ include "cheshmhayash.settingsToml" . | sha256sum }}
+        checksum/config: {{ include "cheshmhayash-chart.settingsToml" . | sha256sum }}
         {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "cheshmhayash.serviceAccountName" . }}
+      serviceAccountName: {{ include "cheshmhayash-chart.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -46,7 +46,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: {{ include "cheshmhayash.image" . }}
+          image: {{ include "cheshmhayash-chart.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
@@ -78,12 +78,12 @@ spec:
             - name: CHESHMHAYASH__NATS__{{ $i }}__USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "cheshmhayash.secretName" $ }}
+                  name: {{ include "cheshmhayash-chart.secretName" $ }}
                   key: {{ $c.name }}-user
             - name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "cheshmhayash.secretName" $ }}
+                  name: {{ include "cheshmhayash-chart.secretName" $ }}
                   key: {{ $c.name }}-password
             {{- end }}
             {{- end }}
@@ -151,7 +151,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "cheshmhayash.configMapName" . }}
+            name: {{ include "cheshmhayash-chart.configMapName" . }}
         {{- range $i, $c := .Values.clusters }}
         {{- if and $c.auth $c.auth.credsFileSecret }}
         - name: creds-{{ $c.name }}
@@ -186,6 +186,6 @@ spec:
           whenUnsatisfiable: {{ .whenUnsatisfiable | default "ScheduleAnyway" }}
           labelSelector:
             matchLabels:
-              {{- include "cheshmhayash.selectorLabels" $ | nindent 14 }}
+              {{- include "cheshmhayash-chart.selectorLabels" $ | nindent 14 }}
         {{- end }}
       {{- end }}

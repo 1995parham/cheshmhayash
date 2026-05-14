@@ -11,7 +11,10 @@ image:
 imagePullSecrets: []
 
 # ---- naming ----------------------------------------------------------------
-nameOverride: ""
+# The chart artifact is published as `cheshmhayash-chart` so it sits next to
+# the image package on ghcr.io. The override below keeps rendered resource
+# names short (e.g. Deployment `cheshmhayash` not `cheshmhayash-chart`).
+nameOverride: cheshmhayash
 fullnameOverride: ""
 
 # ---- workload --------------------------------------------------------------

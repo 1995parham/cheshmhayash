@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "cheshmhayash.name" -}}
+{{- define "cheshmhayash-chart.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -9,7 +9,7 @@ Expand the name of the chart.
 Fully qualified app name. Truncated at 63 chars because some Kubernetes
 name fields are limited to that length (DNS-1123 label).
 */}}
-{{- define "cheshmhayash.fullname" -}}
+{{- define "cheshmhayash-chart.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -25,16 +25,16 @@ name fields are limited to that length (DNS-1123 label).
 {{/*
 Chart name + version, used by the helm.sh/chart label.
 */}}
-{{- define "cheshmhayash.chart" -}}
+{{- define "cheshmhayash-chart.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Recommended app.kubernetes.io/* labels. Apply to every rendered object.
 */}}
-{{- define "cheshmhayash.labels" -}}
-helm.sh/chart: {{ include "cheshmhayash.chart" . }}
-{{ include "cheshmhayash.selectorLabels" . }}
+{{- define "cheshmhayash-chart.labels" -}}
+helm.sh/chart: {{ include "cheshmhayash-chart.chart" . }}
+{{ include "cheshmhayash-chart.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -47,17 +47,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Immutable selector subset. Only name+instance — never include `version`
 because Deployment selectors are immutable after creation.
 */}}
-{{- define "cheshmhayash.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "cheshmhayash.name" . }}
+{{- define "cheshmhayash-chart.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "cheshmhayash-chart.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 ServiceAccount name in use.
 */}}
-{{- define "cheshmhayash.serviceAccountName" -}}
+{{- define "cheshmhayash-chart.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "cheshmhayash.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "cheshmhayash-chart.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -66,7 +66,7 @@ ServiceAccount name in use.
 {{/*
 Container image reference (`repo:tag`). Tag falls back to .Chart.AppVersion.
 */}}
-{{- define "cheshmhayash.image" -}}
+{{- define "cheshmhayash-chart.image" -}}
 {{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
 {{- end }}
@@ -74,22 +74,22 @@ Container image reference (`repo:tag`). Tag falls back to .Chart.AppVersion.
 {{/*
 Name of the ConfigMap holding settings.toml.
 */}}
-{{- define "cheshmhayash.configMapName" -}}
-{{- printf "%s-config" (include "cheshmhayash.fullname" .) -}}
+{{- define "cheshmhayash-chart.configMapName" -}}
+{{- printf "%s-config" (include "cheshmhayash-chart.fullname" .) -}}
 {{- end }}
 
 {{/*
 Name of the chart-managed Secret (only created when at least one cluster
 declares `auth.userPassword`).
 */}}
-{{- define "cheshmhayash.secretName" -}}
-{{- printf "%s-auth" (include "cheshmhayash.fullname" .) -}}
+{{- define "cheshmhayash-chart.secretName" -}}
+{{- printf "%s-auth" (include "cheshmhayash-chart.fullname" .) -}}
 {{- end }}
 
 {{/*
 True when any cluster declares a chart-managed userPassword.
 */}}
-{{- define "cheshmhayash.hasManagedAuth" -}}
+{{- define "cheshmhayash-chart.hasManagedAuth" -}}
 {{- $managed := false -}}
 {{- range $i, $c := .Values.clusters -}}
 {{- if and $c.auth $c.auth.userPassword -}}
@@ -104,7 +104,7 @@ Render settings.toml. Passwords live in env vars (CHESHMHAYASH__NATS__i__PASSWOR
 so they never appear in the ConfigMap; `creds_file` paths point at the
 projected Secret mount.
 */}}
-{{- define "cheshmhayash.settingsToml" -}}
+{{- define "cheshmhayash-chart.settingsToml" -}}
 [server]
 host = "{{ .Values.server.host }}"
 port = {{ .Values.server.port }}
