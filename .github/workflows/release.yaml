@@ -124,7 +124,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   sign:
-    name: sign image (cosign + SBOM)
+    name: sign image (cosign)
     runs-on: ubuntu-latest
     needs: image
     # Only sign for branch pushes / tags, never for PRs.
@@ -148,26 +148,16 @@ jobs:
           # cosign keyless signs every tag we just pushed using the
           # workflow's OIDC token. The signature lands as a co-located
           # OCI artifact on ghcr.io alongside the image.
+          #
+          # SBOM + provenance attestations are produced by the build job's
+          # docker/build-push-action (sbom: true, provenance: mode=max) and
+          # ship with the image manifest — no separate attest step needed.
           for tag in $TAGS; do
             ref="${tag%:*}@${DIGEST}"
             echo "::group::cosign sign $ref"
             cosign sign --yes "$ref"
             echo "::endgroup::"
           done
-
-      - name: generate sbom (SPDX)
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.image.outputs.digest }}
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: attach sbom to image
-        env:
-          DIGEST: ${{ needs.image.outputs.digest }}
-        run: |
-          cosign attest --yes --type spdxjson --predicate sbom.spdx.json \
-            "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
 
   chart:
     name: publish Helm chart (OCI)
