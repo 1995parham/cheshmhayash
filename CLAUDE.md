@@ -15,11 +15,12 @@ that talks to that JSON API. There is **no** HTTP monitoring port
 
 ```
 .
-├── main.go                          # entrypoint
+├── main.go                          # entrypoint (HTTP server, or `-mcp` stdio MCP server)
 ├── internal/
 │   ├── config/                      # TOML + env-var loader
 │   ├── natsx/                       # NATS client + admin/jsm subjects
-│   └── handler/                     # http.ServeMux routes (Go 1.22+ syntax)
+│   ├── handler/                     # http.ServeMux routes (Go 1.22+ syntax)
+│   └── mcp/                         # stdio JSON-RPC MCP server (same natsx.Manager)
 ├── frontend/                        # React + TS + Vite SPA
 │   ├── src/
 │   │   ├── App.tsx                  # shell + tabs + hero
@@ -58,6 +59,18 @@ go build -o ./bin/cheshmhayash .
 
 Docker — `docker build -t cheshmhayash .` and `docker run -p 1378:1378
 -v "$PWD/settings.toml:/app/settings.toml:ro" cheshmhayash`.
+
+MCP mode — the same binary, with `-mcp`, runs an MCP server on stdio
+instead of the HTTP listener:
+
+```sh
+./bin/cheshmhayash -mcp                       # read-only tool set
+CHESHMHAYASH_MCP_WRITE=1 ./bin/cheshmhayash -mcp  # exposes purge/delete/kick/reload
+```
+
+It shares `settings.toml` with HTTP mode (so configured clusters appear
+as a `cluster` argument on every tool). All logging goes to stderr
+because stdout is the JSON-RPC channel.
 
 ## Configuration
 
