@@ -1,21 +1,38 @@
-1. Get the application URL by running these commands:
-{{- if .Values.ingress.enabled }}
-{{- range $host := .Values.ingress.hosts }}
-  {{- range .paths }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ . }}
-  {{- end }}
+cheshmhayash {{ .Chart.AppVersion }} — release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Configured NATS clusters:
+{{- range .Values.clusters }}
+  - {{ .name }} → {{ .url }}
 {{- end }}
-{{- else if contains "NodePort" .Values.service.type }}
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "cheshmhayash.fullname" . }})
-  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
-  echo http://$NODE_IP:$NODE_PORT
-{{- else if contains "LoadBalancer" .Values.service.type }}
-     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-           You can watch the status of by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "cheshmhayash.fullname" . }}'
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "cheshmhayash.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
-  echo http://$SERVICE_IP:{{ .Values.service.port }}
-{{- else if contains "ClusterIP" .Values.service.type }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "cheshmhayash.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
-  echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:80
+
+Reach the panel:
+{{- if .Values.ingress.enabled }}
+{{- range $h := .Values.ingress.hosts }}
+{{- range $h.paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $h.host }}{{ .path }}
+{{- end }}
+{{- end }}
+{{- else if eq .Values.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl --namespace {{ .Release.Namespace }} get svc {{ include "cheshmhayash.fullname" . }} -o jsonpath='{.spec.ports[0].nodePort}')
+  export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+  echo "http://$NODE_IP:$NODE_PORT"
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  NOTE: the LoadBalancer IP may take a couple of minutes.
+  kubectl --namespace {{ .Release.Namespace }} get svc -w {{ include "cheshmhayash.fullname" . }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward \
+    svc/{{ include "cheshmhayash.fullname" . }} 1378:{{ .Values.service.port }}
+  open http://127.0.0.1:1378
+{{- end }}
+
+Health check:
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "cheshmhayash.fullname" . }} \
+    -- wget -qO- http://127.0.0.1:{{ .Values.server.port }}/healthz && echo "ok"
+
+Helm tests:
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+
+{{- if not (or .Values.serviceAccount.automountServiceAccountToken (gt (len .Values.clusters) 0)) }}
+
+WARNING: no NATS clusters were configured. Set `clusters` in values.yaml.
 {{- end }}

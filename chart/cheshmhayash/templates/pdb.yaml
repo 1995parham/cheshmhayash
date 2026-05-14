@@ -1,0 +1,21 @@
+{{- $effectiveReplicas := .Values.replicaCount -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- $effectiveReplicas = .Values.autoscaling.minReplicas -}}
+{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int $effectiveReplicas) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cheshmhayash.fullname" . }}
+  labels:
+    {{- include "cheshmhayash.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  {{- else if .Values.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cheshmhayash.selectorLabels" . | nindent 6 }}
+{{- end }}

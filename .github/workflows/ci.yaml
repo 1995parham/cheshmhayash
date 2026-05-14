@@ -87,21 +87,24 @@ jobs:
         run: npm run build
 
       - name: upload bundle
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
           if-no-files-found: error
+          retention-days: 7
 
   docker:
-    name: docker / build
+    name: docker / build (smoke test)
     runs-on: ubuntu-latest
     needs: [backend-test, frontend]
+    # Skip on main pushes — release.yaml builds + pushes there.
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v6
 
       - name: download frontend bundle
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -117,3 +120,20 @@ jobs:
           tags: cheshmhayash:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  helm:
+    name: helm / lint + template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: setup helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.1.4
+
+      - name: helm lint
+        run: helm lint chart/cheshmhayash
+
+      - name: helm template (defaults)
+        run: helm template cheshmhayash chart/cheshmhayash > /dev/null

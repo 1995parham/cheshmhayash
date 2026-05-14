@@ -5,11 +5,30 @@ metadata:
   labels:
     {{- include "cheshmhayash.labels" . | nindent 4 }}
   annotations:
-    "helm.sh/hook": test-success
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
-  containers:
-    - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ include "cheshmhayash.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: healthz
+      image: busybox:1.37
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+      command: ["sh", "-c"]
+      args:
+        - |
+          set -eu
+          url="http://{{ include "cheshmhayash.fullname" . }}:{{ .Values.service.port }}/healthz"
+          echo "GET $url"
+          # /healthz returns 204 — expect a 0-byte body and success.
+          wget -q --tries=3 --timeout=5 --spider "$url"
+          echo "ok"

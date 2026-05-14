@@ -1,67 +1,231 @@
-# Default values for cheshmhayash.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# Default values for the cheshmhayash chart.
+# Reference: https://helm.sh/docs/chart_best_practices/values/
 
-replicaCount: 1
-
+# ---- image -----------------------------------------------------------------
 image:
-  repository: 1995parham/cheshmhayash
-  pullPolicy: Always
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: latest
+  repository: ghcr.io/1995parham/cheshmhayash
+  # Override the image tag (defaults to .Chart.AppVersion when empty).
+  tag: ""
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
+
+# ---- naming ----------------------------------------------------------------
 nameOverride: ""
 fullnameOverride: ""
 
-podAnnotations: {}
+# ---- workload --------------------------------------------------------------
+replicaCount: 2
 
+# Update strategy for the Deployment. RollingUpdate is the only sensible
+# default for a stateless HTTP gateway.
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+revisionHistoryLimit: 5
+
+# Optional priorityClassName (e.g. system-cluster-critical for a control-plane
+# adjacent dashboard).
+priorityClassName: ""
+
+# ---- serviceAccount --------------------------------------------------------
+serviceAccount:
+  create: true
+  # Provide a name to reuse an existing ServiceAccount. When empty and
+  # `create: true`, the chart generates one from the release name.
+  name: ""
+  annotations: {}
+  # cheshmhayash does not call the Kubernetes API. Off by default.
+  automountServiceAccountToken: false
+
+# ---- pod security ----------------------------------------------------------
+# Pod-level securityContext — satisfies the Restricted Pod Security Standard.
+# The distroless:nonroot base image runs as uid/gid 65532.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level securityContext.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+# ---- resources -------------------------------------------------------------
+# Modest defaults that fit a ~10 MB binary. Tune per cluster.
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    # CPU limits often hurt latency under load — omit unless required.
+    memory: 128Mi
+
+# ---- probes ----------------------------------------------------------------
+# All three probes hit /healthz on the HTTP port. The startup probe gates
+# the others so a slow first boot does not get killed by livenessProbe.
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 5
+    failureThreshold: 30
+    timeoutSeconds: 2
+  readiness:
+    enabled: true
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+    successThreshold: 1
+  liveness:
+    enabled: true
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+# ---- scheduling ------------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Spread replicas across zones / nodes. Keys are templated as topology keys
+# directly; use [] to disable.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    # labelSelector is appended automatically by the template using the
+    # standard selectorLabels.
+
+podAnnotations: {}
+podLabels: {}
+
+# ---- networking ------------------------------------------------------------
 service:
   type: ClusterIP
   port: 1378
+  # Use a specific nodePort/targetPort if you switch type: NodePort.
+  annotations: {}
 
 ingress:
   enabled: false
+  className: ""
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
   hosts:
-    - host: chart-example.local
-      paths: []
+    - host: cheshmhayash.local
+      paths:
+        - path: /
+          pathType: Prefix
   tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
+  # - secretName: cheshmhayash-tls
+  #   hosts:
+  #     - cheshmhayash.local
 
-resources:
-  limits:
-    cpu: 500m
-    memory: 128Mi
-  requests:
-    cpu: 50m
-    memory: 32Mi
+# Network policy is opt-in and only useful when your cluster runs a
+# NetworkPolicy controller (Calico, Cilium, etc.). When enabled, allow
+# ingress from the listed selectors and egress to your NATS endpoints.
+networkPolicy:
+  enabled: false
+  ingress:
+    # Selectors allowed to call cheshmhayash on `service.port`. Empty
+    # means "allow all" (only meaningful with namespace-default deny).
+    fromNamespaceSelector: {}
+    fromPodSelector: {}
+  egress:
+    # CIDRs or selectors that contain your NATS server(s). Required when
+    # the chart's default deny-all egress rule is left enabled.
+    natsCidrs: []
+    natsPorts:
+      - 4222
+    # Always allow cluster DNS so service-name URLs (e.g.
+    # nats.nats.svc.cluster.local) resolve.
+    allowDNS: true
 
+# ---- horizontal pod autoscaler --------------------------------------------
 autoscaling:
   enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
   # targetMemoryUtilizationPercentage: 80
+  behavior: {}
 
-nodeSelector: {}
+# ---- pod disruption budget -------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  # Either minAvailable or maxUnavailable (mutually exclusive).
+  minAvailable: 1
+  # maxUnavailable: 1
 
-tolerations: []
+# ---- application configuration --------------------------------------------
+server:
+  # The bind host inside the container. Almost always 0.0.0.0.
+  host: 0.0.0.0
+  # Container port. Used by the Service `targetPort` and all three probes.
+  port: 1378
 
-affinity: {}
+# Each entry below becomes a `[[nats]]` block in the rendered settings.toml.
+# `auth` is optional and accepts exactly one of three shapes:
+#
+#   userPassword:
+#     user: admin
+#     password: changeme       # chart writes a Secret containing this
+#
+#   existingSecret:                                  (recommended)
+#     name: nats-admin-creds
+#     userKey: user
+#     passwordKey: password
+#
+#   credsFileSecret:                                 (preferred for nkey/JWT)
+#     name: nats-sys-creds
+#     key: sys.creds            # file is mounted read-only into the pod
+#
+clusters:
+  - name: local
+    url: nats://nats.nats.svc.cluster.local:4222
+    requestTimeoutMs: 5000
+    discoveryTimeoutMs: 1500
+    # auth:
+    #   existingSecret:
+    #     name: nats-admin-creds
+    #     userKey: user
+    #     passwordKey: password
 
-config:
-  # List of NATS clusters to administer. Each entry becomes a `[[nats]]`
-  # block in the mounted settings.toml. `url` is the client port;
-  # administrative endpoints require system-account credentials (either a
-  # creds file mounted into the pod or user/password).
-  servers:
-    - name: local
-      url: nats://nats.default.svc.cluster.local:4222
-      # credsFile: /etc/cheshmhayash/sys.creds
-      # user: sys
-      # password: changeme
+# Extra environment variables to inject into the container.
+extraEnv: []
+# - name: LOG_LEVEL
+#   value: debug
+
+# Extra envFrom sources (Secret/ConfigMap).
+extraEnvFrom: []
+
+# Extra arbitrary volumes / mounts (e.g. a TLS bundle to trust).
+extraVolumes: []
+extraVolumeMounts: []
+
+# Sidecars and init containers — left empty by default.
+extraContainers: []
+initContainers: []
+
+# When set, the chart adds an extra deployment annotation derived from
+# the resolved settings.toml so config changes trigger a rollout.
+restartOnConfigChange: true
+
+# Service monitor for kube-prometheus-stack. The app currently exposes no
+# /metrics endpoint, so this is off by default — flip when you add one.
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  path: /metrics
+  labels: {}

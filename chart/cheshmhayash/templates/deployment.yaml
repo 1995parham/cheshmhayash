@@ -5,55 +5,167 @@ metadata:
   labels:
     {{- include "cheshmhayash.labels" . | nindent 4 }}
 spec:
-{{- if not .Values.autoscaling.enabled }}
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
-{{- end }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   selector:
     matchLabels:
       {{- include "cheshmhayash.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-    {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-    {{- end }}
       labels:
         {{- include "cheshmhayash.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if .Values.restartOnConfigChange }}
+        checksum/config: {{ include "cheshmhayash.settingsToml" . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      serviceAccountName: {{ include "cheshmhayash.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ include "cheshmhayash.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
           ports:
             - name: http
-              containerPort: 1378
+              containerPort: {{ .Values.server.port }}
               protocol: TCP
-          livenessProbe:
+          {{- $hasAuthEnv := false }}
+          {{- range $c := .Values.clusters }}
+            {{- if and $c.auth (or $c.auth.existingSecret $c.auth.userPassword) }}
+              {{- $hasAuthEnv = true }}
+            {{- end }}
+          {{- end }}
+          {{- if or $hasAuthEnv .Values.extraEnv }}
+          env:
+            {{- range $i, $c := .Values.clusters }}
+            {{- if and $c.auth $c.auth.existingSecret }}
+            - name: CHESHMHAYASH__NATS__{{ $i }}__USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.auth.existingSecret.name }}
+                  key: {{ $c.auth.existingSecret.userKey | default "user" }}
+            - name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.auth.existingSecret.name }}
+                  key: {{ $c.auth.existingSecret.passwordKey | default "password" }}
+            {{- else if and $c.auth $c.auth.userPassword }}
+            - name: CHESHMHAYASH__NATS__{{ $i }}__USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cheshmhayash.secretName" $ }}
+                  key: {{ $c.name }}-user
+            - name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cheshmhayash.secretName" $ }}
+                  key: {{ $c.name }}-password
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
             httpGet:
               path: /healthz
               port: http
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          env:
-            - name: HELM_RELEASE_REVERSION
-              value: {{ .Release.Revision | quote }}
           volumeMounts:
-            - name: configuration
-              mountPath: "/app/settings.toml"
-              subPath: "settings.toml"
+            - name: config
+              mountPath: /app/settings.toml
+              subPath: settings.toml
               readOnly: true
+            {{- range $i, $c := .Values.clusters }}
+            {{- if and $c.auth $c.auth.credsFileSecret }}
+            - name: creds-{{ $c.name }}
+              mountPath: /etc/cheshmhayash/creds/{{ $c.name }}.creds
+              subPath: {{ $c.auth.credsFileSecret.key }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            # readOnlyRootFilesystem is true, so anything the binary writes
+            # has to land on an emptyDir.
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
-        - name: configuration
+        - name: config
           configMap:
-            name: {{ include "cheshmhayash.fullname" . }}
+            name: {{ include "cheshmhayash.configMapName" . }}
+        {{- range $i, $c := .Values.clusters }}
+        {{- if and $c.auth $c.auth.credsFileSecret }}
+        - name: creds-{{ $c.name }}
+          secret:
+            secretName: {{ $c.auth.credsFileSecret.name }}
+            defaultMode: 0400
+        {{- end }}
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -65,4 +177,15 @@ spec:
       {{- with .Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- range . }}
+        - maxSkew: {{ .maxSkew | default 1 }}
+          topologyKey: {{ .topologyKey | quote }}
+          whenUnsatisfiable: {{ .whenUnsatisfiable | default "ScheduleAnyway" }}
+          labelSelector:
+            matchLabels:
+              {{- include "cheshmhayash.selectorLabels" $ | nindent 14 }}
+        {{- end }}
       {{- end }}

@@ -1,23 +1,44 @@
 apiVersion: v2
 name: cheshmhayash
-description: NATS Monitoring Dashboard
-
-# A chart can be either an 'application' or a 'library' chart.
-#
-# Application charts are a collection of templates that can be packaged into versioned archives
-# to be deployed.
-#
-# Library charts provide useful utilities or functions for the chart developer. They're included as
-# a dependency of application charts to inject those utilities and functions into the rendering
-# pipeline. Library charts do not define any templates and therefore cannot be deployed.
+description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
-# This is the chart version. This version number should be incremented each time you make changes
-# to the chart and its templates, including the app version.
-# Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.2.0
+# Chart version — bump on every chart change (independent of appVersion).
+version: 1.0.0
 
-# This is the version number of the application being deployed. This version number should be
-# incremented each time you make changes to the application. Versions are not expected to
-# follow Semantic Versioning. They should reflect the version the application is using.
-appVersion: "0.3.0"
+# Application version — matches the cheshmhayash binary release.
+appVersion: "0.5.0"
+
+# Lower bound for the Kubernetes API. Tracks the in-support minors.
+kubeVersion: ">=1.34.0-0"
+
+home: https://github.com/1995parham/cheshmhayash
+sources:
+  - https://github.com/1995parham/cheshmhayash
+icon: https://raw.githubusercontent.com/1995parham/cheshmhayash/main/banner.png
+keywords:
+  - nats
+  - jetstream
+  - admin
+  - dashboard
+  - panel
+  - monitoring
+
+maintainers:
+  - name: Parham Alvani
+    url: https://github.com/1995parham
+    email: parham.alvani@gmail.com
+
+annotations:
+  artifacthub.io/category: monitoring
+  artifacthub.io/license: MIT
+  artifacthub.io/links: |
+    - name: source
+      url: https://github.com/1995parham/cheshmhayash
+    - name: nats.io
+      url: https://nats.io
+  artifacthub.io/changes: |
+    - kind: changed
+      description: Modernize chart — full app.kubernetes.io/* labels, restricted-PSS securityContext, startup probe, HPA v2, PDB, optional NetworkPolicy.
+    - kind: added
+      description: TOML config rendered via ConfigMap; NATS auth via chart-managed or existing Secret (user/password or .creds file).
