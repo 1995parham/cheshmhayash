@@ -1,0 +1,40 @@
+{{- if .Values.httpProxy.enabled -}}
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: {{ include "cheshmhayash-chart.fullname" . }}
+  labels:
+    {{- include "cheshmhayash-chart.labels" . | nindent 4 }}
+  {{- with .Values.httpProxy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.httpProxy.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  virtualhost:
+    fqdn: {{ required ".Values.httpProxy.fqdn is required when httpProxy.enabled" .Values.httpProxy.fqdn | quote }}
+    {{- with .Values.httpProxy.tls }}
+    tls:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.httpProxy.corsPolicy }}
+    corsPolicy:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  routes:
+    {{- if .Values.httpProxy.routes }}
+    {{- toYaml .Values.httpProxy.routes | nindent 4 }}
+    {{- else }}
+    - conditions:
+        - prefix: /
+      services:
+        - name: {{ include "cheshmhayash-chart.fullname" . }}
+          port: {{ .Values.service.port }}
+      {{- with .Values.httpProxy.timeoutPolicy }}
+      timeoutPolicy:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+{{- end }}

@@ -6,7 +6,7 @@
 
 image:
   repository: ghcr.io/1995parham/cheshmhayash
-  tag: "0.5.0"
+  tag: "0.5.1"
   pullPolicy: IfNotPresent
 
 replicaCount: 2
@@ -31,9 +31,21 @@ clusters:
         userKey: admin_username
         passwordKey: admin_password
 
-# Verify via port-forward first; add ingress later once we have a host/cert.
+# Vanilla Ingress is off — Snappcloud routes via Contour HTTPProxy.
 ingress:
   enabled: false
+
+# Internal HTTPS reach via the cluster's Contour "private" shard plus the
+# delegated wildcard letsencrypt cert.
+httpProxy:
+  enabled: true
+  ingressClassName: private
+  fqdn: cheshmhayash.apps.private.okd4.teh-2.snappcloud.io
+  tls:
+    secretName: openshift-ingress/letsencrypt
+    enableFallbackCertificate: true
+  timeoutPolicy:
+    idleConnection: 30s
 
 # Cluster-wide NetworkPolicy story isn't established here — leave off.
 networkPolicy:

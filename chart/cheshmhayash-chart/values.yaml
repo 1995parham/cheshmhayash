@@ -138,6 +138,29 @@ ingress:
   #   hosts:
   #     - cheshmhayash.local
 
+# Contour HTTPProxy (projectcontour.io/v1). Use this on clusters that run
+# Contour as the ingress controller (e.g. Snappcloud's OKD clusters) where
+# `Ingress` is not the preferred mechanism.
+httpProxy:
+  enabled: false
+  # IngressClass / Contour shard. Snappcloud private: "private",
+  # public: "public", inter-dc: "inter-dc", inter-venture: "inter-venture".
+  ingressClassName: ""
+  # Required when enabled. The FQDN browsers will hit.
+  fqdn: ""
+  annotations: {}
+  # TLS uses a Secret reference that supports cross-namespace delegated
+  # certs in Contour (e.g. "openshift-ingress/letsencrypt").
+  tls:
+    secretName: ""
+    enableFallbackCertificate: true
+  # corsPolicy: {}
+  # timeoutPolicy:
+  #   idleConnection: 30s
+  # Full custom routes — overrides the default single root route to
+  # cheshmhayash:service.port when set.
+  routes: []
+
 # Network policy is opt-in and only useful when your cluster runs a
 # NetworkPolicy controller (Calico, Cilium, etc.). When enabled, allow
 # ingress from the listed selectors and egress to your NATS endpoints.
