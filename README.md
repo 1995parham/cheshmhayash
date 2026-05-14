@@ -5,12 +5,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1995parham/cheshmhayash/actions/workflows/ci.yaml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/1995parham/cheshmhayash/ci.yaml?label=ci&logo=github&style=flat-square&branch=main" /></a>
-  <img alt="Go" src="https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white&style=flat-square" />
-  <img alt="React" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white&style=flat-square" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/typescript-6-3178C6?logo=typescript&logoColor=white&style=flat-square" />
-  <img alt="NATS" src="https://img.shields.io/badge/NATS-2.14-27AAE1?logo=natsdotio&logoColor=white&style=flat-square" />
-  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" />
+  <a href="https://github.com/1995parham/cheshmhayash/actions/workflows/ci.yaml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/1995parham/cheshmhayash/ci.yaml?label=ci&logo=github&style=for-the-badge&branch=main" /></a>
+  <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/1995parham/cheshmhayash?style=for-the-badge&logo=go" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" />
 </p>
 
 ## Introduction
