@@ -88,6 +88,15 @@ export const api = {
       "DELETE",
       `/api/jsm/clusters/${enc(c)}/streams/${enc(s)}/consumers/${enc(n)}?confirm=true`,
     ),
+  metaStepdown: (c: string) =>
+    http<unknown>("POST", `/api/jsm/clusters/${enc(c)}/actions/meta-stepdown?confirm=true`),
+  streamStepdown: (c: string, s: string) =>
+    http<unknown>("POST", `/api/jsm/clusters/${enc(c)}/streams/${enc(s)}/actions/stepdown?confirm=true`),
+  consumerStepdown: (c: string, s: string, n: string) =>
+    http<unknown>(
+      "POST",
+      `/api/jsm/clusters/${enc(c)}/streams/${enc(s)}/consumers/${enc(n)}/actions/stepdown?confirm=true`,
+    ),
 };
 
 // Fold the per-server JSZ replies into a single per-account / per-stream

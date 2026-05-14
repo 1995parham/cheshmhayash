@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,7 +20,24 @@ import (
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/mcp"
 	"github.com/1995parham/cheshmhayash/internal/natsx"
+	"github.com/1995parham/cheshmhayash/internal/notify"
 )
+
+// notifyConfigs converts the typed config.Notify slice into the loose
+// notify.ProviderConfig shape (decoupled to keep notify free of a config
+// import cycle).
+func notifyConfigs(in []config.Notify) []notify.ProviderConfig {
+	out := make([]notify.ProviderConfig, 0, len(in))
+	for _, n := range in {
+		out = append(out, notify.ProviderConfig{
+			Provider: n.Provider,
+			URL:      n.URL,
+			Channel:  n.Channel,
+			Username: n.Username,
+		})
+	}
+	return out
+}
 
 const (
 	frontendDir     = "frontend/dist"
@@ -69,6 +87,27 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	defer mgr.Close()
+
+	// Webhook notifier — subscribes to JS advisory subjects on every
+	// configured cluster and fans events out to the providers in
+	// settings.Notify. Empty list means "no notifications".
+	notifier, err := notify.New(log, notifyConfigs(settings.Notify))
+	if err != nil {
+		return fmt.Errorf("notify init: %w", err)
+	}
+	if notifier.Enabled() {
+		for _, c := range settings.NATS {
+			cluster := mgr.Get(c.Name)
+			if cluster == nil {
+				continue
+			}
+			if err := notifier.Subscribe(cluster); err != nil {
+				log.Warn("notify subscribe failed", "cluster", c.Name, "err", err)
+			}
+		}
+		log.Info("notify enabled", "providers", len(settings.Notify))
+	}
+	defer notifier.Close()
 
 	// Expose MCP over HTTP at /mcp using the same NATS manager. Write mode
 	// is opt-in via env so the HTTP endpoint defaults to read-only — the

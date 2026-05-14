@@ -57,6 +57,26 @@ func (c *Cluster) DeleteConsumer(stream, consumer string) (json.RawMessage, erro
 	return c.requestJSON(fmt.Sprintf("$JS.API.CONSUMER.DELETE.%s.%s", stream, consumer), nil)
 }
 
+// MetaLeaderStepdown asks the JetStream meta-cluster leader to step down
+// and trigger a re-election. Subject: $JS.API.META.LEADER.STEPDOWN.
+// Useful for moving the meta leader off a node before drain/upgrade.
+func (c *Cluster) MetaLeaderStepdown() (json.RawMessage, error) {
+	return c.requestJSON("$JS.API.META.LEADER.STEPDOWN", nil)
+}
+
+// StreamLeaderStepdown forces a raft re-election for the named stream.
+// Subject: $JS.API.STREAM.LEADER.STEPDOWN.<stream>.
+func (c *Cluster) StreamLeaderStepdown(name string) (json.RawMessage, error) {
+	return c.requestJSON("$JS.API.STREAM.LEADER.STEPDOWN."+name, nil)
+}
+
+// ConsumerLeaderStepdown forces a raft re-election for the named consumer
+// (only meaningful on replicated/durable consumers).
+// Subject: $JS.API.CONSUMER.LEADER.STEPDOWN.<stream>.<consumer>.
+func (c *Cluster) ConsumerLeaderStepdown(stream, consumer string) (json.RawMessage, error) {
+	return c.requestJSON(fmt.Sprintf("$JS.API.CONSUMER.LEADER.STEPDOWN.%s.%s", stream, consumer), nil)
+}
+
 // JSMOverview asks every server for a full JetStream report via
 // $SYS.REQ.SERVER.PING.JSZ with {accounts, streams, consumer, config, raft}.
 // With a system-account connection this yields cluster-wide visibility into

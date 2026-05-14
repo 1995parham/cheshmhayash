@@ -24,6 +24,9 @@ func (j *jsm) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams/{stream}/consumers", j.listConsumers)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams/{stream}/consumers/{consumer}", j.consumerInfo)
 	mux.HandleFunc("DELETE /api/jsm/clusters/{cluster}/streams/{stream}/consumers/{consumer}", j.deleteConsumer)
+	mux.HandleFunc("POST /api/jsm/clusters/{cluster}/actions/meta-stepdown", j.metaStepdown)
+	mux.HandleFunc("POST /api/jsm/clusters/{cluster}/streams/{stream}/actions/stepdown", j.streamStepdown)
+	mux.HandleFunc("POST /api/jsm/clusters/{cluster}/streams/{stream}/consumers/{consumer}/actions/stepdown", j.consumerStepdown)
 }
 
 func (j *jsm) resolve(w http.ResponseWriter, r *http.Request) *natsx.Cluster {
@@ -192,6 +195,54 @@ func (j *jsm) consumerInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := c.ConsumerInfo(r.PathValue("stream"), r.PathValue("consumer"))
+	if err != nil {
+		upstreamError(w, j.log, err)
+		return
+	}
+	writeRaw(w, http.StatusOK, out)
+}
+
+func (j *jsm) metaStepdown(w http.ResponseWriter, r *http.Request) {
+	if !requireConfirm(w, r) {
+		return
+	}
+	c := j.resolve(w, r)
+	if c == nil {
+		return
+	}
+	out, err := c.MetaLeaderStepdown()
+	if err != nil {
+		upstreamError(w, j.log, err)
+		return
+	}
+	writeRaw(w, http.StatusOK, out)
+}
+
+func (j *jsm) streamStepdown(w http.ResponseWriter, r *http.Request) {
+	if !requireConfirm(w, r) {
+		return
+	}
+	c := j.resolve(w, r)
+	if c == nil {
+		return
+	}
+	out, err := c.StreamLeaderStepdown(r.PathValue("stream"))
+	if err != nil {
+		upstreamError(w, j.log, err)
+		return
+	}
+	writeRaw(w, http.StatusOK, out)
+}
+
+func (j *jsm) consumerStepdown(w http.ResponseWriter, r *http.Request) {
+	if !requireConfirm(w, r) {
+		return
+	}
+	c := j.resolve(w, r)
+	if c == nil {
+		return
+	}
+	out, err := c.ConsumerLeaderStepdown(r.PathValue("stream"), r.PathValue("consumer"))
 	if err != nil {
 		upstreamError(w, j.log, err)
 		return

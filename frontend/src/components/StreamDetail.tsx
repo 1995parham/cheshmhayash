@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2, Eraser, X } from "lucide-react";
+import { Pencil, Trash2, Eraser, X, Crown } from "lucide-react";
 import { api } from "../api";
 import { bytes, duration, iso, num } from "../fmt";
 import type { AggregatedOverview, AggregatedStream } from "../types";
@@ -56,6 +56,34 @@ export function StreamDetail({
       toast.push(`delete failed: ${(e as Error).message}`, "error");
     }
   }
+  async function stepdown() {
+    if (!(await confirm.ask(
+      "Step down stream leader",
+      `Force ${streamName}'s raft leader (${cl.leader ?? "?"}) to step down? A new leader will be elected from the replicas.`,
+      "primary",
+    ))) return;
+    try {
+      await api.streamStepdown(cluster, streamName);
+      toast.push(`${streamName}: leader step-down requested`, "ok");
+      onUpdated();
+    } catch (e) {
+      toast.push(`step-down failed: ${(e as Error).message}`, "error");
+    }
+  }
+  async function consumerStepdown(consumerName: string, leader: string | undefined) {
+    if (!(await confirm.ask(
+      "Step down consumer leader",
+      `Force ${streamName}/${consumerName}'s raft leader (${leader ?? "?"}) to step down?`,
+      "primary",
+    ))) return;
+    try {
+      await api.consumerStepdown(cluster, streamName, consumerName);
+      toast.push(`${consumerName}: leader step-down requested`, "ok");
+      onUpdated();
+    } catch (e) {
+      toast.push(`step-down failed: ${(e as Error).message}`, "error");
+    }
+  }
 
   return (
     <>
@@ -73,6 +101,10 @@ export function StreamDetail({
             <button onClick={() => setEditing(true)}>
               <Pencil size={14} />
               Edit
+            </button>
+            <button onClick={stepdown} title="Force raft leader re-election">
+              <Crown size={14} />
+              Step down
             </button>
             <button className="danger" onClick={purge}>
               <Eraser size={14} />
@@ -132,15 +164,17 @@ export function StreamDetail({
                     <th>redeliv</th>
                     <th>pending</th>
                     <th>leader</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {s.consumers.map((c) => {
                     const cc = c.config ?? {};
                     const filter = cc.filter_subject ?? (cc.filter_subjects ?? []).join(", ");
+                    const name = cc.durable_name ?? cc.name ?? c.name ?? "";
                     return (
-                      <tr key={cc.durable_name ?? cc.name ?? c.name}>
-                        <td>{cc.durable_name ?? cc.name ?? c.name ?? "—"}</td>
+                      <tr key={name}>
+                        <td>{name || "—"}</td>
                         <td>{cc.deliver_subject ? "push" : "pull"}</td>
                         <td className="mono">{filter}</td>
                         <td className="num">{num(c.delivered?.consumer_seq)}</td>
@@ -148,6 +182,15 @@ export function StreamDetail({
                         <td className="num">{num(c.num_redelivered)}</td>
                         <td className="num">{num(c.num_pending)}</td>
                         <td className="mono">{c.cluster?.leader ?? ""}</td>
+                        <td>
+                          <button
+                            className="link-btn"
+                            title="Force consumer raft re-election"
+                            onClick={() => consumerStepdown(name, c.cluster?.leader)}
+                          >
+                            step down
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}

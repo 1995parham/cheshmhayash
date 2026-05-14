@@ -33,8 +33,18 @@ const (
 )
 
 type Settings struct {
-	Server Server `json:"server" koanf:"server"`
-	NATS   []NATS `json:"nats"   koanf:"nats"`
+	Server Server   `json:"server"           koanf:"server"`
+	NATS   []NATS   `json:"nats"             koanf:"nats"`
+	Notify []Notify `json:"notify,omitempty" koanf:"notify"`
+}
+
+// Notify describes one outbound chat webhook. The provider field selects
+// the JSON shape and target API.
+type Notify struct {
+	Provider string `json:"provider"           koanf:"provider"` // slack | mattermost | matrix
+	URL      string `json:"-"                  koanf:"url"`      // redacted in startup log
+	Channel  string `json:"channel,omitempty"  koanf:"channel"`
+	Username string `json:"username,omitempty" koanf:"username"`
 }
 
 type Server struct {
@@ -174,6 +184,34 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 			s.NATS = append(s.NATS, NATS{})
 		}
 		return setNATSField(&s.NATS[idx], strings.ToLower(parts[2]), val)
+	case "notify":
+		if len(parts) < 3 {
+			return fmt.Errorf("expected notify.<index>.<key>")
+		}
+		idx, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return fmt.Errorf("notify index must be numeric")
+		}
+		for len(s.Notify) <= idx {
+			s.Notify = append(s.Notify, Notify{})
+		}
+		return setNotifyField(&s.Notify[idx], strings.ToLower(parts[2]), val)
+	}
+	return nil
+}
+
+func setNotifyField(n *Notify, key, val string) error {
+	switch key {
+	case "provider":
+		n.Provider = val
+	case "url":
+		n.URL = val
+	case "channel":
+		n.Channel = val
+	case "username":
+		n.Username = val
+	default:
+		return fmt.Errorf("unknown notify field %q", key)
 	}
 	return nil
 }

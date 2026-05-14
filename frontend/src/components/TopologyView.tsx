@@ -4,6 +4,8 @@ import { aggregateOverview, api } from "../api";
 import type { AggregatedConsumer, AggregatedOverview, AggregatedStream } from "../types";
 import { num } from "../fmt";
 import { TopologyGraph, type GraphRaftGroup } from "./TopologyGraph";
+import { useConfirm } from "./ConfirmDialog";
+import { useToast } from "../state/toast";
 
 interface Props {
   cluster: string;
@@ -125,7 +127,10 @@ export function TopologyView({ cluster, refreshKey }: Props) {
 
       <DistributionChart stats={topology.serverStats} servers={topology.servers} />
 
-      <h4 style={{ margin: "20px 0 6px" }}>Meta raft</h4>
+      <h4 style={{ margin: "20px 0 6px", display: "flex", alignItems: "center", gap: 8 }}>
+        Meta raft
+        <MetaStepdownButton cluster={cluster} leader={overview.meta?.leader} onDone={() => setOverview(null)} />
+      </h4>
       <p className="muted" style={{ marginTop: 0 }}>
         One Raft group per cluster, owned by <code>$SYS</code>. Manages stream/consumer
         placement decisions. Leader: <b className="mono">{overview.meta?.leader ?? "—"}</b>.
@@ -457,4 +462,42 @@ function shortServer(s: string): string {
   const m = s.match(/^(.*?)-(\d+)$/);
   if (m) return m[2] ? `…-${m[2]}` : s;
   return s.length > 14 ? `…${s.slice(-12)}` : s;
+}
+
+// MetaStepdownButton — small inline action next to the Meta raft heading.
+function MetaStepdownButton({
+  cluster,
+  leader,
+  onDone,
+}: {
+  cluster: string;
+  leader: string | undefined;
+  onDone: () => void;
+}) {
+  const confirm = useConfirm();
+  const toast = useToast();
+  async function go() {
+    if (!(await confirm.ask(
+      "Step down meta leader",
+      `Force ${leader ?? "the current meta leader"} on ${cluster} to step down? Triggers a re-election.`,
+      "primary",
+    ))) return;
+    try {
+      await api.metaStepdown(cluster);
+      toast.push(`meta leader step-down requested on ${cluster}`, "ok");
+      onDone();
+    } catch (e) {
+      toast.push(`step-down failed: ${(e as Error).message}`, "error");
+    }
+  }
+  return (
+    <button
+      className="link-btn"
+      onClick={go}
+      title="Force meta-cluster raft re-election"
+      style={{ fontSize: 12 }}
+    >
+      ↻ step down
+    </button>
+  );
 }

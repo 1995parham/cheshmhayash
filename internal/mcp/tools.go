@@ -208,6 +208,42 @@ func buildTools(write bool) []tool {
 			}, []string{"cluster", "stream", "consumer", "confirm"}),
 			handler: toolConsumerDelete,
 		},
+		tool{
+			name: "meta_stepdown",
+			description: "Force the JetStream meta-cluster leader to step down " +
+				"($JS.API.META.LEADER.STEPDOWN). Triggers a re-election. " +
+				"Useful before draining the current meta-leader node.",
+			inputSchema: schema(map[string]any{
+				"cluster": stringProp("Configured cluster name."),
+				"confirm": confirmProp(),
+			}, []string{"cluster", "confirm"}),
+			handler: toolMetaStepdown,
+		},
+		tool{
+			name: "stream_stepdown",
+			description: "Force a stream's raft leader to step down " +
+				"($JS.API.STREAM.LEADER.STEPDOWN.<stream>). Only meaningful " +
+				"on R3+ streams.",
+			inputSchema: schema(map[string]any{
+				"cluster": stringProp("Configured cluster name."),
+				"stream":  stringProp("Stream name."),
+				"confirm": confirmProp(),
+			}, []string{"cluster", "stream", "confirm"}),
+			handler: toolStreamStepdown,
+		},
+		tool{
+			name: "consumer_stepdown",
+			description: "Force a consumer's raft leader to step down " +
+				"($JS.API.CONSUMER.LEADER.STEPDOWN.<stream>.<consumer>). " +
+				"Only meaningful on replicated/durable consumers.",
+			inputSchema: schema(map[string]any{
+				"cluster":  stringProp("Configured cluster name."),
+				"stream":   stringProp("Stream name."),
+				"consumer": stringProp("Consumer name."),
+				"confirm":  confirmProp(),
+			}, []string{"cluster", "stream", "consumer", "confirm"}),
+			handler: toolConsumerStepdown,
+		},
 	)
 	return tools
 }
@@ -708,6 +744,74 @@ func toolConsumerDelete(_ context.Context, s *Server, args json.RawMessage) (str
 		return "", err
 	}
 	out, err := c.DeleteConsumer(a.Stream, a.Consumer)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+type clusterConfirmArg struct {
+	Cluster string `json:"cluster"`
+	Confirm bool   `json:"confirm"`
+}
+
+func toolMetaStepdown(_ context.Context, s *Server, args json.RawMessage) (string, error) {
+	var a clusterConfirmArg
+	if err := decodeArgs(args, &a); err != nil {
+		return "", err
+	}
+	if !a.Confirm {
+		return "", errors.New("confirm must be true to step down the meta leader")
+	}
+	c, err := s.resolveCluster(a.Cluster)
+	if err != nil {
+		return "", err
+	}
+	out, err := c.MetaLeaderStepdown()
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func toolStreamStepdown(_ context.Context, s *Server, args json.RawMessage) (string, error) {
+	var a streamConfirmArg
+	if err := decodeArgs(args, &a); err != nil {
+		return "", err
+	}
+	if !a.Confirm {
+		return "", errors.New("confirm must be true to step down a stream leader")
+	}
+	if a.Stream == "" {
+		return "", errors.New("stream is required")
+	}
+	c, err := s.resolveCluster(a.Cluster)
+	if err != nil {
+		return "", err
+	}
+	out, err := c.StreamLeaderStepdown(a.Stream)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func toolConsumerStepdown(_ context.Context, s *Server, args json.RawMessage) (string, error) {
+	var a consumerConfirmArg
+	if err := decodeArgs(args, &a); err != nil {
+		return "", err
+	}
+	if !a.Confirm {
+		return "", errors.New("confirm must be true to step down a consumer leader")
+	}
+	if a.Stream == "" || a.Consumer == "" {
+		return "", errors.New("stream and consumer are required")
+	}
+	c, err := s.resolveCluster(a.Cluster)
+	if err != nil {
+		return "", err
+	}
+	out, err := c.ConsumerLeaderStepdown(a.Stream, a.Consumer)
 	if err != nil {
 		return "", err
 	}
