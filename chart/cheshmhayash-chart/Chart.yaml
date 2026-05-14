@@ -4,11 +4,11 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.0.3
+version: 1.0.4
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
-appVersion: "0.5.3"
+appVersion: "0.5.4"
 
 # Lower bound for the Kubernetes API. autoscaling/v2 is the strictest
 # requirement (GA in 1.23). The chart is tested against the in-support
