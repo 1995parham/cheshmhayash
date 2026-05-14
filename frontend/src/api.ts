@@ -66,6 +66,12 @@ export const api = {
       "GET",
       `/api/jsm/clusters/${enc(c)}/overview`,
     ),
+  jsOverviewLive: (c: string) =>
+    http<{ server: { name: string }; data: JszData }[]>(
+      "GET",
+      `/api/jsm/clusters/${enc(c)}/overview?live=true`,
+    ),
+  jsOverviewStreamURL: (c: string) => `/api/jsm/clusters/${enc(c)}/overview/stream`,
   streams: (c: string, offset = 0) =>
     http<unknown>("GET", `/api/jsm/clusters/${enc(c)}/streams?offset=${offset}`),
   stream: (c: string, s: string) =>

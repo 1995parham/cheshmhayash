@@ -506,6 +506,28 @@ pre.raw,
   margin-bottom: 14px;
 }
 
+.stream-status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  white-space: nowrap;
+  cursor: help;
+}
+.stream-status-label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.stream-status-age {
+  font-variant-numeric: tabular-nums;
+}
+
 .account-bar {
   display: flex;
   gap: 10px;

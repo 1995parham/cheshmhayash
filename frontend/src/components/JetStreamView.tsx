@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { aggregateOverview, api } from "../api";
-import type { AggregatedAccount, AggregatedOverview, AggregatedStream } from "../types";
+import type { AggregatedAccount, AggregatedStream } from "../types";
 import { bytes, num } from "../fmt";
 import { StreamDetail } from "./StreamDetail";
+import { useOverviewStream } from "../hooks/useOverviewStream";
+import { StreamStatus } from "./StreamStatus";
 
 interface Props {
   cluster: string;
@@ -10,31 +11,29 @@ interface Props {
 }
 
 export function JetStreamView({ cluster, refreshKey }: Props) {
-  const [overview, setOverview] = useState<AggregatedOverview | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const { overview, status, lastError, lastUpdate } = useOverviewStream(cluster, refreshKey);
   const [focusedAccount, setFocusedAccount] = useState<string | null>(null);
   const [openStream, setOpenStream] = useState<{ account: string; stream: string } | null>(null);
 
+  // Auto-focus the single-account case the first time the overview lands.
   useEffect(() => {
-    setLoading(true);
-    setErr(null);
-    setOverview(null);
-    setOpenStream(null);
-    api
-      .jsOverview(cluster)
-      .then((replies) => {
-        const agg = aggregateOverview(replies);
-        setOverview(agg);
-        if (agg.accountList.length === 1) setFocusedAccount(agg.accountList[0]!.name);
-      })
-      .catch((e: Error) => setErr(e.message))
-      .finally(() => setLoading(false));
-  }, [cluster, refreshKey]);
+    if (overview && overview.accountList.length === 1 && focusedAccount === null) {
+      setFocusedAccount(overview.accountList[0]!.name);
+    }
+  }, [overview, focusedAccount]);
 
-  if (loading) return <div className="spinner">loading cluster JetStream overview…</div>;
-  if (err) return <div className="empty">overview failed: {err}</div>;
-  if (!overview) return null;
+  // Close any open stream detail when the cluster changes.
+  useEffect(() => {
+    setOpenStream(null);
+    setFocusedAccount(null);
+  }, [cluster]);
+
+  if (!overview) {
+    if (status === "error" || status === "closed") {
+      return <div className="empty">overview failed: {lastError ?? status}</div>;
+    }
+    return <div className="spinner">loading cluster JetStream overview…</div>;
+  }
 
   const focused = focusedAccount
     ? overview.accountList.find((a) => a.name === focusedAccount)
@@ -47,6 +46,7 @@ export function JetStreamView({ cluster, refreshKey }: Props) {
           {overview.totalAccounts} accounts · {overview.totalStreams} streams ·{" "}
           {overview.totalConsumers} consumers · {bytes(overview.totalBytes)}
         </span>
+        <StreamStatus status={status} lastUpdate={lastUpdate} lastError={lastError} />
       </div>
 
       <div className="summary">

@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Crown, CircleDot, Minus, Filter } from "lucide-react";
-import { aggregateOverview, api } from "../api";
+import { api } from "../api";
 import type { AggregatedConsumer, AggregatedOverview, AggregatedStream } from "../types";
 import { num } from "../fmt";
 import { TopologyGraph, type GraphRaftGroup } from "./TopologyGraph";
 import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "../state/toast";
+import { useOverviewStream } from "../hooks/useOverviewStream";
+import { StreamStatus } from "./StreamStatus";
 
 interface Props {
   cluster: string;
@@ -35,33 +37,32 @@ interface ServerStats {
 }
 
 export function TopologyView({ cluster, refreshKey }: Props) {
-  const [overview, setOverview] = useState<AggregatedOverview | null>(null);
-  const [servers, setServers] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const { overview, status, lastError, lastUpdate } = useOverviewStream(cluster, refreshKey);
   const [accountFilter, setAccountFilter] = useState<string>("");
   const [showConsumers, setShowConsumers] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    setErr(null);
-    api
-      .jsOverview(cluster)
-      .then((replies) => {
-        const agg = aggregateOverview(replies);
-        setOverview(agg);
-        // server order = ordered by server name from the JS overview replies
-        setServers(replies.map((r) => r.server.name).sort());
-      })
-      .catch((e: Error) => setErr(e.message))
-      .finally(() => setLoading(false));
-  }, [cluster, refreshKey]);
+  // Derive the server ordering from the overview itself.
+  const servers = useMemo<string[]>(() => {
+    if (!overview) return [];
+    const set = new Set<string>();
+    for (const a of overview.accountList) {
+      for (const s of a.streams) {
+        if (s.cluster?.leader) set.add(s.cluster.leader);
+        for (const r of s.cluster?.replicas ?? []) set.add(r.name);
+      }
+    }
+    if (overview.meta?.leader) set.add(overview.meta.leader);
+    return [...set].sort();
+  }, [overview]);
 
   const topology = useMemo(() => buildTopology(overview, servers), [overview, servers]);
 
-  if (loading) return <div className="spinner">building topology…</div>;
-  if (err) return <div className="empty">overview failed: {err}</div>;
-  if (!overview || !topology) return null;
+  if (!overview || !topology) {
+    if (status === "error" || status === "closed") {
+      return <div className="empty">overview failed: {lastError ?? status}</div>;
+    }
+    return <div className="spinner">building topology…</div>;
+  }
 
   const filteredStreams = accountFilter
     ? topology.streamRows.filter((r) => r.account === accountFilter)
@@ -117,6 +118,7 @@ export function TopologyView({ cluster, refreshKey }: Props) {
             </select>
           </span>
         ) : null}
+        <StreamStatus status={status} lastUpdate={lastUpdate} lastError={lastError} />
       </div>
 
       <TopologyGraph
@@ -129,7 +131,7 @@ export function TopologyView({ cluster, refreshKey }: Props) {
 
       <h4 style={{ margin: "20px 0 6px", display: "flex", alignItems: "center", gap: 8 }}>
         Meta raft
-        <MetaStepdownButton cluster={cluster} leader={overview.meta?.leader} onDone={() => setOverview(null)} />
+        <MetaStepdownButton cluster={cluster} leader={overview.meta?.leader} />
       </h4>
       <p className="muted" style={{ marginTop: 0 }}>
         One Raft group per cluster, owned by <code>$SYS</code>. Manages stream/consumer
@@ -465,14 +467,14 @@ function shortServer(s: string): string {
 }
 
 // MetaStepdownButton — small inline action next to the Meta raft heading.
+// The SSE stream will deliver the new state within the cache period
+// (≤10s by default), so we don't need to force a refresh here.
 function MetaStepdownButton({
   cluster,
   leader,
-  onDone,
 }: {
   cluster: string;
   leader: string | undefined;
-  onDone: () => void;
 }) {
   const confirm = useConfirm();
   const toast = useToast();
@@ -485,7 +487,6 @@ function MetaStepdownButton({
     try {
       await api.metaStepdown(cluster);
       toast.push(`meta leader step-down requested on ${cluster}`, "ok");
-      onDone();
     } catch (e) {
       toast.push(`step-down failed: ${(e as Error).message}`, "error");
     }

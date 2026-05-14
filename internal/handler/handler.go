@@ -17,16 +17,22 @@ import (
 // Mux returns a fully wired ServeMux covering /api/admin, /api/jsm,
 // /healthz, an optional /mcp endpoint, and a static-file SPA fallback at /.
 //
-// The mcpHandler argument is optional — pass nil to skip /mcp registration.
-// When supplied it should be an *mcp.Server whose ServeHTTP implements the
-// MCP Streamable HTTP transport.
-func Mux(mgr *natsx.Manager, staticDir string, logger *slog.Logger, mcpHandler http.Handler) http.Handler {
+// mcpHandler is optional — pass nil to skip /mcp registration. Likewise
+// cache is optional; when nil, /api/jsm/.../overview falls back to a
+// live NATS call on every request and /overview/stream returns 503.
+func Mux(
+	mgr *natsx.Manager,
+	cache *natsx.OverviewCache,
+	staticDir string,
+	logger *slog.Logger,
+	mcpHandler http.Handler,
+) http.Handler {
 	mux := http.NewServeMux()
 
 	admin := admin{mgr: mgr, log: logger}
 	admin.register(mux)
 
-	jsm := jsm{mgr: mgr, log: logger}
+	jsm := jsm{mgr: mgr, cache: cache, log: logger}
 	jsm.register(mux)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

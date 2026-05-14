@@ -2,20 +2,24 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/1995parham/cheshmhayash/internal/natsx"
 )
 
 type jsm struct {
-	mgr *natsx.Manager
-	log *slog.Logger
+	mgr   *natsx.Manager
+	cache *natsx.OverviewCache // optional; when nil, /overview hits NATS directly
+	log   *slog.Logger
 }
 
 func (j *jsm) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/overview", j.overview)
+	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/overview/stream", j.overviewStream)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams", j.listStreams)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams/{stream}", j.streamInfo)
 	mux.HandleFunc("PUT /api/jsm/clusters/{cluster}/streams/{stream}", j.updateStream)
@@ -61,10 +65,29 @@ func requireConfirm(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// overview serves the latest JSZ overview. By default reads from the
+// background cache (refreshed every natsx.DefaultOverviewPeriod). Pass
+// ?live=true to force a NATS round-trip — useful when the operator wants
+// truth at "now" and is OK paying the cost.
 func (j *jsm) overview(w http.ResponseWriter, r *http.Request) {
 	c := j.resolve(w, r)
 	if c == nil {
 		return
+	}
+	live := r.URL.Query().Get("live") == "true"
+	if j.cache != nil && !live {
+		if snap, ok := j.cache.Get(c.Name()); ok {
+			if snap.Err != "" {
+				writeJSON(w, http.StatusBadGateway, apiError{Message: snap.Err})
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Overview-Age-Seconds", fmt.Sprintf("%.1f", time.Since(snap.Updated).Seconds()))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(snap.Data)
+			return
+		}
+		// Cache miss (cold start) — fall through to live fetch.
 	}
 	out, err := c.JSMOverview()
 	if err != nil {
@@ -72,6 +95,68 @@ func (j *jsm) overview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeRawArray(w, http.StatusOK, out)
+}
+
+// overviewStream is an SSE endpoint that pushes a fresh overview on
+// every cache refresh tick. Each message body is the same JSON array
+// /overview returns; on refresh error a single `event: error` is sent.
+// EventSource on the client side reconnects automatically.
+func (j *jsm) overviewStream(w http.ResponseWriter, r *http.Request) {
+	c := j.resolve(w, r)
+	if c == nil {
+		return
+	}
+	if j.cache == nil {
+		http.Error(w, "overview cache disabled", http.StatusServiceUnavailable)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache, no-store")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // nginx
+	w.WriteHeader(http.StatusOK)
+
+	ch := j.cache.Subscribe(c.Name())
+	defer j.cache.Unsubscribe(c.Name(), ch)
+
+	ctx := r.Context()
+	// Heartbeat so proxies don't drop an idle connection between refreshes.
+	hb := time.NewTicker(20 * time.Second)
+	defer hb.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-hb.C:
+			if _, err := w.Write([]byte(": heartbeat\n\n")); err != nil {
+				return
+			}
+			flusher.Flush()
+		case snap, ok := <-ch:
+			if !ok {
+				return
+			}
+			if snap.Err != "" {
+				if _, err := fmt.Fprintf(w, "event: error\ndata: %q\n\n", snap.Err); err != nil {
+					return
+				}
+			} else {
+				// SSE data lines must not contain raw newlines. The
+				// overview is a compact JSON array (one line), so a
+				// single `data:` line is correct.
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", snap.Data); err != nil {
+					return
+				}
+			}
+			flusher.Flush()
+		}
+	}
 }
 
 func (j *jsm) listStreams(w http.ResponseWriter, r *http.Request) {

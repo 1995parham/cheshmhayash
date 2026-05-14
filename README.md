@@ -22,6 +22,25 @@ Because every endpoint is served through a single authenticated NATS
 connection, you do **not** need the server's HTTP monitoring port (`:8222`)
 open; only the client port (`:4222`, or wherever) is required.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="33%">
+      <a href="./docs/screenshots/01-servers.png"><img src="./docs/screenshots/01-servers.png" alt="Servers view" /></a>
+      <p align="center"><sub><b>Servers</b> — per-server stats card grid with JS leader badge.</sub></p>
+    </td>
+    <td width="33%">
+      <a href="./docs/screenshots/02-jetstream.png"><img src="./docs/screenshots/02-jetstream.png" alt="JetStream view" /></a>
+      <p align="center"><sub><b>JetStream</b> — cluster-wide overview, accounts table, drill-in streams. Live SSE indicator top-right.</sub></p>
+    </td>
+    <td width="33%">
+      <a href="./docs/screenshots/03-topology.png"><img src="./docs/screenshots/03-topology.png" alt="Topology view" /></a>
+      <p align="center"><sub><b>Topology</b> — raft-group polygons connecting the servers (meta in amber, streams in green, consumers in blue).</sub></p>
+    </td>
+  </tr>
+</table>
+
 ## Features
 
 ### Read endpoints
@@ -42,10 +61,26 @@ the same one you would get from the HTTP monitoring interface.
 
 - Server: config reload, lame-duck mode, kick a connection by CID
 - JetStream: **edit** stream config (CodeMirror JSON editor with syntax
-  highlighting), purge, delete, delete consumer
+  highlighting), **step down** meta/stream/consumer raft leader, purge,
+  delete, delete consumer
 
 Destructive JetStream actions require `?confirm=true`; without it the
 server responds with `428 Precondition Required`.
+
+### Real-time + LLM integration
+
+- Per-cluster JSZ overview is refreshed in the background and pushed to
+  the SPA over SSE — the panel updates in real time, with a small
+  `live` / `polling` / `disconnected` indicator next to each view.
+- **MCP server** baked into the same binary. Speaks the Model Context
+  Protocol over both stdio (`cheshmhayash -mcp`) and HTTP Streamable
+  (`POST /mcp`) so LLM agents (Claude Desktop, Cursor, etc.) can
+  inspect and operate the cluster as tools. Read-only by default;
+  destructive verbs gate on `CHESHMHAYASH_MCP_WRITE=1`.
+- **Webhook notifications** to Slack / Mattermost / Matrix (via hookshot
+  bridge): subscribes to `$JS.EVENT.ADVISORY.>` and surfaces stream /
+  consumer create / delete / update / leader-elected / quorum-lost as
+  chat messages. Config under `[[notify]]`.
 
 ## HTTP API
 
@@ -59,15 +94,21 @@ server responds with `428 Precondition Required`.
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/reload` | reload config |
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/lame-duck` | graceful drain |
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/kick` | body: `{"cid": N}` |
-| `GET` | `/api/jsm/clusters/{c}/overview` | cluster-wide JetStream (sys-account) |
+| `GET` | `/api/jsm/clusters/{c}/overview` | cluster-wide JetStream (sys-account) · pass `?live=true` to bypass cache |
+| `GET` | `/api/jsm/clusters/{c}/overview/stream` | SSE — pushes a fresh overview on every cache refresh |
 | `GET` | `/api/jsm/clusters/{c}/streams?offset=N` | paginated |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}` | stream info |
 | `PUT` | `/api/jsm/clusters/{c}/streams/{s}` | full `StreamConfig` update |
 | `POST` | `/api/jsm/clusters/{c}/streams/{s}/purge?confirm=true` | purge all messages |
 | `DELETE` | `/api/jsm/clusters/{c}/streams/{s}?confirm=true` | delete stream |
+| `POST` | `/api/jsm/clusters/{c}/actions/meta-stepdown?confirm=true` | force meta raft re-election |
+| `POST` | `/api/jsm/clusters/{c}/streams/{s}/actions/stepdown?confirm=true` | force stream raft re-election |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}/consumers?offset=N` | list consumers |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}/consumers/{con}` | consumer info |
 | `DELETE` | `/api/jsm/clusters/{c}/streams/{s}/consumers/{con}?confirm=true` | delete consumer |
+| `POST` | `/api/jsm/clusters/{c}/streams/{s}/consumers/{con}/actions/stepdown?confirm=true` | force consumer raft re-election |
+| `POST` | `/mcp` | MCP Streamable HTTP — JSON-RPC 2.0 in body |
+| `GET` | `/mcp` | MCP SSE channel (server→client notifications) |
 | `GET` | `/healthz` | liveness / readiness probe |
 
 ## Configuration
@@ -93,7 +134,20 @@ url = "nats://127.0.0.1:4222"
 # password = "changeme"
 # request_timeout_ms = 2000     # single-reply request timeout
 # discovery_timeout_ms = 500    # window for multi-reply collection
+
+# Webhook notifications — one entry per chat destination. `provider` is
+# one of slack | mattermost | matrix (Matrix expects a Slack-compatible
+# bridge such as matrix-hookshot or maubot/webhook).
+# [[notify]]
+# provider = "slack"
+# url = "https://hooks.slack.com/services/T000/B000/XXX"
+# channel = "#nats-events"        # optional
+# username = "cheshmhayash"        # optional
 ```
+
+`CHESHMHAYASH_OVERVIEW_PERIOD` (Go duration, default `10s`) controls how
+often the background JSZ cache refreshes. `CHESHMHAYASH_MCP_WRITE=1`
+exposes the destructive MCP tools.
 
 ### System-account requirement
 

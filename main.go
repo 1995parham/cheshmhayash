@@ -23,6 +23,18 @@ import (
 	"github.com/1995parham/cheshmhayash/internal/notify"
 )
 
+// overviewPeriod resolves the background JSZ-cache refresh interval.
+// Overrideable via CHESHMHAYASH_OVERVIEW_PERIOD as a Go duration string
+// (e.g. "5s", "30s"). Defaults to natsx.DefaultOverviewPeriod.
+func overviewPeriod() time.Duration {
+	if v := os.Getenv("CHESHMHAYASH_OVERVIEW_PERIOD"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return natsx.DefaultOverviewPeriod
+}
+
 // notifyConfigs converts the typed config.Notify slice into the loose
 // notify.ProviderConfig shape (decoupled to keep notify free of a config
 // import cycle).
@@ -116,9 +128,15 @@ func run(log *slog.Logger) error {
 	mcpServer := mcp.NewServer(mgr, log, mcpWrite)
 	log.Info("mcp http transport enabled", "path", "/mcp", "write_enabled", mcpWrite)
 
+	// Background JSZ overview cache. /api/jsm/.../overview reads from
+	// here, /api/jsm/.../overview/stream subscribes to refresh ticks.
+	overviewCache := natsx.NewOverviewCache(mgr, log, overviewPeriod())
+	overviewCache.Start(ctx)
+	log.Info("overview cache started", "period", overviewPeriod())
+
 	srv := &http.Server{
 		Addr:              settings.Server.Addr(),
-		Handler:           handler.Mux(mgr, frontendDir, log, mcpServer),
+		Handler:           handler.Mux(mgr, overviewCache, frontendDir, log, mcpServer),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
