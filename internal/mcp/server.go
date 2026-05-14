@@ -1,6 +1,11 @@
 // Package mcp exposes cheshmhayash's NATS admin surface as a Model Context
-// Protocol server. It speaks JSON-RPC 2.0 over stdio with newline-delimited
-// messages — the transport every current MCP client supports.
+// Protocol server. Two transports are supported:
+//
+//   - stdio (RunStdio) — newline-delimited JSON-RPC 2.0, what every
+//     local MCP client (Claude Desktop, Cursor, Continue, …) speaks.
+//   - HTTP (ServeHTTP) — MCP "Streamable HTTP" transport: POST /mcp for
+//     a synchronous JSON response, GET /mcp for an SSE keep-alive
+//     (no server-initiated notifications today).
 //
 // The same natsx.Manager that backs the HTTP API is reused here, so tool
 // calls hit NATS through the operator-configured connections.
@@ -120,48 +125,52 @@ const (
 )
 
 func (s *Server) handleLine(ctx context.Context, line []byte) {
+	if resp := s.dispatch(ctx, line); resp != nil {
+		s.writeMessage(*resp)
+	}
+}
+
+// dispatch parses one JSON-RPC frame and returns the response, or nil for
+// notifications. Pure function over the request bytes — no I/O side
+// effects — so it's shared by stdio (handleLine) and HTTP (ServeHTTP).
+func (s *Server) dispatch(ctx context.Context, frame []byte) *rpcResponse {
 	var req rpcRequest
-	if err := json.Unmarshal(line, &req); err != nil {
-		// Per JSON-RPC 2.0: parse errors get a response with id=null even
-		// when we couldn't determine the original id.
-		s.writeMessage(rpcResponse{
+	if err := json.Unmarshal(frame, &req); err != nil {
+		return &rpcResponse{
 			JSONRPC: "2.0",
 			ID:      json.RawMessage("null"),
 			Error:   &rpcError{Code: codeParseError, Message: "invalid JSON: " + err.Error()},
-		})
-		return
+		}
 	}
 	if req.JSONRPC != "2.0" {
-		s.writeError(req.ID, codeInvalidRequest, "jsonrpc must be \"2.0\"")
-		return
+		return s.errResponse(req.ID, codeInvalidRequest, "jsonrpc must be \"2.0\"")
 	}
 
-	// Notifications have no id and expect no response.
 	isNotification := len(req.ID) == 0
 
 	switch req.Method {
 	case "initialize":
-		s.handleInitialize(req.ID, req.Params)
+		return s.okResponse(req.ID, s.initializeResult())
 	case "notifications/initialized", "initialized":
-		// no-op; client confirming handshake
+		return nil
 	case "ping":
-		s.writeResult(req.ID, map[string]any{})
+		return s.okResponse(req.ID, map[string]any{})
 	case "tools/list":
-		s.handleToolsList(req.ID)
+		return s.okResponse(req.ID, s.toolsListResult())
 	case "tools/call":
-		s.handleToolCall(ctx, req.ID, req.Params)
+		return s.handleToolCall(ctx, req.ID, req.Params)
 	default:
 		if isNotification {
-			return
+			return nil
 		}
-		s.writeError(req.ID, codeMethodNotFound, "method not implemented: "+req.Method)
+		return s.errResponse(req.ID, codeMethodNotFound, "method not implemented: "+req.Method)
 	}
 }
 
 // ----- MCP method handlers --------------------------------------------
 
-func (s *Server) handleInitialize(id json.RawMessage, _ json.RawMessage) {
-	s.writeResult(id, map[string]any{
+func (s *Server) initializeResult() map[string]any {
+	return map[string]any{
 		"protocolVersion": protocolVersion,
 		"capabilities": map[string]any{
 			"tools": map[string]any{"listChanged": false},
@@ -171,7 +180,7 @@ func (s *Server) handleInitialize(id json.RawMessage, _ json.RawMessage) {
 			"version": "0.5.2",
 		},
 		"instructions": s.instructions(),
-	})
+	}
 }
 
 func (s *Server) instructions() string {
@@ -187,7 +196,7 @@ func (s *Server) instructions() string {
 		"delete, kick) require an explicit confirm=true argument."
 }
 
-func (s *Server) handleToolsList(id json.RawMessage) {
+func (s *Server) toolsListResult() map[string]any {
 	out := make([]map[string]any, 0, len(s.tools))
 	for _, t := range s.tools {
 		out = append(out, map[string]any{
@@ -196,7 +205,7 @@ func (s *Server) handleToolsList(id json.RawMessage) {
 			"inputSchema": t.inputSchema,
 		})
 	}
-	s.writeResult(id, map[string]any{"tools": out})
+	return map[string]any{"tools": out}
 }
 
 type toolCallParams struct {
@@ -204,16 +213,14 @@ type toolCallParams struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
-func (s *Server) handleToolCall(ctx context.Context, id json.RawMessage, raw json.RawMessage) {
+func (s *Server) handleToolCall(ctx context.Context, id json.RawMessage, raw json.RawMessage) *rpcResponse {
 	var p toolCallParams
 	if err := json.Unmarshal(raw, &p); err != nil {
-		s.writeError(id, codeInvalidParams, "decode params: "+err.Error())
-		return
+		return s.errResponse(id, codeInvalidParams, "decode params: "+err.Error())
 	}
 	t := s.findTool(p.Name)
 	if t == nil {
-		s.writeError(id, codeMethodNotFound, "unknown tool: "+p.Name)
-		return
+		return s.errResponse(id, codeMethodNotFound, "unknown tool: "+p.Name)
 	}
 
 	args := p.Arguments
@@ -226,15 +233,14 @@ func (s *Server) handleToolCall(ctx context.Context, id json.RawMessage, raw jso
 		// MCP convention: surface tool errors as a successful response with
 		// isError=true so the model can react. Reserve JSON-RPC errors for
 		// protocol-level failures.
-		s.writeResult(id, map[string]any{
+		return s.okResponse(id, map[string]any{
 			"isError": true,
 			"content": []map[string]any{
 				{"type": "text", "text": err.Error()},
 			},
 		})
-		return
 	}
-	s.writeResult(id, map[string]any{
+	return s.okResponse(id, map[string]any{
 		"content": []map[string]any{
 			{"type": "text", "text": result},
 		},
@@ -250,22 +256,24 @@ func (s *Server) findTool(name string) *tool {
 	return nil
 }
 
-// ----- write helpers ---------------------------------------------------
+// ----- response builders (pure) ---------------------------------------
 
-func (s *Server) writeResult(id json.RawMessage, result any) {
+func (s *Server) okResponse(id json.RawMessage, result any) *rpcResponse {
 	if len(id) == 0 {
-		return // notification — no response expected
+		return nil // notification — no response expected
 	}
-	s.writeMessage(rpcResponse{JSONRPC: "2.0", ID: id, Result: result})
+	return &rpcResponse{JSONRPC: "2.0", ID: id, Result: result}
 }
 
-func (s *Server) writeError(id json.RawMessage, code int, msg string) {
+func (s *Server) errResponse(id json.RawMessage, code int, msg string) *rpcResponse {
 	if len(id) == 0 {
 		s.log.Warn("mcp protocol error on notification", "code", code, "msg", msg)
-		return
+		return nil
 	}
-	s.writeMessage(rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: msg}})
+	return &rpcResponse{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: msg}}
 }
+
+// ----- stdio writer ----------------------------------------------------
 
 func (s *Server) writeMessage(resp rpcResponse) {
 	buf, err := json.Marshal(resp)

@@ -70,9 +70,16 @@ func run(log *slog.Logger) error {
 	}
 	defer mgr.Close()
 
+	// Expose MCP over HTTP at /mcp using the same NATS manager. Write mode
+	// is opt-in via env so the HTTP endpoint defaults to read-only — the
+	// surface is currently un-authenticated, matching the rest of the API.
+	mcpWrite := os.Getenv("CHESHMHAYASH_MCP_WRITE") == "1"
+	mcpServer := mcp.NewServer(mgr, log, mcpWrite)
+	log.Info("mcp http transport enabled", "path", "/mcp", "write_enabled", mcpWrite)
+
 	srv := &http.Server{
 		Addr:              settings.Server.Addr(),
-		Handler:           handler.Mux(mgr, frontendDir, log),
+		Handler:           handler.Mux(mgr, frontendDir, log, mcpServer),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

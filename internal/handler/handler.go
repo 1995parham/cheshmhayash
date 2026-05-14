@@ -15,8 +15,12 @@ import (
 )
 
 // Mux returns a fully wired ServeMux covering /api/admin, /api/jsm,
-// /healthz, and a static-file SPA fallback at /.
-func Mux(mgr *natsx.Manager, staticDir string, logger *slog.Logger) http.Handler {
+// /healthz, an optional /mcp endpoint, and a static-file SPA fallback at /.
+//
+// The mcpHandler argument is optional — pass nil to skip /mcp registration.
+// When supplied it should be an *mcp.Server whose ServeHTTP implements the
+// MCP Streamable HTTP transport.
+func Mux(mgr *natsx.Manager, staticDir string, logger *slog.Logger, mcpHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
 	admin := admin{mgr: mgr, log: logger}
@@ -28,6 +32,10 @@ func Mux(mgr *natsx.Manager, staticDir string, logger *slog.Logger) http.Handler
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+
+	if mcpHandler != nil {
+		mux.Handle("/mcp", mcpHandler)
+	}
 
 	spa(mux, staticDir)
 
@@ -146,3 +154,12 @@ type statusRecorder struct {
 }
 
 func (r *statusRecorder) WriteHeader(c int) { r.status = c; r.ResponseWriter.WriteHeader(c) }
+
+// Flush passes through to the underlying writer so SSE (e.g. /mcp GET)
+// keeps working — http.ResponseWriter loses its Flusher capability when
+// wrapped unless the wrapper exposes it explicitly.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
