@@ -36,6 +36,50 @@ type Settings struct {
 	Server Server   `json:"server"           koanf:"server"`
 	NATS   []NATS   `json:"nats"             koanf:"nats"`
 	Notify []Notify `json:"notify,omitempty" koanf:"notify"`
+	Auth   Auth     `json:"auth"             koanf:"auth"`
+}
+
+// Auth gates the HTTP API behind OIDC. When Enabled is false the API stays
+// open (backward-compatible default). MCP HTTP is gated by MCPKeys
+// independently: leave the slice empty to keep /mcp open like before.
+type Auth struct {
+	Enabled bool        `json:"enabled"            koanf:"enabled"`
+	OIDC    AuthOIDC    `json:"oidc"               koanf:"oidc"`
+	Access  AuthAccess  `json:"access"             koanf:"access"`
+	Session AuthSession `json:"session"            koanf:"session"`
+	MCPKeys []MCPKey    `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
+}
+
+type AuthOIDC struct {
+	Issuer       string   `json:"issuer"       koanf:"issuer"`
+	ClientID     string   `json:"client_id"    koanf:"client_id"`
+	ClientSecret string   `json:"-"            koanf:"client_secret"`
+	RedirectURL  string   `json:"redirect_url" koanf:"redirect_url"`
+	Scopes       []string `json:"scopes"       koanf:"scopes"`
+}
+
+// AuthAccess is the post-login allowlist. At least one of the three slices
+// must be populated when auth is enabled — otherwise any account in the
+// IdP can sign in, which is almost never what you want.
+type AuthAccess struct {
+	AllowedEmails  []string `json:"allowed_emails,omitempty"  koanf:"allowed_emails"`
+	AllowedDomains []string `json:"allowed_domains,omitempty" koanf:"allowed_domains"`
+	AllowedGroups  []string `json:"allowed_groups,omitempty"  koanf:"allowed_groups"`
+	GroupsClaim    string   `json:"groups_claim,omitempty"    koanf:"groups_claim"`
+}
+
+type AuthSession struct {
+	Secret     string `json:"-"           koanf:"secret"`
+	TTLSeconds int    `json:"ttl_seconds" koanf:"ttl_seconds"`
+	CookieName string `json:"cookie_name" koanf:"cookie_name"`
+	Secure     bool   `json:"secure"      koanf:"secure"`
+}
+
+// MCPKey is one bearer token accepted on the /mcp HTTP transport. Name is
+// human-readable for log lines / revocation; Value is the secret.
+type MCPKey struct {
+	Name  string `json:"name" koanf:"name"`
+	Value string `json:"-"    koanf:"value"`
 }
 
 // Notify describes one outbound chat webhook. The provider field selects
@@ -79,6 +123,14 @@ func (n NATS) DiscoveryTimeout() time.Duration {
 }
 
 func (s Server) Addr() string { return fmt.Sprintf("%s:%d", s.Host, s.Port) }
+
+// TTL is the cookie lifetime as a duration. Falls back to 12 h when unset.
+func (a AuthSession) TTL() time.Duration {
+	if a.TTLSeconds <= 0 {
+		return 12 * time.Hour
+	}
+	return time.Duration(a.TTLSeconds) * time.Second
+}
 
 // Load layers defaults → TOML → env. The returned *Settings is fully
 // validated; callers can use it without further checks.
@@ -130,6 +182,44 @@ func validate(s *Settings) error {
 		if n.URL == "" {
 			return fmt.Errorf("nats[%d] (%s): url is required", i, n.Name)
 		}
+	}
+	if s.Auth.Enabled {
+		if err := validateAuth(&s.Auth); err != nil {
+			return err
+		}
+	}
+	for i, k := range s.Auth.MCPKeys {
+		if k.Value == "" {
+			return fmt.Errorf("auth.mcp_keys[%d]: value is required", i)
+		}
+	}
+	return nil
+}
+
+func validateAuth(a *Auth) error {
+	if a.OIDC.Issuer == "" {
+		return errors.New("auth.oidc.issuer is required when auth is enabled")
+	}
+	if a.OIDC.ClientID == "" {
+		return errors.New("auth.oidc.client_id is required when auth is enabled")
+	}
+	if a.OIDC.RedirectURL == "" {
+		return errors.New("auth.oidc.redirect_url is required when auth is enabled")
+	}
+	if a.Session.Secret == "" {
+		return errors.New("auth.session.secret is required when auth is enabled")
+	}
+	if len(a.Session.Secret) < 16 {
+		return errors.New("auth.session.secret must be at least 16 characters")
+	}
+	// Force an explicit allowlist so a typo in the IdP config can't grant
+	// access to every account in the directory.
+	if len(a.Access.AllowedEmails) == 0 &&
+		len(a.Access.AllowedDomains) == 0 &&
+		len(a.Access.AllowedGroups) == 0 {
+		return errors.New(
+			"auth.access requires at least one of allowed_emails, allowed_domains, or allowed_groups",
+		)
 	}
 	return nil
 }
@@ -196,8 +286,123 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 			s.Notify = append(s.Notify, Notify{})
 		}
 		return setNotifyField(&s.Notify[idx], strings.ToLower(parts[2]), val)
+	case "auth":
+		return applyAuthEnv(&s.Auth, parts[1:], val)
 	}
 	return nil
+}
+
+// applyAuthEnv handles CHESHMHAYASH__AUTH__* env keys. Subsections:
+//
+//	enabled
+//	oidc.{issuer,client_id,client_secret,redirect_url,scopes}     scopes is comma-separated
+//	access.{allowed_emails,allowed_domains,allowed_groups,groups_claim}   slices comma-separated
+//	session.{secret,ttl_seconds,cookie_name,secure}
+//	mcp_keys.<idx>.{name,value}
+func applyAuthEnv(a *Auth, parts []string, val string) error {
+	if len(parts) == 0 {
+		return fmt.Errorf("expected auth.<key>")
+	}
+	switch strings.ToLower(parts[0]) {
+	case "enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("auth.enabled: %w", err)
+		}
+		a.Enabled = b
+	case "oidc":
+		if len(parts) != 2 {
+			return fmt.Errorf("expected auth.oidc.<key>")
+		}
+		switch strings.ToLower(parts[1]) {
+		case "issuer":
+			a.OIDC.Issuer = val
+		case "client_id":
+			a.OIDC.ClientID = val
+		case "client_secret":
+			a.OIDC.ClientSecret = val
+		case "redirect_url":
+			a.OIDC.RedirectURL = val
+		case "scopes":
+			a.OIDC.Scopes = splitCSV(val)
+		default:
+			return fmt.Errorf("unknown auth.oidc field %q", parts[1])
+		}
+	case "access":
+		if len(parts) != 2 {
+			return fmt.Errorf("expected auth.access.<key>")
+		}
+		switch strings.ToLower(parts[1]) {
+		case "allowed_emails":
+			a.Access.AllowedEmails = splitCSV(val)
+		case "allowed_domains":
+			a.Access.AllowedDomains = splitCSV(val)
+		case "allowed_groups":
+			a.Access.AllowedGroups = splitCSV(val)
+		case "groups_claim":
+			a.Access.GroupsClaim = val
+		default:
+			return fmt.Errorf("unknown auth.access field %q", parts[1])
+		}
+	case "session":
+		if len(parts) != 2 {
+			return fmt.Errorf("expected auth.session.<key>")
+		}
+		switch strings.ToLower(parts[1]) {
+		case "secret":
+			a.Session.Secret = val
+		case "ttl_seconds":
+			n, err := strconv.Atoi(val)
+			if err != nil {
+				return fmt.Errorf("auth.session.ttl_seconds: %w", err)
+			}
+			a.Session.TTLSeconds = n
+		case "cookie_name":
+			a.Session.CookieName = val
+		case "secure":
+			b, err := strconv.ParseBool(val)
+			if err != nil {
+				return fmt.Errorf("auth.session.secure: %w", err)
+			}
+			a.Session.Secure = b
+		default:
+			return fmt.Errorf("unknown auth.session field %q", parts[1])
+		}
+	case "mcp_keys":
+		if len(parts) < 3 {
+			return fmt.Errorf("expected auth.mcp_keys.<index>.<key>")
+		}
+		idx, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return fmt.Errorf("mcp_keys index must be numeric")
+		}
+		for len(a.MCPKeys) <= idx {
+			a.MCPKeys = append(a.MCPKeys, MCPKey{})
+		}
+		switch strings.ToLower(parts[2]) {
+		case "name":
+			a.MCPKeys[idx].Name = val
+		case "value":
+			a.MCPKeys[idx].Value = val
+		default:
+			return fmt.Errorf("unknown auth.mcp_keys field %q", parts[2])
+		}
+	default:
+		return fmt.Errorf("unknown auth field %q", parts[0])
+	}
+	return nil
+}
+
+func splitCSV(v string) []string {
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func setNotifyField(n *Notify, key, val string) error {

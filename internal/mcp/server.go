@@ -23,6 +23,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"runtime/debug"
 	"sync"
 
 	"github.com/1995parham/cheshmhayash/internal/natsx"
@@ -31,6 +32,18 @@ import (
 // protocolVersion is the MCP spec version this server claims. Clients send
 // their own version on initialize; we echo back what we support.
 const protocolVersion = "2024-11-05"
+
+// serverVersion is the cheshmhayash binary version reported on the
+// initialize response. Resolved from the embedded build info at startup
+// so it tracks the release tag automatically — falls back to "dev" when
+// the binary was built with `go run` or without VCS info.
+var serverVersion = func() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" || info.Main.Version == "(devel)" {
+		return "dev"
+	}
+	return info.Main.Version
+}()
 
 // Server is a stdio JSON-RPC 2.0 loop dispatching MCP methods. One Server
 // instance is bound to one read/write pair (typically stdin/stdout).
@@ -177,7 +190,7 @@ func (s *Server) initializeResult() map[string]any {
 		},
 		"serverInfo": map[string]any{
 			"name":    "cheshmhayash",
-			"version": "0.5.2",
+			"version": serverVersion,
 		},
 		"instructions": s.instructions(),
 	}

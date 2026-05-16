@@ -23,6 +23,7 @@ the NATS client port (`:4222`).
 │   ├── config/                    # koanf loader: struct defaults → settings.toml → env
 │   ├── natsx/                     # NATS client + admin/jsm subjects + overview cache
 │   ├── handler/                   # http.ServeMux routes (Go 1.22+ pattern syntax)
+│   ├── auth/                      # OIDC + HMAC-signed cookie sessions + MCP bearer
 │   ├── mcp/                       # JSON-RPC 2.0 MCP server: stdio + Streamable HTTP
 │   └── notify/                    # JS advisory → slack/mattermost/matrix webhooks
 ├── frontend/                      # React 19 + TS 6 + Vite 8 SPA
@@ -103,6 +104,11 @@ discovery_timeout_ms = 1500
 # provider = "slack"
 # url = "https://hooks.slack.com/services/…"
 # channel = "#nats-events"
+
+# Optional — OIDC dashboard auth + MCP bearer keys (see settings.toml
+# for the full template). Off by default; turning [auth].enabled = true
+# requires oidc.issuer/client_id/redirect_url, a session.secret (≥16 chars),
+# and at least one entry under access.allowed_{emails,domains,groups}.
 ```
 
 Env knobs:
@@ -110,6 +116,9 @@ Env knobs:
 - `CHESHMHAYASH_MCP_WRITE=1` — register destructive MCP tools
 - `CHESHMHAYASH_OVERVIEW_PERIOD=10s` — JSZ cache refresh interval
 - `LOG_LEVEL=info|debug|warn|error`
+- `CHESHMHAYASH__AUTH__ENABLED=true` — turn OIDC on (see settings.toml
+  for the rest of the keys; slices are comma-separated, MCP keys use
+  the `…__MCP_KEYS__0__VALUE` indexed form)
 
 `$SYS.REQ.*` only flows when the connection is bound to the system
 account. Without sys creds, server-discovery endpoints time out and the
@@ -137,6 +146,10 @@ whole cluster.
 | `POST`      | `…/streams/{s}/consumers/{con}/actions/stepdown?confirm=true` | force consumer raft re-election |
 | `GET\|DELETE` | `…/streams/{s}/consumers/{con}` | info / delete |
 | `POST\|GET` | `/mcp` | MCP Streamable HTTP transport (POST = JSON-RPC; GET = SSE keep-alive) |
+| `GET`       | `/api/auth/login` | redirect to OIDC IdP (auth on) |
+| `GET`       | `/api/auth/callback` | OIDC redirect target |
+| `POST`      | `/api/auth/logout` | clear session cookie |
+| `GET`       | `/api/auth/me` | identity probe — 200 / 401 / 404 (when off) |
 
 Destructive verbs require `?confirm=true`; without it the server returns
 `428 Precondition Required`.
@@ -156,6 +169,12 @@ Destructive verbs require `?confirm=true`; without it the server returns
   bridge on every cluster, classifies events in `classify.go`, sends to
   Slack/Mattermost/Matrix as `{"text": "…"}` via `webhook.go`. Best-
   effort — permission denials are logged, not fatal.
+- **Auth** (`internal/auth/`) — OIDC login flow (`/api/auth/{login,
+  callback,logout,me}`) with PKCE + state + nonce, allowlist gate on
+  email / domain / group claims, and HMAC-SHA256-signed cookie sessions
+  (no DB). `MCPMiddleware` checks `Authorization: Bearer …` against the
+  static keys in `auth.mcp_keys` for `/mcp`; stdio MCP stays open. Auth
+  is fully off when `auth.enabled = false` (the default).
 
 ## Tech / versions
 

@@ -100,6 +100,30 @@ True when any cluster declares a chart-managed userPassword.
 {{- end }}
 
 {{/*
+True when the chart needs to create a Secret entry for the OIDC client
+secret, the session signing secret, or one of the inline MCP keys.
+*/}}
+{{- define "cheshmhayash-chart.hasManagedAppAuth" -}}
+{{- $managed := false -}}
+{{- if and .Values.auth.enabled .Values.auth.oidc.clientSecret -}}{{- $managed = true -}}{{- end -}}
+{{- if and .Values.auth.enabled .Values.auth.session.secret -}}{{- $managed = true -}}{{- end -}}
+{{- range $i, $k := .Values.auth.mcpKeys -}}
+{{- if $k.value -}}{{- $managed = true -}}{{- end -}}
+{{- end -}}
+{{- if $managed }}true{{ end }}
+{{- end }}
+
+{{/*
+True when the chart needs *any* Secret object — either cluster userPassword
+or any of the app-auth (OIDC/session/MCP) inline values.
+*/}}
+{{- define "cheshmhayash-chart.hasSecret" -}}
+{{- if or (eq (include "cheshmhayash-chart.hasManagedAuth" .) "true") (eq (include "cheshmhayash-chart.hasManagedAppAuth" .) "true") -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
 Render settings.toml. Passwords live in env vars (CHESHMHAYASH__NATS__i__PASSWORD)
 so they never appear in the ConfigMap; `creds_file` paths point at the
 projected Secret mount.
@@ -139,4 +163,41 @@ channel = "{{ $n.channel }}"
 username = "{{ $n.username }}"
 {{- end }}
 {{ end }}
+{{- if .Values.auth.enabled }}
+
+[auth]
+enabled = true
+
+[auth.oidc]
+issuer = "{{ .Values.auth.oidc.issuer }}"
+client_id = "{{ .Values.auth.oidc.clientId }}"
+redirect_url = "{{ .Values.auth.oidc.redirectUrl }}"
+{{- with .Values.auth.oidc.scopes }}
+scopes = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+
+[auth.access]
+{{- with .Values.auth.access.allowedEmails }}
+allowed_emails = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- with .Values.auth.access.allowedDomains }}
+allowed_domains = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- with .Values.auth.access.allowedGroups }}
+allowed_groups = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- if .Values.auth.access.groupsClaim }}
+groups_claim = "{{ .Values.auth.access.groupsClaim }}"
+{{- end }}
+
+[auth.session]
+ttl_seconds = {{ .Values.auth.session.ttlSeconds }}
+cookie_name = "{{ .Values.auth.session.cookieName }}"
+secure = {{ .Values.auth.session.secure }}
+{{- end }}
+{{- range $i, $k := .Values.auth.mcpKeys }}
+
+[[auth.mcp_keys]]
+name = "{{ $k.name }}"
+{{- end }}
 {{- end }}

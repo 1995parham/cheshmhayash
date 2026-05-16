@@ -11,6 +11,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	"github.com/1995parham/cheshmhayash/internal/auth"
 	"github.com/1995parham/cheshmhayash/internal/natsx"
 )
 
@@ -20,12 +21,19 @@ import (
 // mcpHandler is optional — pass nil to skip /mcp registration. Likewise
 // cache is optional; when nil, /api/jsm/.../overview falls back to a
 // live NATS call on every request and /overview/stream returns 503.
+//
+// authn is optional. When non-nil and Enabled, /api/auth/* endpoints are
+// registered and all /api/* routes are wrapped in the session-check
+// middleware. mcpKeys, when non-empty, gates /mcp with bearer-token auth
+// (independent of authn — MCP keys work even with OIDC disabled).
 func Mux(
 	mgr *natsx.Manager,
 	cache *natsx.OverviewCache,
 	staticDir string,
 	logger *slog.Logger,
 	mcpHandler http.Handler,
+	authn *auth.Authenticator,
+	mcpKeys []auth.KeyMatcher,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -39,13 +47,21 @@ func Mux(
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	if authn.Enabled() {
+		authn.Register(mux)
+	}
+
 	if mcpHandler != nil {
-		mux.Handle("/mcp", mcpHandler)
+		mux.Handle("/mcp", auth.MCPMiddleware(mcpKeys, mcpHandler))
 	}
 
 	spa(mux, staticDir)
 
-	return cors(requestLog(logger, mux))
+	var inner http.Handler = mux
+	if authn.Enabled() {
+		inner = authn.Middleware(mux)
+	}
+	return cors(requestLog(logger, inner))
 }
 
 // spa serves the built SPA from staticDir. Unknown paths fall back to

@@ -66,7 +66,9 @@ spec:
               {{- $hasNotifyEnv = true }}
             {{- end }}
           {{- end }}
-          {{- if or $hasAuthEnv $hasNotifyEnv .Values.extraEnv }}
+          {{- $hasAppAuthEnv := and .Values.auth.enabled true }}
+          {{- $hasMCPKeyEnv := gt (len .Values.auth.mcpKeys) 0 }}
+          {{- if or $hasAuthEnv $hasNotifyEnv $hasAppAuthEnv $hasMCPKeyEnv .Values.extraEnv }}
           env:
             {{- range $i, $c := .Values.clusters }}
             {{- if and $c.auth $c.auth.existingSecret }}
@@ -101,6 +103,40 @@ spec:
                   name: {{ $n.urlSecret.name }}
                   key: {{ $n.urlSecret.key | default "url" }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.auth.enabled }}
+            - name: CHESHMHAYASH__AUTH__OIDC__CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.auth.oidc.existingClientSecret }}
+                  name: {{ .Values.auth.oidc.existingClientSecret.name }}
+                  key: {{ .Values.auth.oidc.existingClientSecret.key | default "client_secret" }}
+                  {{- else }}
+                  name: {{ include "cheshmhayash-chart.secretName" . }}
+                  key: oidc-client-secret
+                  {{- end }}
+            - name: CHESHMHAYASH__AUTH__SESSION__SECRET
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.auth.session.existingSecret }}
+                  name: {{ .Values.auth.session.existingSecret.name }}
+                  key: {{ .Values.auth.session.existingSecret.key | default "session_secret" }}
+                  {{- else }}
+                  name: {{ include "cheshmhayash-chart.secretName" . }}
+                  key: session-secret
+                  {{- end }}
+            {{- end }}
+            {{- range $i, $k := .Values.auth.mcpKeys }}
+            - name: CHESHMHAYASH__AUTH__MCP_KEYS__{{ $i }}__VALUE
+              valueFrom:
+                secretKeyRef:
+                  {{- if $k.existingSecret }}
+                  name: {{ $k.existingSecret.name }}
+                  key: {{ $k.existingSecret.key }}
+                  {{- else }}
+                  name: {{ include "cheshmhayash-chart.secretName" $ }}
+                  key: mcp-key-{{ $i }}
+                  {{- end }}
             {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}

@@ -262,6 +262,61 @@ notify: []
 #   channel: "#nats-events"
 #   username: cheshmhayash
 
+# ---- authentication --------------------------------------------------------
+# OIDC for the HTTP API + static bearer keys for the /mcp HTTP transport.
+# When `enabled` is false (default) the dashboard stays open exactly like
+# before this section was added. MCP keys work independently — list any
+# entry under `mcpKeys` to require a bearer token on /mcp, regardless of
+# whether OIDC is on.
+#
+# Sensitive fields (`oidc.clientSecret`, `session.secret`, MCP key values)
+# are sourced from a Secret. The chart can either create + populate that
+# Secret from inline values, or reference an existing one — same pattern
+# as the cluster auth block above.
+auth:
+  enabled: false
+  oidc:
+    issuer: ""
+    clientId: ""
+    redirectUrl: ""
+    scopes:
+      - openid
+      - profile
+      - email
+    # Use exactly one of the two below.
+    # `clientSecret` is written into the chart-managed Secret.
+    clientSecret: ""
+    # existingClientSecret:
+    #   name: cheshmhayash-oidc
+    #   key: client_secret
+  access:
+    # At least one of these three must be non-empty when `auth.enabled`.
+    allowedEmails: []
+    allowedDomains: []
+    allowedGroups: []
+    groupsClaim: groups
+  session:
+    ttlSeconds: 43200
+    cookieName: cheshmhayash_session
+    # Set true behind HTTPS so the cookie is only sent over TLS.
+    secure: true
+    # Required when auth.enabled. Inline -> chart-managed Secret.
+    secret: ""
+    # existingSecret:
+    #   name: cheshmhayash-session
+    #   key: session_secret
+  # MCP HTTP bearer tokens. Each entry must declare `name` (free-form
+  # label, shows up in logs) plus exactly one of `value` (inline) or
+  # `existingSecret: {name, key}`. Leave the list empty to keep /mcp
+  # un-authenticated like before.
+  mcpKeys: []
+  # - name: ci-bot
+  #   value: replace-me
+  # - name: ops-bot
+  #   existingSecret:
+  #     name: cheshmhayash-mcp
+  #     key: ops-bot
+
 # Extra environment variables to inject into the container.
 extraEnv: []
 # - name: LOG_LEVEL

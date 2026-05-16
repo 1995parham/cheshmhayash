@@ -13,5 +13,21 @@ func Default() Settings {
 		// one in settings.toml or via env vars. Validation in Load() will
 		// error out if the final list is empty.
 		NATS: nil,
+		// Auth is opt-in. When Enabled stays false the HTTP API and MCP
+		// endpoint behave exactly as before this feature landed.
+		Auth: Auth{
+			Enabled: false,
+			OIDC: AuthOIDC{
+				Scopes: []string{"openid", "profile", "email"},
+			},
+			Access: AuthAccess{
+				GroupsClaim: "groups",
+			},
+			Session: AuthSession{
+				CookieName: "cheshmhayash_session",
+				TTLSeconds: 43200,
+				Secure:     false,
+			},
+		},
 	}
 }

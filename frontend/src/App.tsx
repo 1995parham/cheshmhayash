@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
-import { RefreshCw, Server, Users, Database, Network } from "lucide-react";
+import { LogOut, RefreshCw, Server, Users, Database, Network } from "lucide-react";
 import { api, ApiError } from "./api";
 import { ServersView } from "./components/ServersView";
 import { AccountsView } from "./components/AccountsView";
 import { JetStreamView } from "./components/JetStreamView";
 import { TopologyView } from "./components/TopologyView";
+import { LoginScreen } from "./components/LoginScreen";
 import { ToastProvider, useToast } from "./state/toast";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { Footer } from "./components/Footer";
+import { useAuth, displayName } from "./hooks/useAuth";
 
 type Tab = "servers" | "accounts" | "jetstream" | "topology";
 
@@ -23,6 +25,7 @@ export function App() {
 }
 
 function Shell() {
+  const { status, logout } = useAuth();
   const [clusters, setClusters] = useState<string[]>([]);
   const [cluster, setCluster] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("servers");
@@ -30,7 +33,13 @@ function Shell() {
   const [bootErr, setBootErr] = useState<string | null>(null);
   const toast = useToast();
 
+  // Hold cluster discovery until we know the user is allowed in. /api/admin
+  // returns 401 when auth is on and the cookie is missing — fetching too
+  // early just produces a misleading bootErr.
+  const canFetch = status.state === "disabled" || status.state === "authenticated";
+
   useEffect(() => {
+    if (!canFetch) return;
     api
       .clusters()
       .then((names) => {
@@ -38,7 +47,7 @@ function Shell() {
         setCluster(names[0] ?? null);
       })
       .catch((e: ApiError) => setBootErr(e.message));
-  }, []);
+  }, [canFetch]);
 
   const refresh = useCallback(() => setRefreshKey((n) => n + 1), []);
 
@@ -51,6 +60,13 @@ function Shell() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [refresh]);
+
+  if (status.state === "loading") {
+    return null;
+  }
+  if (status.state === "anonymous") {
+    return <LoginScreen />;
+  }
 
   return (
     <>
@@ -112,6 +128,27 @@ function Shell() {
           >
             <RefreshCw size={14} />
           </button>
+          {status.state === "authenticated" ? (
+            <div className="user-menu">
+              <span
+                className="who"
+                title={status.identity.email ?? status.identity.sub ?? ""}
+              >
+                {displayName(status.identity)}
+              </span>
+              <button
+                className="icon-btn"
+                title="Sign out"
+                onClick={() => {
+                  void logout().then(() => {
+                    window.location.href = "/";
+                  });
+                }}
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 

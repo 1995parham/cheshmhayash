@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/1995parham/cheshmhayash/internal/auth"
 	"github.com/1995parham/cheshmhayash/internal/config"
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/mcp"
@@ -47,6 +48,16 @@ func notifyConfigs(in []config.Notify) []notify.ProviderConfig {
 			Channel:  n.Channel,
 			Username: n.Username,
 		})
+	}
+	return out
+}
+
+// mcpKeyMatchers converts the config slice into the loose auth.KeyMatcher
+// shape — keeps the auth package independent of config.
+func mcpKeyMatchers(in []config.MCPKey) []auth.KeyMatcher {
+	out := make([]auth.KeyMatcher, 0, len(in))
+	for _, k := range in {
+		out = append(out, auth.KeyMatcher{Name: k.Name, Value: k.Value})
 	}
 	return out
 }
@@ -122,11 +133,30 @@ func run(log *slog.Logger) error {
 	defer notifier.Close()
 
 	// Expose MCP over HTTP at /mcp using the same NATS manager. Write mode
-	// is opt-in via env so the HTTP endpoint defaults to read-only — the
-	// surface is currently un-authenticated, matching the rest of the API.
+	// is opt-in via env so the HTTP endpoint defaults to read-only.
 	mcpWrite := os.Getenv("CHESHMHAYASH_MCP_WRITE") == "1"
 	mcpServer := mcp.NewServer(mgr, log, mcpWrite)
 	log.Info("mcp http transport enabled", "path", "/mcp", "write_enabled", mcpWrite)
+
+	// Optional OIDC. When Auth.Enabled is false this stays nil and the API
+	// behaves like it did before — backward-compatible default.
+	var authn *auth.Authenticator
+	if settings.Auth.Enabled {
+		authn, err = auth.New(ctx, settings.Auth, log)
+		if err != nil {
+			return fmt.Errorf("auth init: %w", err)
+		}
+		log.Info("auth enabled",
+			"issuer", settings.Auth.OIDC.Issuer,
+			"allowed_emails", len(settings.Auth.Access.AllowedEmails),
+			"allowed_domains", len(settings.Auth.Access.AllowedDomains),
+			"allowed_groups", len(settings.Auth.Access.AllowedGroups),
+		)
+	}
+	mcpKeys := mcpKeyMatchers(settings.Auth.MCPKeys)
+	if len(mcpKeys) > 0 {
+		log.Info("mcp http bearer auth enabled", "keys", len(mcpKeys))
+	}
 
 	// Background JSZ overview cache. /api/jsm/.../overview reads from
 	// here, /api/jsm/.../overview/stream subscribes to refresh ticks.
@@ -136,7 +166,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              settings.Server.Addr(),
-		Handler:           handler.Mux(mgr, overviewCache, frontendDir, log, mcpServer),
+		Handler:           handler.Mux(mgr, overviewCache, frontendDir, log, mcpServer, authn, mcpKeys),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

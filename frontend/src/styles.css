@@ -1018,3 +1018,65 @@ dialog button.primary:hover {
   border-top: 1px solid var(--border);
   margin: 0;
 }
+
+/* -------------------- auth ----------------------- */
+
+.login-card {
+  max-width: 460px;
+  margin: 64px auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.login-card h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.login-card .login-sub {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--accent);
+  color: #0b0f17;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+.login-btn:hover {
+  filter: brightness(1.1);
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+  margin-left: 4px;
+}
+.user-menu .who {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.user-menu .icon-btn {
+  padding: 4px 6px;
+}
