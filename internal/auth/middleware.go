@@ -56,6 +56,8 @@ func (a *Authenticator) isPublic(path string) bool {
 	switch {
 	case path == "/healthz":
 		return true
+	case path == "/api/version":
+		return true
 	case strings.HasPrefix(path, "/api/auth/"):
 		return true
 	case strings.HasPrefix(path, "/api/"):

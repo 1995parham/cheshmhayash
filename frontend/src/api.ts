@@ -45,6 +45,7 @@ const enc = encodeURIComponent;
 
 // ---- Admin --------------------------------------------------------------
 export const api = {
+  version: () => http<{ version: string }>("GET", "/api/version"),
   clusters: () => http<string[]>("GET", "/api/admin/clusters"),
   ping: (c: string) => http<PingReply[]>("GET", `/api/admin/clusters/${enc(c)}/servers`),
   pingEndpoint: <T = unknown>(c: string, ep: string) =>

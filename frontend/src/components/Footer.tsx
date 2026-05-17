@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
+import { api } from "../api";
 
 // Lucide ships only generic icons; brand marks live elsewhere. Inline a
 // small GitHub glyph rather than pulling in a separate brand-icon dep.
@@ -18,6 +20,24 @@ function GitHubIcon({ size = 12 }: { size?: number }) {
 }
 
 export function Footer() {
+  const [version, setVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .version()
+      .then((v) => {
+        if (!cancelled) setVersion(v.version);
+      })
+      .catch(() => {
+        // Best-effort — a missing version line is preferable to a noisy
+        // error in the footer.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <footer className="footer">
       <div className="footer-row">
@@ -49,6 +69,14 @@ export function Footer() {
         >
           <GitHubIcon /> 1995parham/cheshmhayash
         </a>
+        {version ? (
+          <>
+            <span className="footer-sep">·</span>
+            <span className="footer-version" title="cheshmhayash build version">
+              {version}
+            </span>
+          </>
+        ) : null}
       </div>
     </footer>
   );

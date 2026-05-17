@@ -874,6 +874,15 @@ td.role-absent {
   color: #ef4f7a;
   vertical-align: -1px;
 }
+.footer-version {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.02);
+}
 
 /* -------------------- toast ---------------------- */
 

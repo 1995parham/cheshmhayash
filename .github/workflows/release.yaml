@@ -118,6 +118,12 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Stamps the binary so /api/version + MCP initialize report the
+          # tag (e.g. "v1.2.3") instead of falling back to "dev". For
+          # non-tag pushes github.ref_name is the branch name ("main"),
+          # which is fine — it tells operators they're on a rolling build.
+          build-args: |
+            VERSION=${{ github.ref_name }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha

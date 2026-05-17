@@ -13,6 +13,7 @@ import (
 
 	"github.com/1995parham/cheshmhayash/internal/auth"
 	"github.com/1995parham/cheshmhayash/internal/natsx"
+	"github.com/1995parham/cheshmhayash/internal/version"
 )
 
 // Mux returns a fully wired ServeMux covering /api/admin, /api/jsm,
@@ -45,6 +46,12 @@ func Mux(
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// /api/version is intentionally public (see auth.isPublic) so the SPA
+	// footer and the login screen can render the build tag pre-auth.
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"version": version.String()})
 	})
 
 	if authn.Enabled() {

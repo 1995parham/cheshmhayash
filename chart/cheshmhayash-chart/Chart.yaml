@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.1.0
+version: 1.2.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -42,6 +42,4 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
-      description: OIDC authentication for the dashboard — render `[auth]` from `.Values.auth` with session/OIDC secrets sourced from a chart-managed or existing Secret.
-    - kind: added
-      description: Static bearer-token auth for the `/mcp` HTTP transport via `.Values.auth.mcpKeys`. Stdio MCP stays open.
+      description: Binary version stamped at build time (via `-ldflags -X internal/version.Version`) and exposed at `GET /api/version` — the SPA footer renders it for at-a-glance deploy verification.
