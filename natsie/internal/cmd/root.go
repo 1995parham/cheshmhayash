@@ -6,7 +6,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/1995parham/natsie/cmd/consumer"
+	"github.com/1995parham/natsie/internal/cmd/consumer"
 )
 
 // Execute is the entry point invoked from main.
