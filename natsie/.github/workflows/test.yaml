@@ -1,0 +1,47 @@
+---
+name: test
+on:
+  - push
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: extractions/setup-just@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+      - run: just test
+      - uses: codecov/codecov-action@v6
+        with:
+          files: coverage.out
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: 1995parham/natsie
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - test
+    steps:
+      - uses: extractions/setup-just@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+      - run: just build

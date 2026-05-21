@@ -1,0 +1,31 @@
+---
+version: "2"
+linters:
+  default: all
+  disable:
+    - gomodguard
+    - wsl
+    - depguard
+    - tagliatelle
+    - nolintlint
+    - varnamelen
+    - ireturn
+    - revive
+    - wrapcheck
+    - noinlineerr
+
+  settings:
+    wrapcheck:
+      ignore-sigs:
+        - .Errorf(
+        - errors.New(
+        - errors.Unwrap(
+        - .Wrap(
+        - .Wrapf(
+        - .WithMessage(
+        - .WithMessagef(
+        - .WithStack(
+    wsl_v5:
+      allow-first-in-block: true
+      allow-whole-block: false
+      branch-max-lines: 2
