@@ -10,8 +10,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/1995parham/natsie/internal/config"
-	"github.com/1995parham/natsie/internal/natsctx"
+	"github.com/1995parham/natsie/internal/infra/config"
+	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/scanner"
 )
 

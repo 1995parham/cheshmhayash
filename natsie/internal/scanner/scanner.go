@@ -18,7 +18,7 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/jsm.go/api"
 
-	"github.com/1995parham/natsie/internal/natsctx"
+	"github.com/1995parham/natsie/internal/infra/natsctx"
 )
 
 type Status string
