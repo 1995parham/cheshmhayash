@@ -1,0 +1,95 @@
+// Package config loads natsie's configuration from a YAML file and
+// environment variables, layered in that order.
+//
+// File: ~/.config/natsie/config.yaml (override with --config or NATSIE_CONFIG).
+// Env:  any variable prefixed NATSIE_, with underscores mapped to dots so
+//
+//	NATSIE_DEFAULTS_MIN_PENDING=10000
+//	sets defaults.min_pending to 10000.
+//
+// Command-line flags are applied on top of this in the calling command (urfave
+// CLI v3 manages flag state on the *cli.Command itself, so we layer it there
+// rather than via a koanf flag provider).
+package config
+
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/env/v2"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
+)
+
+const envPrefix = "NATSIE_"
+
+type Config struct {
+	Defaults Defaults                  `koanf:"defaults"`
+	Contexts map[string]ContextOptions `koanf:"contexts"`
+}
+
+type Defaults struct {
+	MinPending int64         `koanf:"min_pending"`
+	MinIdle    time.Duration `koanf:"min_idle"`
+	Format     string        `koanf:"format"`
+}
+
+// ContextOptions lets the user pre-declare cluster topology so the bot does
+// not need a --peer-context flag on every invocation.
+type ContextOptions struct {
+	Peer string `koanf:"peer"`
+}
+
+// Load reads the config file (if it exists) and overlays environment variables.
+// An absent file is not an error — defaults stand in.
+func Load(path string) (*Config, error) {
+	if path == "" {
+		path = defaultPath()
+	}
+
+	k := koanf.New(".")
+
+	if path != "" {
+		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("load %s: %w", path, err)
+		}
+	}
+
+	envProvider := env.Provider(".", env.Opt{
+		Prefix: envPrefix,
+		TransformFunc: func(key, val string) (string, any) {
+			return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(key, envPrefix)), "_", "."), val
+		},
+	})
+	if err := k.Load(envProvider, nil); err != nil {
+		return nil, fmt.Errorf("load env: %w", err)
+	}
+
+	cfg := &Config{
+		Defaults: Defaults{
+			MinIdle: 24 * time.Hour,
+			Format:  "tsv",
+		},
+	}
+	if err := k.Unmarshal("", cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal: %w", err)
+	}
+	return cfg, nil
+}
+
+func defaultPath() string {
+	if p := os.Getenv("NATSIE_CONFIG"); p != "" {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, ".config", "natsie", "config.yaml")
+}
