@@ -36,7 +36,14 @@ Early. The first working subcommand is `natsie consumer scan` — the rest of th
 ## Install
 
 ```bash
-go install github.com/1995parham/natsie@latest
+go install github.com/1995parham/natsie/cmd/natsie@latest
+```
+
+Or from source, with [just](https://just.systems):
+
+```bash
+git clone https://github.com/1995parham/natsie && cd natsie
+just build
 ```
 
 ## Quick start
@@ -57,6 +64,24 @@ natsie consumer scan --context snapp-js-main-teh1 --format json
 ```
 
 `natsie` reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
+
+## Project layout
+
+```
+.
+├── cmd/natsie/         # binary entrypoint (main.go)
+├── internal/
+│   ├── cmd/            # urfave/cli v3 command tree
+│   │   └── consumer/   # consumer subcommands (scan, ...)
+│   ├── infra/          # infrastructure adapters
+│   │   ├── config/     # koanf-based config loader
+│   │   └── natsctx/    # ~/.config/nats/context reader + dialer
+│   └── scanner/        # stream/consumer classification
+├── .github/workflows/  # lint, test, build, codeql
+├── docs/ROADMAP.md
+├── justfile            # just recipes (build, test, lint, tidy, update)
+└── .golangci.yml       # linter config
+```
 
 ## License
 
