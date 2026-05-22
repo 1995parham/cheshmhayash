@@ -20,8 +20,8 @@ Early. The first working subcommand is `natsie consumer scan` — the rest of th
 
 | Command | Status | Purpose |
 | --- | --- | --- |
-| `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON. |
-| `consumer apply` | planned | Apply a delete-manifest produced by `scan`, with confirmation. |
+| `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON, optionally a YAML cleanup manifest. |
+| `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run`. |
 | `stream report` | planned | Per-stream size, retention, replication, and ownership signals. |
 | `peer check` | planned | Detect ghost peers / phantom Raft groups from past shrinks. |
 | `bot serve` | planned | Long-running daemon: periodic scans, chat notifications (Slack/Mattermost/webhook), `/approve` slash command flow. |
@@ -64,6 +64,35 @@ natsie consumer scan --context snapp-js-main-teh1 --format json
 ```
 
 `natsie` reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
+
+## The scan → edit → apply workflow
+
+Deletion is gated on a hand-editable manifest. The flow:
+
+```bash
+# 1. Scan and emit a cleanup manifest of stale rows.
+natsie consumer scan --context snapp-js-main-teh1 \
+  --peer-context snapp-js-main-teh2 \
+  --min-pending 10000 --min-idle 24h \
+  --emit-manifest cleanup.yaml
+
+# 2. Hand-review cleanup.yaml. Delete rows you don't want touched, or set
+#    `skip: true` on rows you want to keep in the manifest as a record but
+#    excluded from apply. Add `reason:` lines so future you remembers why.
+
+# 3. Dry-run to confirm what apply would do (re-verifies each consumer).
+natsie consumer apply cleanup.yaml --dry-run
+
+# 4. Apply for real.
+natsie consumer apply cleanup.yaml
+```
+
+Apply re-queries every consumer immediately before deleting it. A consumer
+that has become active in the window between scan and apply — push-bound,
+has pull waiters, or has acked since the manifest's `generated_at` — is
+preserved. The window is the safety property that lets the bot operate
+unattended later; deleting from a stale snapshot is the failure mode that
+makes other cleanup tools dangerous.
 
 ## Project layout
 
