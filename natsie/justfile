@@ -25,3 +25,17 @@ tidy:
 # build the docker image (local; CI uses build-push-action)
 docker:
     docker build -t ghcr.io/1995parham/natsie:dev .
+
+# bring the local NATS sidecar up / down
+dev cmd *flags:
+    #!/usr/bin/env bash
+    echo '{{ BOLD + YELLOW }}Local NATS via docker compose{{ NORMAL }}'
+    set -eu
+    set -o pipefail
+    if [ {{ cmd }} = 'down' ]; then
+      docker compose -f ./docker-compose.yml down --volumes --remove-orphans
+    elif [ {{ cmd }} = 'up' ]; then
+      docker compose -f ./docker-compose.yml up --wait -d {{ flags }}
+    else
+      docker compose -f ./docker-compose.yml {{ cmd }} {{ flags }}
+    fi

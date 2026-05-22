@@ -1,0 +1,17 @@
+---
+# Local-dev sidecar: one JetStream-enabled NATS so `natsie consumer scan`
+# and `natsie bot serve` have something to talk to. Wire your local
+# ~/.config/nats/context/dev.json at nats://localhost:4222 to use it.
+services:
+  nats:
+    image: nats:2
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/varz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
