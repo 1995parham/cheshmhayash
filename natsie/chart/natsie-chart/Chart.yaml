@@ -1,0 +1,40 @@
+apiVersion: v2
+name: natsie-chart
+description: Long-lived NATS cleanup bot — scheduled scans, chat notifications, signed approval URLs, JSONL audit log.
+type: application
+
+# Chart version — bump on every chart change (independent of appVersion).
+version: 0.1.0
+
+# Application version — matches the natsie binary release. The
+# release.yaml workflow rewrites this to the pushed tag's version.
+appVersion: "0.3.0"
+
+# Lower bound for the Kubernetes API. The chart sticks to stable APIs
+# (apps/v1, networking.k8s.io/v1) — anything from 1.23 works.
+kubeVersion: ">=1.23.0-0"
+
+home: https://github.com/1995parham/natsie
+sources:
+  - https://github.com/1995parham/natsie
+keywords:
+  - nats
+  - jetstream
+  - cleanup
+  - bot
+  - chatops
+  - operations
+
+maintainers:
+  - name: Parham Alvani
+    url: https://github.com/1995parham
+    email: parham.alvani@gmail.com
+
+annotations:
+  artifacthub.io/category: monitoring
+  artifacthub.io/license: GPL-3.0-only
+  artifacthub.io/links: |
+    - name: source
+      url: https://github.com/1995parham/natsie
+    - name: nats.io
+      url: https://nats.io

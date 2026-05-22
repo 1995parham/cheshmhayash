@@ -1,0 +1,37 @@
+natsie {{ .Chart.AppVersion }} installed as {{ include "natsie-chart.fullname" . }}.
+
+Wait for the pod to become ready:
+
+  kubectl --namespace {{ .Release.Namespace }} rollout status deploy/{{ include "natsie-chart.fullname" . }}
+
+The HTTP listener is exposed on the cluster-internal Service:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "natsie-chart.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/healthz
+  curl http://localhost:8080/manifest/<id>
+
+{{- if and (not .Values.ingress.enabled) (not .Values.httpProxy.enabled) }}
+
+No ingress is enabled. Set either `ingress.enabled=true` or
+`httpProxy.enabled=true` (and `bot.baseUrl=https://...`) to expose the
+manifest viewer and signed approval URLs to chat users.
+{{- end }}
+
+{{- if not .Values.bot.schedules }}
+
+No schedules are configured (`bot.schedules: []`). The daemon will start
+and idle. Add a schedule under `bot.schedules` in values.yaml.
+{{- end }}
+
+{{- if not .Values.bot.notify }}{{- if not .Values.bot.notifySecret }}
+
+No notify sinks configured. Add `bot.notify: [stdout://]` (or a real
+chat URL) so scan results have somewhere to go.
+{{- end }}{{- end }}
+
+{{- if and (not .Values.bot.signingKey) (not .Values.bot.existingSigningKeySecret.name) }}
+
+`bot.signingKey` is unset — the /slash and /approve endpoints will be
+disabled. Set it (or `bot.existingSigningKeySecret`) to enable the
+chat-bot approval flow.
+{{- end }}

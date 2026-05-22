@@ -1,0 +1,225 @@
+# Default values for the natsie chart.
+
+# ---- image -----------------------------------------------------------------
+image:
+  repository: ghcr.io/1995parham/natsie
+  # Override the image tag (defaults to .Chart.AppVersion when empty).
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# ---- naming ----------------------------------------------------------------
+nameOverride: natsie
+fullnameOverride: ""
+
+# ---- workload --------------------------------------------------------------
+# natsie is single-writer: the scheduler, file store, and audit log all
+# assume one process. Don't scale beyond 1.
+replicaCount: 1
+
+# Recreate (not RollingUpdate) because the PVC has accessMode
+# ReadWriteOnce and two pods can't mount it simultaneously.
+strategy:
+  type: Recreate
+
+revisionHistoryLimit: 5
+
+priorityClassName: ""
+
+# ---- serviceAccount --------------------------------------------------------
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # natsie does not call the Kubernetes API.
+  automountServiceAccountToken: false
+
+# ---- pod security ----------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop:
+      - ALL
+
+# ---- resources -------------------------------------------------------------
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+# ---- probes ----------------------------------------------------------------
+# All three probes hit /healthz on the HTTP port.
+probes:
+  startup:
+    enabled: true
+    periodSeconds: 5
+    failureThreshold: 30
+    timeoutSeconds: 2
+  readiness:
+    enabled: true
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+    successThreshold: 1
+  liveness:
+    enabled: true
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+# ---- scheduling ------------------------------------------------------------
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# ---- networking ------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# Two ingress mechanisms; don't enable both with the same hostname.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: natsie.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+httpProxy:
+  enabled: false
+  ingressClassName: ""
+  fqdn: ""
+  annotations: {}
+  tls:
+    secretName: ""
+    enableFallbackCertificate: true
+  routes: []
+
+# NetworkPolicy is opt-in.
+networkPolicy:
+  enabled: false
+  ingress:
+    fromNamespaceSelector: {}
+    fromPodSelector: {}
+  egress:
+    natsCidrs: []
+    natsPorts:
+      - 4222
+    allowDNS: true
+
+# ---- persistence -----------------------------------------------------------
+# natsie writes the manifest store, audit log, and any future state into a
+# single PVC. accessMode must be ReadWriteOnce because the strategy is
+# Recreate and only one pod ever mounts at a time.
+persistence:
+  enabled: true
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  storageClassName: ""
+  annotations: {}
+  # When false the chart will use an emptyDir instead (lose state on pod restart).
+
+# ---- NATS context files ---------------------------------------------------
+# natsie dials NATS clusters via files at ~/.config/nats/context/<name>.json
+# (the same store the official `nats context` CLI uses). The chart mounts
+# them from a Secret. Two ways to supply that Secret:
+#
+#   natsContexts.inline:
+#     - name: snapp-js-main-teh1
+#       content: |
+#         { "url": "nats://...", "user": "...", "password": "..." }
+#
+#   natsContexts.existingSecret:
+#     name: natsie-nats-contexts        # one Secret with one key per context file
+#                                       # (keys must end in .json)
+#
+natsContexts:
+  inline: []
+  existingSecret: ""
+
+# ---- application config ---------------------------------------------------
+# Each entry below is rendered into the bot config.yaml the daemon reads.
+defaults:
+  minPending: 0
+  minIdle: 24h
+  format: tsv
+
+contexts: {}
+# Pre-declare cluster topology so the bot doesn't need a --peer-context
+# flag on every invocation. Example:
+#   contexts:
+#     snapp-js-main-teh1:
+#       peer: snapp-js-main-teh2
+
+bot:
+  # Each entry becomes a [[schedules]] in config.yaml.
+  schedules: []
+  # - name: daily
+  #   cron: "0 3 * * *"
+  #   context: snapp-js-main-teh1
+  #   peerContext: snapp-js-main-teh2
+  #   minPending: 10000
+  #   minIdle: 24h
+
+  # Notify URLs. URLs may contain secrets — if you don't want them in the
+  # ConfigMap, set `bot.notifySecret` to a Secret whose `urls` key holds a
+  # newline-separated list. When `notifySecret` is set, `bot.notify` is
+  # ignored and an env var (NATSIE_BOT__NOTIFY) reads from the Secret.
+  notify: []
+  # - stdout://
+  # - mattermost://chat.example.com/hooks/abc-xyz?channel=nats-cleanup
+  notifySecret: ""
+
+  # Owner routing — each entry becomes a [[bot.owners]] in config.yaml.
+  owners: []
+  # - name: chronos
+  #   streams: [rides]
+  #   consumerPrefix: [chronos-]
+  #   notify:
+  #     - mattermost://chat.example.com/hooks/team-chronos
+
+  # Public URL used to build /manifest/<id> and /approve/<id> links in
+  # chat messages. Leave empty when ingress.enabled = false.
+  baseUrl: ""
+
+  # signing_key gates the /slash + /approve endpoints. One of:
+  #   signingKey: <inline string>           # chart-managed Secret
+  #   existingSigningKeySecret:             # operator-managed Secret
+  #     name: natsie-signing-key
+  #     key: signing_key
+  signingKey: ""
+  existingSigningKeySecret: {}
+
+  # /var/lib/natsie paths live inside the PVC. Adjust only if you change
+  # the mount.
+  storePath: /var/lib/natsie/manifests
+  auditLogPath: /var/lib/natsie/audit.jsonl
+
+# Extra escape hatches.
+extraEnv: []
+extraEnvFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+extraContainers: []
+initContainers: []
+
+# Rolls the Deployment when the rendered ConfigMap content changes.
+restartOnConfigChange: true
