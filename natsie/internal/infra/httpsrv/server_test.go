@@ -42,7 +42,7 @@ func doRequest(s *Server, path string) *httptest.ResponseRecorder {
 func TestHealth(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	rec := doRequest(s,"/health")
+	rec := doRequest(s, "/healthz")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d want 200", rec.Code)
 	}

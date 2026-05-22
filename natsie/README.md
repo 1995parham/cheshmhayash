@@ -156,7 +156,7 @@ bot:
 
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
-| `GET`  | `/health` | JSON `{"status":"ok"}` for load-balancer probes. |
+| `GET`  | `/healthz` | JSON `{"status":"ok"}` for load-balancer probes. |
 | `GET`  | `/manifest/{id}` | Returns the stored manifest as `application/yaml`. |
 | `POST` | `/slash` | Slash-command handler (`list`, `show <id>`, `help`). Token-protected. |
 | `GET`  | `/approve/{id}?token=...` | Renders a plain-text preview of what would be deleted. |
@@ -205,7 +205,7 @@ spec:
             - { name: state,     mountPath: /var/lib/natsie }
             - { name: nats-ctx,  mountPath: /root/.config/nats }
           livenessProbe:
-            httpGet: { path: /health, port: 8080 }
+            httpGet: { path: /healthz, port: 8080 }
       volumes:
         - { name: config,   configMap: { name: natsie-config } }
         - { name: state,    persistentVolumeClaim: { claimName: natsie-state } }

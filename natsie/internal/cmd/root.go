@@ -6,11 +6,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/carlmjohnson/versioninfo"
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/cmd/bot"
 	"github.com/1995parham/natsie/internal/cmd/consumer"
+	"github.com/1995parham/natsie/internal/version"
 )
 
 // Execute is the entry point invoked from main.
@@ -18,7 +18,7 @@ func Execute() error {
 	root := &cli.Command{
 		Name:    "natsie",
 		Usage:   "A Swiss-army knife for NATS operations",
-		Version: versioninfo.Short(),
+		Version: version.Short(),
 		Description: "natsie scans, reports on, and (with explicit human approval) cleans up consumers, " +
 			"streams, and cluster state across one or many JetStream clusters.",
 		Flags: []cli.Flag{

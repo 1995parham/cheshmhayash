@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/carlmjohnson/versioninfo"
 	"github.com/nats-io/nats.go"
 	"github.com/urfave/cli/v3"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/1995parham/natsie/internal/manifest"
 	"github.com/1995parham/natsie/internal/owners"
 	"github.com/1995parham/natsie/internal/scanner"
+	"github.com/1995parham/natsie/internal/version"
 )
 
 // dispatcher fans manifest notifications out to (a) the configured global
@@ -303,7 +303,7 @@ func buildManifest(s config.Schedule, rows []scanner.Row) *manifest.Manifest {
 	m := &manifest.Manifest{
 		Version:     manifest.Version,
 		GeneratedAt: time.Now().UTC(),
-		GeneratedBy: "natsie " + versioninfo.Short(),
+		GeneratedBy: "natsie " + version.Short(),
 		Scan: manifest.ScanInfo{
 			Context:     s.Context,
 			PeerContext: s.PeerContext,

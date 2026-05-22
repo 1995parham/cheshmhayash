@@ -64,7 +64,7 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 }
 
 func (s *Server) routes() {
-	s.e.GET("/health", s.health)
+	s.e.GET("/healthz", s.health)
 	s.e.GET("/manifest/:id", s.getManifest)
 
 	if s.signingKey != "" {

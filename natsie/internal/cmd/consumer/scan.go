@@ -8,13 +8,13 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/carlmjohnson/versioninfo"
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/manifest"
 	"github.com/1995parham/natsie/internal/scanner"
+	"github.com/1995parham/natsie/internal/version"
 )
 
 func scanCommand() *cli.Command {
@@ -156,7 +156,7 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 	m := &manifest.Manifest{
 		Version:     manifest.Version,
 		GeneratedAt: time.Now().UTC(),
-		GeneratedBy: "natsie " + versioninfo.Short(),
+		GeneratedBy: "natsie " + version.Short(),
 		Scan: manifest.ScanInfo{
 			Context:     ctxName,
 			PeerContext: peerName,
