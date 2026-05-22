@@ -9,6 +9,7 @@ func Command() *cli.Command {
 		Usage: "Operate on JetStream consumers",
 		Commands: []*cli.Command{
 			scanCommand(),
+			applyCommand(),
 		},
 	}
 }
