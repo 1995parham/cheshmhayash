@@ -10,6 +10,7 @@ import (
 
 func TestAddInvalidSpec(t *testing.T) {
 	s := New(nil)
+
 	err := s.Add(Job{Name: "bad", Spec: "not a cron spec", Run: func(context.Context) error { return nil }})
 	if err == nil {
 		t.Fatal("expected error for invalid cron spec")
@@ -33,9 +34,12 @@ func TestAddMissingRun(t *testing.T) {
 // TestJobFires uses the @every descriptor with a sub-second interval so we
 // can verify the wiring without sleeping for minutes.
 func TestJobFires(t *testing.T) {
-	var fired int32
-	var wg sync.WaitGroup
+	var (
+		fired atomic.Int32
+		wg    sync.WaitGroup
+	)
 	wg.Add(1)
+
 	once := sync.Once{}
 
 	s := New(nil)
@@ -43,9 +47,10 @@ func TestJobFires(t *testing.T) {
 		Name: "tick",
 		Spec: "@every 200ms",
 		Run: func(context.Context) error {
-			if atomic.AddInt32(&fired, 1) == 1 {
+			if fired.Add(1) == 1 {
 				once.Do(wg.Done)
 			}
+
 			return nil
 		},
 	}); err != nil {
@@ -56,13 +61,16 @@ func TestJobFires(t *testing.T) {
 	defer s.Stop(context.Background())
 
 	waitCh := make(chan struct{})
+
 	go func() { wg.Wait(); close(waitCh) }()
+
 	select {
 	case <-waitCh:
 	case <-time.After(2 * time.Second):
 		t.Fatal("job did not fire within 2s")
 	}
-	if atomic.LoadInt32(&fired) < 1 {
-		t.Fatalf("fired=%d, want >= 1", atomic.LoadInt32(&fired))
+
+	if fired.Load() < 1 {
+		t.Fatalf("fired=%d, want >= 1", fired.Load())
 	}
 }

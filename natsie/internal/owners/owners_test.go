@@ -30,10 +30,12 @@ func TestMatchByStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}
+
 	got := r.Match(manifest.Entry{Stream: "rides", Consumer: "anything"})
 	if got != "rides-team" {
 		t.Errorf("got %q want rides-team", got)
 	}
+
 	if other := r.Match(manifest.Entry{Stream: "other", Consumer: "x"}); other != "" {
 		t.Errorf("got %q want \"\"", other)
 	}
@@ -47,6 +49,7 @@ func TestMatchByConsumerPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}
+
 	cases := []struct{ consumer, want string }{
 		{"chronos-ride-started", "chronos"},
 		{"chronos-anything", "chronos"},
@@ -103,9 +106,11 @@ func TestGroup(t *testing.T) {
 	if len(got["chronos"]) != 2 {
 		t.Errorf("chronos=%d want 2", len(got["chronos"]))
 	}
+
 	if len(got["seraat"]) != 1 {
 		t.Errorf("seraat=%d want 1", len(got["seraat"]))
 	}
+
 	if len(got[""]) != 1 {
 		t.Errorf("unmatched=%d want 1", len(got[""]))
 	}
@@ -117,6 +122,7 @@ func TestNames(t *testing.T) {
 		{Name: "bravo", Streams: []string{"y"}},
 	})
 	got := r.Names()
+
 	want := []string{"alpha", "bravo"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Names=%v want %v", got, want)
@@ -128,6 +134,7 @@ func TestEmptyRouterMatchesNothing(t *testing.T) {
 	if got := r.Match(manifest.Entry{Stream: "x", Consumer: "y"}); got != "" {
 		t.Errorf("empty router matched %q", got)
 	}
+
 	group := r.Group([]manifest.Entry{{Consumer: "a"}, {Consumer: "b"}})
 	if len(group[""]) != 2 {
 		t.Errorf("unmatched=%d want 2", len(group[""]))
@@ -137,7 +144,9 @@ func TestEmptyRouterMatchesNothing(t *testing.T) {
 	for k := range group {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
+
 	if !reflect.DeepEqual(keys, []string{""}) {
 		t.Errorf("group keys=%v want [\"\"]", keys)
 	}

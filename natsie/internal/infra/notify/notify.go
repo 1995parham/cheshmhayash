@@ -27,9 +27,11 @@ type Notifier interface {
 // Notifier may wrap it (e.g. add backticks in Slack) but is not expected to
 // re-format it. ManifestID and Link are optional pointers back to a stored
 // manifest the message refers to.
+//
+// json tags exist so the webhook notifier can marshal it directly.
 type Message struct {
-	Title      string
-	Body       string
-	ManifestID string
-	Link       string
+	Title      string `json:"title,omitempty"`
+	Body       string `json:"body,omitempty"`
+	ManifestID string `json:"manifest_id,omitempty"`
+	Link       string `json:"link,omitempty"`
 }

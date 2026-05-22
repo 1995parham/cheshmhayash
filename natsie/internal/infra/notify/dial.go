@@ -13,6 +13,7 @@ func Dial(url string) (Notifier, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse notify url %q: %w", url, err)
 	}
+
 	switch u.Scheme {
 	case "stdout":
 		return NewStdout(), nil

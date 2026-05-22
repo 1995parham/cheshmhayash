@@ -27,8 +27,10 @@ func NewWebhook(u *neturl.URL) (*Webhook, error) {
 	if u.Host == "" {
 		return nil, fmt.Errorf("webhook url missing host: %s", u.Redacted())
 	}
+
 	hook := *u
 	hook.Scheme = "https"
+
 	return &Webhook{
 		URL:    hook.String(),
 		Client: &http.Client{Timeout: defaultHTTPTimeout},
@@ -37,40 +39,40 @@ func NewWebhook(u *neturl.URL) (*Webhook, error) {
 
 func (w *Webhook) Name() string { return "webhook" }
 
-type webhookPayload struct {
-	Title      string `json:"title,omitempty"`
-	Body       string `json:"body,omitempty"`
-	ManifestID string `json:"manifest_id,omitempty"`
-	Link       string `json:"link,omitempty"`
-}
+// webhookPayload is a structural alias of Message so the json tags
+// determine the on-wire field names without an extra copy step.
+type webhookPayload Message
 
 func (w *Webhook) Post(ctx context.Context, msg Message) error {
-	body, err := json.Marshal(webhookPayload{
-		Title:      msg.Title,
-		Body:       msg.Body,
-		ManifestID: msg.ManifestID,
-		Link:       msg.Link,
-	})
+	body, err := json.Marshal(webhookPayload(msg))
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.URL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	client := w.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("post: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode/100 != 2 {
 		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
 		return fmt.Errorf("webhook responded %d: %s", resp.StatusCode, string(preview))
 	}
+
 	return nil
 }

@@ -55,17 +55,20 @@ type Entry struct {
 
 // Read parses a YAML manifest from path.
 func Read(path string) (*Manifest, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // manifest path is supplied by the operator
 	if err != nil {
 		return nil, fmt.Errorf("read manifest %s: %w", path, err)
 	}
+
 	var m Manifest
 	if err := yaml.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("parse manifest %s: %w", path, err)
 	}
+
 	if m.Version != Version {
 		return nil, fmt.Errorf("unsupported manifest version %q (want %q)", m.Version, Version)
 	}
+
 	return &m, nil
 }
 
@@ -80,12 +83,15 @@ func (m *Manifest) Write(path string, force bool) error {
 			return err
 		}
 	}
+
 	b, err := yaml.Marshal(m)
 	if err != nil {
 		return fmt.Errorf("marshal manifest: %w", err)
 	}
+
 	if err := os.WriteFile(path, b, 0o600); err != nil {
 		return fmt.Errorf("write manifest %s: %w", path, err)
 	}
+
 	return nil
 }

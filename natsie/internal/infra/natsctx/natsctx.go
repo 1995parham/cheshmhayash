@@ -31,6 +31,7 @@ type contextFile struct {
 // pass it to other packages without re-threading the context name everywhere.
 type Conn struct {
 	*nats.Conn
+
 	Name string
 }
 
@@ -40,20 +41,25 @@ func Connect(name string) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	path := filepath.Join(home, ".config", "nats", "context", name+".json")
-	b, err := os.ReadFile(path)
+
+	b, err := os.ReadFile(path) //nolint:gosec // path is composed from the nats context name
 	if err != nil {
 		return nil, fmt.Errorf("read context %s: %w", path, err)
 	}
+
 	var cf contextFile
 	if err := json.Unmarshal(b, &cf); err != nil {
 		return nil, fmt.Errorf("parse context %s: %w", path, err)
 	}
+
 	if cf.URL == "" {
 		return nil, fmt.Errorf("context %s has no url", name)
 	}
 
 	var opts []nats.Option
+
 	switch {
 	case cf.Creds != "":
 		opts = append(opts, nats.UserCredentials(cf.Creds))
@@ -64,14 +70,17 @@ func Connect(name string) (*Conn, error) {
 	case cf.Username != "":
 		opts = append(opts, nats.UserInfo(cf.Username, cf.Password))
 	}
+
 	if cf.InboxPrefix != "" {
 		opts = append(opts, nats.CustomInboxPrefix(cf.InboxPrefix))
 	}
+
 	opts = append(opts, nats.Name("natsie"))
 
 	nc, err := nats.Connect(cf.URL, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", cf.URL, err)
 	}
+
 	return &Conn{Conn: nc, Name: name}, nil
 }

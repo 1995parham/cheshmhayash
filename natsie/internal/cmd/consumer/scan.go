@@ -70,11 +70,13 @@ func scanCommand() *cli.Command {
 			if cmd.IsSet("min-pending") {
 				opts.MinPending = int64(cmd.Int("min-pending"))
 			}
+
 			if cmd.IsSet("min-idle") {
 				opts.MinIdle = cmd.Duration("min-idle")
 			}
 
 			ctxName := cmd.String("context")
+
 			peerName := cmd.String("peer-context")
 			if peerName == "" {
 				if c, ok := cfg.Contexts[ctxName]; ok {
@@ -86,6 +88,7 @@ func scanCommand() *cli.Command {
 			if format == "" {
 				format = cfg.Defaults.Format
 			}
+
 			if format == "" {
 				format = "tsv"
 			}
@@ -118,6 +121,7 @@ func scanCommand() *cli.Command {
 				if err := m.Write(manifestPath, cmd.Bool("force")); err != nil {
 					return err
 				}
+
 				fmt.Fprintf(os.Stderr, "wrote manifest %s (%d stale entries)\n", manifestPath, len(m.Entries))
 			}
 
@@ -125,14 +129,21 @@ func scanCommand() *cli.Command {
 			case "json":
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
+
 				return enc.Encode(rows)
 			case "tsv":
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-				fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status")
-				for _, r := range rows {
-					fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
-						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second), r.PeerStatus)
+				if _, err := fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status"); err != nil {
+					return err
 				}
+
+				for _, r := range rows {
+					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
+						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second), r.PeerStatus); err != nil {
+						return err
+					}
+				}
+
 				return w.Flush()
 			default:
 				return fmt.Errorf("unknown --format %q (want tsv|json)", format)
@@ -154,10 +165,12 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 			MinIdle:     opts.MinIdle,
 		},
 	}
+
 	for _, r := range rows {
 		if r.Status != scanner.StatusStale {
 			continue
 		}
+
 		m.Entries = append(m.Entries, manifest.Entry{
 			Cluster:    r.Cluster,
 			Stream:     r.Stream,
@@ -169,5 +182,6 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 			LastAck:    r.LastAck.UTC(),
 		})
 	}
+
 	return m
 }

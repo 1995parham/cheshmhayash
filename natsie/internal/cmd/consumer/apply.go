@@ -33,6 +33,7 @@ func applyCommand() *cli.Command {
 			if cmd.NArg() != 1 {
 				return errors.New("usage: natsie consumer apply <manifest.yaml>")
 			}
+
 			m, err := manifest.Read(cmd.Args().First())
 			if err != nil {
 				return err
@@ -42,7 +43,9 @@ func applyCommand() *cli.Command {
 			for _, ev := range result.Events {
 				logEvent(ev)
 			}
+
 			fmt.Fprintf(os.Stderr, "\nsummary: %s\n", result.Summary())
+
 			return err
 		},
 	}
@@ -53,6 +56,7 @@ func cliConnector(cluster string) (*nats.Conn, func(), error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect %s: %w", cluster, err)
 	}
+
 	return nc.Conn, nc.Close, nil
 }
 

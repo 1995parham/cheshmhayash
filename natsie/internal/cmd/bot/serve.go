@@ -31,6 +31,7 @@ func botConnector(cluster string) (*nats.Conn, func(), error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect %s: %w", cluster, err)
 	}
+
 	return nc.Conn, nc.Close, nil
 }
 
@@ -48,6 +49,7 @@ func serveCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
+
 			return serve(ctx, cfg)
 		},
 	}
@@ -75,10 +77,11 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	defer func() { _ = auditLog.Close() }()
 
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
+
 	sched := scheduler.New(logger)
 	for _, s := range cfg.Bot.Schedules {
 		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
-		if err := sched.Add(job); err != nil {
+		if err := sched.Add(job); err != nil { //nolint:contextcheck // job carries its own ctx via Job.Run
 			return fmt.Errorf("add schedule %s: %w", s.Name, err)
 		}
 	}
@@ -88,6 +91,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		len(cfg.Bot.Schedules), len(notifiers), manifestStore.Name())
 
 	httpErrCh := make(chan error, 1)
+
 	if cfg.Bot.HTTP.Listen != "" {
 		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore,
 			httpsrv.Options{
@@ -99,6 +103,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		)
 		go func() {
 			logger.Printf("http listener: %s", cfg.Bot.HTTP.Listen)
+
 			httpErrCh <- server.Start(ctx)
 		}()
 	} else {
@@ -112,11 +117,17 @@ func serve(ctx context.Context, cfg *config.Config) error {
 			logger.Printf("http server stopped early: %v", err)
 		}
 	}
+
 	logger.Print("shutting down...")
+
+	// Use a fresh ctx for shutdown — the parent has already been canceled
+	// (that's how we got here) and we still want shutdownTimeout to apply.
 	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	sched.Stop(stopCtx)
+
+	sched.Stop(stopCtx) //nolint:contextcheck // shutdown deliberately uses a fresh deadline, see comment above
 	logger.Print("stopped")
+
 	return nil
 }
 
@@ -124,17 +135,21 @@ func validateBotConfig(b *config.Bot) error {
 	if len(b.Schedules) == 0 {
 		return errors.New("bot.schedules is empty — define at least one schedule")
 	}
+
 	if b.Store == "" {
 		return errors.New("bot.store is required (e.g. file:///var/lib/natsie/manifests)")
 	}
+
 	if len(b.Notify) == 0 {
 		return errors.New("bot.notify is empty — add at least one URL (use stdout:// for testing)")
 	}
+
 	for i, s := range b.Schedules {
 		if s.Name == "" || s.Cron == "" || s.Context == "" {
 			return fmt.Errorf("bot.schedules[%d]: name, cron, and context are required", i)
 		}
 	}
+
 	return nil
 }
 
@@ -145,8 +160,10 @@ func dialNotifiers(urls []string) ([]notify.Notifier, error) {
 		if err != nil {
 			return nil, fmt.Errorf("notify url %q: %w", u, err)
 		}
+
 		out = append(out, n)
 	}
+
 	return out, nil
 }
 
@@ -186,6 +203,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 		MinPending: s.MinPending,
 		MinIdle:    s.MinIdle,
 	}
+
 	rows, err := scanner.Scan(scanCtx, nc, peer, opts)
 	if err != nil {
 		return fmt.Errorf("scan: %w", err)
@@ -204,6 +222,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	if err := manifestStore.Put(ctx, id, m); err != nil {
 		return fmt.Errorf("store manifest %s: %w", id, err)
 	}
+
 	_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Manifest: id, Entries: len(m.Entries)})
 
 	msg := buildMessage(s, m, id, baseURL, signingKey)
@@ -212,6 +231,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 			logger.Printf("notify %s: %v", n.Name(), err)
 		}
 	}
+
 	return nil
 }
 
@@ -228,10 +248,12 @@ func buildManifest(s config.Schedule, rows []scanner.Row) *manifest.Manifest {
 			MinIdle:     s.MinIdle,
 		},
 	}
+
 	for _, r := range rows {
 		if r.Status != scanner.StatusStale {
 			continue
 		}
+
 		m.Entries = append(m.Entries, manifest.Entry{
 			Cluster:    r.Cluster,
 			Stream:     r.Stream,
@@ -243,33 +265,42 @@ func buildManifest(s config.Schedule, rows []scanner.Row) *manifest.Manifest {
 			LastAck:    r.LastAck.UTC(),
 		})
 	}
+
 	return m
 }
 
 func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL, signingKey string) notify.Message {
 	var body strings.Builder
 	fmt.Fprintf(&body, "Schedule **%s** found %d stale consumer", s.Name, len(m.Entries))
+
 	if len(m.Entries) != 1 {
 		body.WriteString("s")
 	}
+
 	body.WriteString(":\n")
+
 	for i, e := range m.Entries {
 		if i >= 10 {
 			fmt.Fprintf(&body, "...and %d more\n", len(m.Entries)-10)
+
 			break
 		}
+
 		fmt.Fprintf(&body, "- `%s/%s` (pending=%d, idle=%s)\n", e.Stream, e.Consumer, e.NumPending, e.Idle)
 	}
 
 	base := strings.TrimSuffix(baseURL, "/")
+
 	link := ""
 	if base != "" {
 		link = base + "/manifest/" + id
 	}
+
 	if base != "" && signingKey != "" {
 		token := httpsrv.SignApprovalToken(signingKey, id)
 		fmt.Fprintf(&body, "\nApprove: %s/approve/%s?token=%s\n", base, id, token)
 	}
+
 	return notify.Message{
 		Title:      fmt.Sprintf("natsie cleanup candidates (%s)", s.Name),
 		Body:       body.String(),

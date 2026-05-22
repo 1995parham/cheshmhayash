@@ -49,7 +49,7 @@ type Row struct {
 	NumPending int64         `json:"num_pending"`
 	NumWaiting int           `json:"num_waiting"`
 	PushBound  bool          `json:"push_bound"`
-	LastAck    time.Time     `json:"last_ack,omitempty"`
+	LastAck    time.Time     `json:"last_ack,omitzero"`
 	Idle       time.Duration `json:"idle"`
 	PeerStatus Status        `json:"peer_status,omitempty"`
 }
@@ -77,44 +77,57 @@ func Scan(ctx context.Context, nc, peer *natsctx.Conn, opts Options) ([]Row, err
 	}
 
 	now := time.Now()
+
 	var rows []Row
+
 	for _, sn := range streamNames {
 		if opts.Stream != "" && sn != opts.Stream {
 			continue
 		}
+
 		if ctx.Err() != nil {
 			return rows, ctx.Err()
 		}
+
 		stream, err := mgr.LoadStream(sn)
 		if err != nil {
 			rows = append(rows, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
+
 			continue
 		}
+
 		consumerNames, err := stream.ConsumerNames()
 		if err != nil {
 			rows = append(rows, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
+
 			continue
 		}
+
 		for _, cn := range consumerNames {
 			r := classify(mgr, sn, cn, nc.Name, now, opts)
 			if !meetsThresholds(r, opts) {
 				continue
 			}
+
 			if peerMgr != nil {
 				r.PeerStatus = peerStatus(peerMgr, sn, cn, now, opts)
 			}
+
 			rows = append(rows, r)
 		}
 	}
+
 	return rows, nil
 }
 
 func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time, opts Options) Row {
 	r := Row{Cluster: cluster, Stream: stream, Consumer: consumer, Status: StatusError}
+
 	c, err := mgr.LoadConsumer(stream, consumer)
 	if err != nil {
 		return r
 	}
+
 	info, err := c.LatestState()
 	if err != nil {
 		return r
@@ -122,10 +135,12 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 
 	r.NumPending = int64(info.NumPending) //nolint:gosec // counts are bounded by stream depth, well under int64
 	r.NumWaiting = info.NumWaiting
+
 	r.PushBound = info.PushBound
 	if info.AckFloor.Last != nil {
 		r.LastAck = *info.AckFloor.Last
 	}
+
 	switch {
 	case !r.LastAck.IsZero():
 		r.Idle = now.Sub(r.LastAck)
@@ -144,6 +159,7 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 	default:
 		r.Status = StatusStale
 	}
+
 	return r
 }
 
@@ -153,12 +169,15 @@ func peerStatus(mgr *jsm.Manager, stream, consumer string, now time.Time, opts O
 		if api.IsNatsError(err, consumerNotFoundCode) {
 			return StatusAbsent
 		}
+
 		return StatusError
 	}
+
 	info, err := c.LatestState()
 	if err != nil {
 		return StatusError
 	}
+
 	switch {
 	case info.PushBound || info.NumWaiting > 0:
 		return StatusActive
@@ -173,8 +192,10 @@ func meetsThresholds(r Row, opts Options) bool {
 	if r.Status == StatusActive {
 		return true
 	}
+
 	if r.NumPending < opts.MinPending {
 		return false
 	}
+
 	return true
 }

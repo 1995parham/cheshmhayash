@@ -26,20 +26,24 @@ func sampleManifest() *manifest.Manifest {
 
 func TestFileRoundTrip(t *testing.T) {
 	dir := t.TempDir()
+
 	s, err := NewFile(dir)
 	if err != nil {
 		t.Fatalf("NewFile: %v", err)
 	}
+
 	ctx := context.Background()
 
 	original := sampleManifest()
 	if err := s.Put(ctx, "m-1", original); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
+
 	got, err := s.Get(ctx, "m-1")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
+
 	if !reflect.DeepEqual(original, got) {
 		t.Fatalf("round trip mismatch:\noriginal: %+v\ngot:      %+v", original, got)
 	}
@@ -48,16 +52,19 @@ func TestFileRoundTrip(t *testing.T) {
 func TestFileList(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := NewFile(dir)
+
 	ctx := context.Background()
 	for _, id := range []string{"alpha", "bravo", "charlie"} {
 		if err := s.Put(ctx, id, sampleManifest()); err != nil {
 			t.Fatalf("Put %s: %v", id, err)
 		}
 	}
+
 	ids, err := s.List(ctx)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
+
 	want := []string{"alpha", "bravo", "charlie"}
 	if !reflect.DeepEqual(ids, want) {
 		t.Fatalf("List=%v want %v", ids, want)
@@ -67,13 +74,16 @@ func TestFileList(t *testing.T) {
 func TestFileDelete(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := NewFile(dir)
+
 	ctx := context.Background()
 	if err := s.Put(ctx, "m-1", sampleManifest()); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
+
 	if err := s.Delete(ctx, "m-1"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
+
 	if _, err := s.Get(ctx, "m-1"); err == nil {
 		t.Fatal("Get should fail after Delete")
 	}
@@ -87,6 +97,7 @@ func TestFileRejectsPathTraversal(t *testing.T) {
 	dir := t.TempDir()
 	s, _ := NewFile(dir)
 	ctx := context.Background()
+
 	bad := []string{
 		"../etc/passwd",
 		"/absolute",
@@ -103,10 +114,12 @@ func TestFileRejectsPathTraversal(t *testing.T) {
 
 func TestDialFile(t *testing.T) {
 	dir := t.TempDir()
+
 	s, err := Dial("file://" + dir)
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
+
 	if !reflect.DeepEqual(s.Name(), "file://"+dir) {
 		t.Errorf("Name=%q want file://%s", s.Name(), dir)
 	}

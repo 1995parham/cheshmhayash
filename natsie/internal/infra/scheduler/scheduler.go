@@ -49,13 +49,16 @@ func (s *Scheduler) Add(j Job) error {
 	if j.Name == "" {
 		return errors.New("scheduler: job name is required")
 	}
+
 	if j.Run == nil {
 		return errors.New("scheduler: job Run is required")
 	}
+
 	_, err := s.cron.AddFunc(j.Spec, s.wrap(j))
 	if err != nil {
 		return fmt.Errorf("schedule %s: %w", j.Name, err)
 	}
+
 	return nil
 }
 

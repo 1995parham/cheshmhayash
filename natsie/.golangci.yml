@@ -13,6 +13,18 @@ linters:
     - revive
     - wrapcheck
     - noinlineerr
+    - paralleltest
+    - exhaustruct
+    - goconst
+    - err113
+    - testpackage
+    - cyclop
+    - lll
+    - funcorder
+    - gocognit
+    - funlen
+    - misspell
+    - mnd
 
   settings:
     wrapcheck:

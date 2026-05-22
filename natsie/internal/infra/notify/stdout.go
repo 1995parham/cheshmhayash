@@ -23,16 +23,29 @@ func (s *Stdout) Post(_ context.Context, msg Message) error {
 	if w == nil {
 		w = os.Stdout
 	}
+
 	if msg.Title != "" {
-		fmt.Fprintf(w, "== %s ==\n", msg.Title)
+		if _, err := fmt.Fprintf(w, "== %s ==\n", msg.Title); err != nil {
+			return err
+		}
 	}
+
 	if msg.Body != "" {
-		fmt.Fprintln(w, msg.Body)
+		if _, err := fmt.Fprintln(w, msg.Body); err != nil {
+			return err
+		}
 	}
-	if msg.Link != "" {
-		fmt.Fprintf(w, "manifest: %s (%s)\n", msg.ManifestID, msg.Link)
-	} else if msg.ManifestID != "" {
-		fmt.Fprintf(w, "manifest: %s\n", msg.ManifestID)
+
+	switch {
+	case msg.Link != "":
+		_, err := fmt.Fprintf(w, "manifest: %s (%s)\n", msg.ManifestID, msg.Link)
+
+		return err
+	case msg.ManifestID != "":
+		_, err := fmt.Fprintf(w, "manifest: %s\n", msg.ManifestID)
+
+		return err
 	}
+
 	return nil
 }

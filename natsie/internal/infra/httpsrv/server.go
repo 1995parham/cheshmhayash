@@ -59,15 +59,18 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 		connect:    opts.Connector,
 	}
 	s.routes()
+
 	return s
 }
 
 func (s *Server) routes() {
 	s.e.GET("/health", s.health)
 	s.e.GET("/manifest/:id", s.getManifest)
+
 	if s.signingKey != "" {
 		s.e.POST("/slash", s.handleSlash)
 	}
+
 	if s.signingKey != "" && s.connect != nil {
 		s.e.GET("/approve/:id", s.previewApproval)
 		s.e.POST("/approve/:id", s.doApproval)
@@ -90,5 +93,6 @@ func (s *Server) Start(ctx context.Context) error {
 		HidePort:        true,
 		GracefulTimeout: defaultGracefulTimeout,
 	}
+
 	return sc.Start(ctx, s.e)
 }

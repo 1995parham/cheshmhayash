@@ -26,8 +26,10 @@ func NewSlack(u *neturl.URL) (*Slack, error) {
 	if u.Host == "" {
 		return nil, fmt.Errorf("slack url missing host: %s", u.Redacted())
 	}
+
 	hook := *u
 	hook.Scheme = "https"
+
 	return &Slack{
 		WebhookURL: hook.String(),
 		Client:     &http.Client{Timeout: defaultHTTPTimeout},
@@ -45,23 +47,31 @@ func (s *Slack) Post(ctx context.Context, msg Message) error {
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.WebhookURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	client := s.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("post: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode/100 != 2 {
 		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
 		return fmt.Errorf("slack responded %d: %s", resp.StatusCode, string(preview))
 	}
+
 	return nil
 }

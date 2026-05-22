@@ -25,6 +25,7 @@ func (s *Server) handleSlash(c *echo.Context) error {
 	if err := c.Request().ParseForm(); err != nil {
 		return c.JSON(http.StatusBadRequest, errorResponse("bad form"))
 	}
+
 	form := c.Request().PostForm
 
 	// Constant-time token check — both Mattermost and Slack send this in
@@ -36,6 +37,7 @@ func (s *Server) handleSlash(c *echo.Context) error {
 	}
 
 	text := strings.TrimSpace(form.Get("text"))
+
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
 		return c.JSON(http.StatusOK, slashResponse{
@@ -51,6 +53,7 @@ func (s *Server) handleSlash(c *echo.Context) error {
 		if len(fields) < 2 {
 			return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: "usage: `/natsie show <manifest-id>`"})
 		}
+
 		return s.slashShow(c, fields[1])
 	case "help":
 		return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: slashHelp()})
@@ -67,18 +70,24 @@ func (s *Server) slashList(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: "list failed: " + err.Error()})
 	}
+
 	if len(ids) == 0 {
 		return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: "no manifests in store"})
 	}
+
 	var b strings.Builder
 	b.WriteString("Manifests:\n")
+
 	for i, id := range ids {
 		if i >= 20 {
 			fmt.Fprintf(&b, "...and %d more\n", len(ids)-20)
+
 			break
 		}
+
 		fmt.Fprintf(&b, "- `%s`\n", id)
 	}
+
 	return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: b.String()})
 }
 
@@ -90,15 +99,20 @@ func (s *Server) slashShow(c *echo.Context, id string) error {
 			Text:         fmt.Sprintf("manifest `%s` not found: %v", id, err),
 		})
 	}
+
 	var b strings.Builder
 	fmt.Fprintf(&b, "Manifest `%s` (%d entries, generated %s):\n", id, len(m.Entries), m.GeneratedAt.Format("2006-01-02T15:04:05Z"))
+
 	for i, e := range m.Entries {
 		if i >= 10 {
 			fmt.Fprintf(&b, "...and %d more\n", len(m.Entries)-10)
+
 			break
 		}
+
 		fmt.Fprintf(&b, "- `%s/%s` (pending=%d, idle=%s)\n", e.Stream, e.Consumer, e.NumPending, e.Idle)
 	}
+
 	return c.JSON(http.StatusOK, slashResponse{ResponseType: responseEphemeral, Text: b.String()})
 }
 

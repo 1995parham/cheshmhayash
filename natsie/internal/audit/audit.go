@@ -21,16 +21,16 @@ import (
 
 // Event is the union type. Unset fields are omitted from the JSONL output.
 type Event struct {
-	Timestamp  time.Time      `json:"timestamp"`
-	Kind       string         `json:"kind"`
-	Manifest   string         `json:"manifest,omitempty"`
-	Schedule   string         `json:"schedule,omitempty"`
-	Source     string         `json:"source,omitempty"`
-	Entries    int            `json:"entries,omitempty"`
-	Result     string         `json:"result,omitempty"`
-	DryRun     bool           `json:"dry_run,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	Extra      map[string]any `json:"extra,omitempty"`
+	Timestamp time.Time      `json:"timestamp"`
+	Kind      string         `json:"kind"`
+	Manifest  string         `json:"manifest,omitempty"`
+	Schedule  string         `json:"schedule,omitempty"`
+	Source    string         `json:"source,omitempty"`
+	Entries   int            `json:"entries,omitempty"`
+	Result    string         `json:"result,omitempty"`
+	DryRun    bool           `json:"dry_run,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Extra     map[string]any `json:"extra,omitempty"`
 }
 
 // Logger appends Event records to a file. The zero value is unusable;
@@ -45,12 +45,14 @@ type Logger struct {
 // logging without conditional construction.
 func NewLogger(path string) (*Logger, error) {
 	if path == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // empty path is the documented opt-out signal
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600) //nolint:gosec // path is operator-supplied bot config
 	if err != nil {
 		return nil, fmt.Errorf("open audit log %s: %w", path, err)
 	}
+
 	return &Logger{f: f}, nil
 }
 
@@ -59,23 +61,29 @@ func (l *Logger) Log(e Event) error {
 	if l == nil {
 		return nil
 	}
+
 	if e.Timestamp.IsZero() {
 		e.Timestamp = time.Now().UTC()
 	}
+
 	if e.Kind == "" {
 		return errors.New("audit: event Kind required")
 	}
+
 	b, err := json.Marshal(e)
 	if err != nil {
 		return fmt.Errorf("audit marshal: %w", err)
 	}
+
 	b = append(b, '\n')
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	if _, err := l.f.Write(b); err != nil {
 		return fmt.Errorf("audit write: %w", err)
 	}
+
 	return nil
 }
 
@@ -84,5 +92,6 @@ func (l *Logger) Close() error {
 	if l == nil {
 		return nil
 	}
+
 	return l.f.Close()
 }

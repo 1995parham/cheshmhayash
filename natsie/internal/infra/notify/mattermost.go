@@ -33,14 +33,17 @@ func NewMattermost(u *neturl.URL) (*Mattermost, error) {
 	if u.Host == "" {
 		return nil, fmt.Errorf("mattermost url missing host: %s", u.Redacted())
 	}
+
 	hook := *u
 	hook.Scheme = "https"
 	q := hook.Query()
 	channel := q.Get("channel")
+
 	username := q.Get("username")
 	if username == "" {
 		username = defaultMattermostUser
 	}
+
 	q.Del("channel")
 	q.Del("username")
 	hook.RawQuery = q.Encode()
@@ -57,6 +60,7 @@ func (m *Mattermost) Name() string {
 	if m.Channel != "" {
 		return "mattermost#" + m.Channel
 	}
+
 	return "mattermost"
 }
 
@@ -75,24 +79,32 @@ func (m *Mattermost) Post(ctx context.Context, msg Message) error {
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, m.WebhookURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	client := m.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("post: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode/100 != 2 {
 		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
 		return fmt.Errorf("mattermost responded %d: %s", resp.StatusCode, string(preview))
 	}
+
 	return nil
 }
 
@@ -103,13 +115,16 @@ func renderText(msg Message) string {
 	if msg.Title != "" {
 		fmt.Fprintf(&buf, "**%s**\n", msg.Title)
 	}
+
 	if msg.Body != "" {
 		buf.WriteString(msg.Body)
 	}
+
 	if msg.Link != "" {
 		fmt.Fprintf(&buf, "\nManifest: %s", msg.Link)
 	} else if msg.ManifestID != "" {
 		fmt.Fprintf(&buf, "\nManifest ID: `%s`", msg.ManifestID)
 	}
+
 	return buf.String()
 }

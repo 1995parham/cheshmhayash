@@ -11,10 +11,12 @@ func TestConsumerCommandRegistersBothSubcommands(t *testing.T) {
 	if cmd.Name != "consumer" {
 		t.Errorf("Name=%q want consumer", cmd.Name)
 	}
+
 	names := map[string]bool{}
 	for _, c := range cmd.Commands {
 		names[c.Name] = true
 	}
+
 	for _, want := range []string{"scan", "apply"} {
 		if !names[want] {
 			t.Errorf("missing subcommand %q (got %v)", want, names)

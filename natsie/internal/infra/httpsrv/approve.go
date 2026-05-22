@@ -20,6 +20,7 @@ import (
 func SignApprovalToken(key, manifestID string) string {
 	mac := hmac.New(sha256.New, []byte(key))
 	mac.Write([]byte(manifestID))
+
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
@@ -30,17 +31,20 @@ func signApproval(key, manifestID string) string {
 
 func (s *Server) checkApprovalToken(id, presented string) bool {
 	want := signApproval(s.signingKey, id)
+
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(want)) == 1
 }
 
 func (s *Server) previewApproval(c *echo.Context) error {
 	id := c.Param("id")
+
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {
 		_ = s.audit.Log(audit.Event{
 			Kind: "approve.preview", Manifest: id, Source: c.RealIP(),
 			Error: "invalid token",
 		})
+
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 	}
 
@@ -48,6 +52,7 @@ func (s *Server) previewApproval(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "manifest not found", "id": id})
 	}
+
 	_ = s.audit.Log(audit.Event{
 		Kind: "approve.preview", Manifest: id, Source: c.RealIP(),
 		Entries: len(m.Entries),
@@ -55,13 +60,17 @@ func (s *Server) previewApproval(c *echo.Context) error {
 
 	var body strings.Builder
 	fmt.Fprintf(&body, "Confirm cleanup for manifest %s (%d entries):\n\n", id, len(m.Entries))
+
 	for i, e := range m.Entries {
 		if i >= 20 {
 			fmt.Fprintf(&body, "...and %d more\n", len(m.Entries)-20)
+
 			break
 		}
+
 		fmt.Fprintf(&body, "  %s/%s (pending=%d)\n", e.Stream, e.Consumer, e.NumPending)
 	}
+
 	body.WriteString("\nPOST the same URL to confirm. Re-verification runs at apply time;\n")
 	body.WriteString("any consumer that's become active since the manifest was generated\n")
 	body.WriteString("will be preserved automatically.\n")
@@ -69,17 +78,20 @@ func (s *Server) previewApproval(c *echo.Context) error {
 	c.Response().Header().Set(echo.HeaderContentType, "text/plain; charset=utf-8")
 	c.Response().WriteHeader(http.StatusOK)
 	_, err = c.Response().Write([]byte(body.String()))
+
 	return err
 }
 
 func (s *Server) doApproval(c *echo.Context) error {
 	id := c.Param("id")
+
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {
 		_ = s.audit.Log(audit.Event{
 			Kind: "approve.apply", Manifest: id, Source: c.RealIP(),
 			Error: "invalid token",
 		})
+
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 	}
 
@@ -94,6 +106,7 @@ func (s *Server) doApproval(c *echo.Context) error {
 			Kind: "approve.apply", Manifest: id, Source: c.RealIP(),
 			Entries: len(m.Entries), Result: result.Summary(), Error: err.Error(),
 		})
+
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error":   err.Error(),
 			"summary": result.Summary(),

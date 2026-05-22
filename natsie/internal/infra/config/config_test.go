@@ -9,13 +9,16 @@ import (
 
 func TestLoadAbsentFileUsesDefaults(t *testing.T) {
 	t.Setenv("NATSIE_CONFIG", filepath.Join(t.TempDir(), "absent.yaml"))
+
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if cfg.Defaults.MinIdle != 24*time.Hour {
 		t.Errorf("MinIdle=%v want 24h", cfg.Defaults.MinIdle)
 	}
+
 	if cfg.Defaults.Format != "tsv" {
 		t.Errorf("Format=%q want tsv", cfg.Defaults.Format)
 	}
@@ -24,6 +27,7 @@ func TestLoadAbsentFileUsesDefaults(t *testing.T) {
 func TestLoadFileAndBotConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
+
 	body := `
 defaults:
   min_pending: 5000
@@ -54,6 +58,7 @@ bot:
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -62,21 +67,27 @@ bot:
 	if cfg.Defaults.MinPending != 5000 {
 		t.Errorf("Defaults.MinPending=%d want 5000", cfg.Defaults.MinPending)
 	}
+
 	if cfg.Contexts["snapp-js-main-teh1"].Peer != "snapp-js-main-teh2" {
 		t.Errorf("peer mapping not loaded: %+v", cfg.Contexts)
 	}
+
 	if len(cfg.Bot.Schedules) != 1 || cfg.Bot.Schedules[0].Cron != "0 3 * * *" {
 		t.Errorf("bot schedules not loaded: %+v", cfg.Bot.Schedules)
 	}
+
 	if cfg.Bot.Schedules[0].MinIdle != 24*time.Hour {
 		t.Errorf("schedule MinIdle=%v want 24h", cfg.Bot.Schedules[0].MinIdle)
 	}
+
 	if len(cfg.Bot.Notify) != 2 {
 		t.Errorf("notify=%v want 2 entries", cfg.Bot.Notify)
 	}
+
 	if cfg.Bot.HTTP.Listen != ":8080" {
 		t.Errorf("HTTP.Listen=%q want :8080", cfg.Bot.HTTP.Listen)
 	}
+
 	if cfg.Bot.SigningKey != "secret" {
 		t.Errorf("signing key not loaded")
 	}
@@ -85,6 +96,7 @@ bot:
 func TestLoadOwners(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
+
 	body := `
 bot:
   owners:
@@ -101,26 +113,33 @@ bot:
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if len(cfg.Bot.Owners) != 2 {
 		t.Fatalf("owners=%d want 2", len(cfg.Bot.Owners))
 	}
+
 	chronos := cfg.Bot.Owners[0]
 	if chronos.Name != "chronos" {
 		t.Errorf("name=%q want chronos", chronos.Name)
 	}
+
 	if len(chronos.Streams) != 1 || chronos.Streams[0] != "rides" {
 		t.Errorf("streams=%v", chronos.Streams)
 	}
+
 	if len(chronos.ConsumerPrefix) != 1 || chronos.ConsumerPrefix[0] != "chronos-" {
 		t.Errorf("consumer_prefix=%v", chronos.ConsumerPrefix)
 	}
+
 	if len(chronos.Notify) != 1 {
 		t.Errorf("notify=%v", chronos.Notify)
 	}
+
 	dolos := cfg.Bot.Owners[1]
 	if len(dolos.ConsumerPrefix) != 2 {
 		t.Errorf("dolos prefixes=%v", dolos.ConsumerPrefix)
@@ -129,15 +148,19 @@ bot:
 
 func TestEnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "config.yaml")
 	if err := os.WriteFile(path, []byte("defaults:\n  min_pending: 1000\n"), 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+
 	t.Setenv("NATSIE_DEFAULTS__MIN_PENDING", "9999")
+
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+
 	if cfg.Defaults.MinPending != 9999 {
 		t.Errorf("MinPending=%d want 9999 (env override failed)", cfg.Defaults.MinPending)
 	}

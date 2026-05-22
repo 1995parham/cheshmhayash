@@ -19,12 +19,16 @@ func TestIsActive(t *testing.T) {
 		{"pull waiter present", consumerInfo{NumWaiting: 1}, true},
 		{"ack since manifest", func() consumerInfo {
 			var c consumerInfo
+
 			c.AckFloor.LastActive = &afterManifest
+
 			return c
 		}(), true},
 		{"ack before manifest", func() consumerInfo {
 			var c consumerInfo
+
 			c.AckFloor.LastActive = &beforeManifest
+
 			return c
 		}(), false},
 		{"never acked", consumerInfo{}, false},
@@ -42,6 +46,7 @@ func TestIsActive(t *testing.T) {
 func TestResultSummary(t *testing.T) {
 	r := &Result{Deleted: 3, Preserved: 2, Gone: 1, Skipped: 0, Failed: 1}
 	got := r.Summary()
+
 	want := "3 deleted, 2 preserved (active), 1 already gone, 0 skipped, 1 failed"
 	if got != want {
 		t.Errorf("Summary=%q want %q", got, want)

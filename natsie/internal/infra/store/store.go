@@ -34,6 +34,7 @@ func Dial(url string) (Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse store url %q: %w", url, err)
 	}
+
 	switch u.Scheme {
 	case "file":
 		return NewFile(u.Path)

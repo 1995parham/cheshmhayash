@@ -46,6 +46,7 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "manifest.yaml")
 	if err := original.Write(path, false); err != nil {
 		t.Fatalf("Write: %v", err)
@@ -55,6 +56,7 @@ func TestManifestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
+
 	if !reflect.DeepEqual(original, round) {
 		t.Fatalf("round trip mismatch:\noriginal: %+v\nround:    %+v", original, round)
 	}
@@ -62,14 +64,17 @@ func TestManifestRoundTrip(t *testing.T) {
 
 func TestWriteRefusesToOverwriteByDefault(t *testing.T) {
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "manifest.yaml")
 	if err := os.WriteFile(path, []byte("existing\n"), 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+
 	m := &Manifest{Version: Version, GeneratedAt: time.Now()}
 	if err := m.Write(path, false); err == nil {
 		t.Fatal("expected refusal, got nil")
 	}
+
 	if err := m.Write(path, true); err != nil {
 		t.Fatalf("force should succeed: %v", err)
 	}
@@ -77,10 +82,12 @@ func TestWriteRefusesToOverwriteByDefault(t *testing.T) {
 
 func TestReadRejectsUnknownVersion(t *testing.T) {
 	dir := t.TempDir()
+
 	path := filepath.Join(dir, "manifest.yaml")
 	if err := os.WriteFile(path, []byte("version: bogus/v9\ngenerated_at: 2026-05-22T00:00:00Z\nscan:\n  context: x\nentries: []\n"), 0o600); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
+
 	if _, err := Read(path); err == nil {
 		t.Fatal("expected version error, got nil")
 	}

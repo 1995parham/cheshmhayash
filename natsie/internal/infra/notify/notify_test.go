@@ -9,6 +9,7 @@ import (
 
 func TestStdoutPost(t *testing.T) {
 	var buf bytes.Buffer
+
 	n := &Stdout{W: &buf}
 	if err := n.Post(context.Background(), Message{
 		Title:      "Test title",
@@ -18,6 +19,7 @@ func TestStdoutPost(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Post: %v", err)
 	}
+
 	out := buf.String()
 	for _, want := range []string{"Test title", "body line", "m-1", "http://localhost/m-1"} {
 		if !strings.Contains(out, want) {
@@ -32,6 +34,7 @@ func TestDial(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dial: %v", err)
 		}
+
 		if n.Name() != "stdout" {
 			t.Errorf("Name=%q want stdout", n.Name())
 		}

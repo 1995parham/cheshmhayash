@@ -20,28 +20,35 @@ import (
 
 func newTestServer(t *testing.T) (*Server, store.Store) {
 	t.Helper()
+
 	st, err := store.NewFile(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewFile: %v", err)
 	}
+
 	logger := log.New(io.Discard, "", 0)
+
 	return New(":0", st, Options{}, logger), st
 }
 
-func doRequest(s *Server, method, path string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
+func doRequest(s *Server, path string) *httptest.ResponseRecorder {
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
 	s.e.ServeHTTP(rec, req)
+
 	return rec
 }
 
 func TestHealth(t *testing.T) {
 	s, _ := newTestServer(t)
-	rec := doRequest(s, http.MethodGet, "/health")
+
+	rec := doRequest(s,"/health")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d want 200", rec.Code)
 	}
+
 	var body map[string]string
+
 	_ = json.NewDecoder(rec.Body).Decode(&body)
 	if body["status"] != "ok" {
 		t.Errorf("status=%q want ok", body["status"])
@@ -50,6 +57,7 @@ func TestHealth(t *testing.T) {
 
 func TestGetManifestRoundTrip(t *testing.T) {
 	s, st := newTestServer(t)
+
 	m := &manifest.Manifest{
 		Version:     manifest.Version,
 		GeneratedAt: time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC),
@@ -66,18 +74,21 @@ func TestGetManifestRoundTrip(t *testing.T) {
 		t.Fatalf("Put: %v", err)
 	}
 
-	rec := doRequest(s, http.MethodGet, "/manifest/m-1")
+	rec := doRequest(s,"/manifest/m-1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
+
 	ct := rec.Header().Get(echo.HeaderContentType)
 	if !strings.HasPrefix(ct, "application/yaml") {
 		t.Errorf("content-type=%q want application/yaml", ct)
 	}
+
 	var got manifest.Manifest
 	if err := yaml.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("yaml: %v", err)
 	}
+
 	if len(got.Entries) != 1 || got.Entries[0].Consumer != "stale-one" {
 		t.Errorf("unexpected manifest: %+v", got)
 	}
@@ -85,7 +96,8 @@ func TestGetManifestRoundTrip(t *testing.T) {
 
 func TestGetManifestNotFound(t *testing.T) {
 	s, _ := newTestServer(t)
-	rec := doRequest(s, http.MethodGet, "/manifest/never-existed")
+
+	rec := doRequest(s,"/manifest/never-existed")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", rec.Code)
 	}
@@ -96,7 +108,7 @@ func TestGetManifestInvalidID(t *testing.T) {
 	// The router won't accept paths containing a slash, so we craft one
 	// that's syntactically a single path segment but trips the store's
 	// validator (leading dot).
-	rec := doRequest(s, http.MethodGet, "/manifest/.hidden")
+	rec := doRequest(s,"/manifest/.hidden")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}

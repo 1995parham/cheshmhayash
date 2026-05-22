@@ -12,6 +12,7 @@ package owners
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/1995parham/natsie/internal/infra/config"
@@ -36,19 +37,23 @@ type Router struct {
 // silently claim nothing, which is almost always a misconfiguration.
 func NewRouter(cfgs []config.Owner) (*Router, error) {
 	r := &Router{}
+
 	for i, c := range cfgs {
 		if c.Name == "" {
 			return nil, fmt.Errorf("owner[%d]: name is required", i)
 		}
+
 		if len(c.Streams) == 0 && len(c.ConsumerPrefix) == 0 {
 			return nil, fmt.Errorf("owner %q: at least one of streams or consumer_prefix is required", c.Name)
 		}
+
 		r.owners = append(r.owners, Owner{
 			Name:           c.Name,
 			Streams:        c.Streams,
 			ConsumerPrefix: c.ConsumerPrefix,
 		})
 	}
+
 	return r, nil
 }
 
@@ -56,17 +61,17 @@ func NewRouter(cfgs []config.Owner) (*Router, error) {
 // "" if no owner matches.
 func (r *Router) Match(e manifest.Entry) string {
 	for _, o := range r.owners {
-		for _, s := range o.Streams {
-			if e.Stream == s {
-				return o.Name
-			}
+		if slices.Contains(o.Streams, e.Stream) {
+			return o.Name
 		}
+
 		for _, p := range o.ConsumerPrefix {
 			if p != "" && strings.HasPrefix(e.Consumer, p) {
 				return o.Name
 			}
 		}
 	}
+
 	return ""
 }
 
@@ -74,10 +79,12 @@ func (r *Router) Match(e manifest.Entry) string {
 // land under "". An empty Router puts everything under "".
 func (r *Router) Group(entries []manifest.Entry) map[string][]manifest.Entry {
 	out := map[string][]manifest.Entry{}
+
 	for _, e := range entries {
 		owner := r.Match(e)
 		out[owner] = append(out[owner], e)
 	}
+
 	return out
 }
 
@@ -88,5 +95,6 @@ func (r *Router) Names() []string {
 	for i, o := range r.owners {
 		names[i] = o.Name
 	}
+
 	return names
 }

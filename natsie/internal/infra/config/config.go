@@ -110,6 +110,7 @@ func Load(path string) (*Config, error) {
 		Prefix: envPrefix,
 		TransformFunc: func(key, val string) (string, any) {
 			base := strings.ToLower(strings.TrimPrefix(key, envPrefix))
+
 			return strings.ReplaceAll(base, "__", "."), val
 		},
 	})
@@ -126,6 +127,7 @@ func Load(path string) (*Config, error) {
 	if err := k.Unmarshal("", cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
+
 	return cfg, nil
 }
 
@@ -133,9 +135,11 @@ func defaultPath() string {
 	if p := os.Getenv("NATSIE_CONFIG"); p != "" {
 		return p
 	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
+
 	return filepath.Join(home, ".config", "natsie", "config.yaml")
 }

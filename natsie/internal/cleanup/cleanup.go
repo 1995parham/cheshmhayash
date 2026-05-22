@@ -38,19 +38,19 @@ const (
 // Connector returns a NATS connection for the named cluster, along with
 // a function the caller invokes to release it. The CLI passes
 // natsctx.Connect-backed connectors; tests can pass an in-memory fake.
-type Connector func(cluster string) (conn *nats.Conn, close func(), err error)
+type Connector func(cluster string) (conn *nats.Conn, release func(), err error)
 
 // Action is the verdict for one manifest entry.
 type Action string
 
 const (
-	ActionDeleted   Action = "DELETED"
-	ActionWould     Action = "WOULD"
-	ActionGone      Action = "GONE"
-	ActionSkip      Action = "SKIP"
-	ActionActive    Action = "ACTIVE"
-	ActionFailed    Action = "FAIL"
-	ActionConnFail  Action = "CONN"
+	ActionDeleted  Action = "DELETED"
+	ActionWould    Action = "WOULD"
+	ActionGone     Action = "GONE"
+	ActionSkip     Action = "SKIP"
+	ActionActive   Action = "ACTIVE"
+	ActionFailed   Action = "FAIL"
+	ActionConnFail Action = "CONN"
 )
 
 // Event records what happened to a single entry.
@@ -88,10 +88,12 @@ func Apply(ctx context.Context, m *manifest.Manifest, dryRun bool, connect Conne
 	}
 
 	result := &Result{}
+
 	for cluster, entries := range byCluster {
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
+
 		nc, closeFn, err := connect(cluster)
 		if err != nil {
 			// Connection failures cover *every* entry on that cluster;
@@ -106,11 +108,14 @@ func Apply(ctx context.Context, m *manifest.Manifest, dryRun bool, connect Conne
 				})
 				result.Failed++
 			}
+
 			continue
 		}
+
 		applyOnCluster(nc, cluster, entries, m.GeneratedAt, dryRun, result)
 		closeFn()
 	}
+
 	return result, nil
 }
 
@@ -123,6 +128,7 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			ev.Detail = "skip: true in manifest"
 			r.Events = append(r.Events, ev)
 			r.Skipped++
+
 			continue
 		}
 
@@ -132,12 +138,14 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			ev.Action = ActionGone
 			r.Events = append(r.Events, ev)
 			r.Gone++
+
 			continue
 		case err != nil:
 			ev.Action = ActionFailed
 			ev.Detail = err.Error()
 			r.Events = append(r.Events, ev)
 			r.Failed++
+
 			continue
 		}
 
@@ -146,6 +154,7 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			ev.Detail = reason
 			r.Events = append(r.Events, ev)
 			r.Preserved++
+
 			continue
 		}
 
@@ -153,6 +162,7 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			ev.Action = ActionWould
 			r.Events = append(r.Events, ev)
 			r.Deleted++
+
 			continue
 		}
 
@@ -161,8 +171,10 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			ev.Detail = "delete: " + err.Error()
 			r.Events = append(r.Events, ev)
 			r.Failed++
+
 			continue
 		}
+
 		ev.Action = ActionDeleted
 		r.Events = append(r.Events, ev)
 		r.Deleted++
@@ -192,39 +204,49 @@ type consumerDeleteResponse struct {
 
 func fetchConsumerInfo(nc *nats.Conn, stream, consumer string) (*consumerInfo, bool, error) {
 	subject := fmt.Sprintf(jsAPIInfoSubject, stream, consumer)
+
 	msg, err := nc.Request(subject, nil, jsAPITimeout)
 	if err != nil {
 		return nil, false, fmt.Errorf("request: %w", err)
 	}
+
 	var info consumerInfo
 	if err := json.Unmarshal(msg.Data, &info); err != nil {
 		return nil, false, fmt.Errorf("decode: %w", err)
 	}
+
 	if info.Error != nil {
 		if info.Error.ErrCode == errCodeNotFound {
 			return nil, true, nil
 		}
+
 		return nil, false, fmt.Errorf("nats api %d/%d: %s", info.Error.Code, info.Error.ErrCode, info.Error.Description)
 	}
+
 	return &info, false, nil
 }
 
 func deleteConsumer(nc *nats.Conn, stream, consumer string) error {
 	subject := fmt.Sprintf(jsAPIDeleteSubject, stream, consumer)
+
 	msg, err := nc.Request(subject, nil, jsAPITimeout)
 	if err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
+
 	var resp consumerDeleteResponse
 	if err := json.Unmarshal(msg.Data, &resp); err != nil {
 		return fmt.Errorf("decode: %w", err)
 	}
+
 	if resp.Error != nil {
 		return fmt.Errorf("nats api %d/%d: %s", resp.Error.Code, resp.Error.ErrCode, resp.Error.Description)
 	}
+
 	if !resp.Success {
 		return errors.New("delete returned success=false")
 	}
+
 	return nil
 }
 
@@ -235,11 +257,14 @@ func isActive(info *consumerInfo, manifestTime time.Time) string {
 	if info.PushBound {
 		return "push_bound=true"
 	}
+
 	if info.NumWaiting > 0 {
 		return fmt.Sprintf("num_waiting=%d", info.NumWaiting)
 	}
+
 	if info.AckFloor.LastActive != nil && info.AckFloor.LastActive.After(manifestTime) {
 		return "acked since manifest at " + info.AckFloor.LastActive.UTC().Format(time.RFC3339)
 	}
+
 	return ""
 }
