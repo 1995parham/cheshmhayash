@@ -1,0 +1,32 @@
+{{- if .Values.httpProxy.enabled -}}
+apiVersion: projectcontour.io/v1
+kind: HTTPProxy
+metadata:
+  name: {{ include "natsie-chart.fullname" . }}
+  labels:
+    {{- include "natsie-chart.labels" . | nindent 4 }}
+  {{- with .Values.httpProxy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.httpProxy.ingressClassName }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  virtualhost:
+    fqdn: {{ required ".Values.httpProxy.fqdn is required when httpProxy.enabled" .Values.httpProxy.fqdn | quote }}
+    {{- with .Values.httpProxy.tls }}
+    tls:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  routes:
+    {{- if .Values.httpProxy.routes }}
+    {{- toYaml .Values.httpProxy.routes | nindent 4 }}
+    {{- else }}
+    - conditions:
+        - prefix: /
+      services:
+        - name: {{ include "natsie-chart.fullname" . }}
+          port: {{ .Values.service.port }}
+    {{- end }}
+{{- end }}
