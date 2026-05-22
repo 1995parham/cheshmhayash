@@ -22,6 +22,6 @@ lint:
 tidy:
     go mod tidy
 
-# build the docker image via buildx bake
+# build the docker image (local; CI uses build-push-action)
 docker:
-    docker buildx bake -f build/package/docker-bake.json
+    docker build -t ghcr.io/1995parham/natsie:dev .
