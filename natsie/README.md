@@ -1,7 +1,7 @@
 # natsie
 
-[![CI](https://img.shields.io/github/actions/workflow/status/1995parham/natsie/test.yaml?branch=main&style=for-the-badge&logo=github&label=ci)](https://github.com/1995parham/natsie/actions/workflows/test.yaml)
-[![Release](https://img.shields.io/github/v/release/1995parham/natsie?style=for-the-badge&logo=github&color=blue)](https://github.com/1995parham/natsie/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci)](https://github.com/1995parham/natsie/actions/workflows/test.yaml)
+[![Release](https://img.shields.io/github/v/tag/1995parham/natsie?sort=semver&style=for-the-badge&logo=github)](https://github.com/1995parham/natsie/tags)
 [![Go Report Card](https://goreportcard.com/badge/github.com/1995parham/natsie?style=for-the-badge)](https://goreportcard.com/report/github.com/1995parham/natsie)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge)](./LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go)](https://go.dev)
