@@ -18,6 +18,8 @@ func Dial(url string) (Notifier, error) {
 		return NewStdout(), nil
 	case "mattermost":
 		return NewMattermost(u)
+	case "slack":
+		return NewSlack(u)
 	default:
 		return nil, fmt.Errorf("notify scheme %q is not registered (try stdout://, mattermost://..., slack://...)", u.Scheme)
 	}
