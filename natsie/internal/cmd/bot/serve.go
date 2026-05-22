@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/infra/config"
+	"github.com/1995parham/natsie/internal/infra/httpsrv"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/infra/notify"
 	"github.com/1995parham/natsie/internal/infra/scheduler"
@@ -68,7 +69,24 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	logger.Printf("bot started: schedules=%d notify=%d store=%s",
 		len(cfg.Bot.Schedules), len(notifiers), manifestStore.Name())
 
-	<-ctx.Done()
+	httpErrCh := make(chan error, 1)
+	if cfg.Bot.HTTP.Listen != "" {
+		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore, logger)
+		go func() {
+			logger.Printf("http listener: %s", cfg.Bot.HTTP.Listen)
+			httpErrCh <- server.Start(ctx)
+		}()
+	} else {
+		logger.Print("http listener: disabled (no bot.http.listen configured)")
+	}
+
+	select {
+	case <-ctx.Done():
+	case err := <-httpErrCh:
+		if err != nil {
+			logger.Printf("http server stopped early: %v", err)
+		}
+	}
 	logger.Print("shutting down...")
 	stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
