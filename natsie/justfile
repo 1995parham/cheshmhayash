@@ -21,3 +21,7 @@ lint:
 # tidy go.mod/go.sum
 tidy:
     go mod tidy
+
+# build the docker image via buildx bake
+docker:
+    docker buildx bake -f build/package/docker-bake.json

@@ -1,0 +1,14 @@
+{
+  "group": {
+    "default": {
+      "targets": ["natsie"]
+    }
+  },
+
+  "target": {
+    "natsie": {
+      "dockerfile": "build/package/Dockerfile",
+      "tags": ["ghcr.io/1995parham/natsie"]
+    }
+  }
+}
