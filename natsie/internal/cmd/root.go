@@ -3,10 +3,13 @@ package cmd
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/carlmjohnson/versioninfo"
 	"github.com/urfave/cli/v3"
 
+	"github.com/1995parham/natsie/internal/cmd/bot"
 	"github.com/1995parham/natsie/internal/cmd/consumer"
 )
 
@@ -28,7 +31,10 @@ func Execute() error {
 		},
 		Commands: []*cli.Command{
 			consumer.Command(),
+			bot.Command(),
 		},
 	}
-	return root.Run(context.Background(), os.Args)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return root.Run(ctx, os.Args)
 }
