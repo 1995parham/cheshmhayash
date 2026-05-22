@@ -74,7 +74,7 @@ func TestGetManifestRoundTrip(t *testing.T) {
 		t.Fatalf("Put: %v", err)
 	}
 
-	rec := doRequest(s,"/manifest/m-1")
+	rec := doRequest(s, "/manifest/m-1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -97,7 +97,7 @@ func TestGetManifestRoundTrip(t *testing.T) {
 func TestGetManifestNotFound(t *testing.T) {
 	s, _ := newTestServer(t)
 
-	rec := doRequest(s,"/manifest/never-existed")
+	rec := doRequest(s, "/manifest/never-existed")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", rec.Code)
 	}
@@ -108,7 +108,7 @@ func TestGetManifestInvalidID(t *testing.T) {
 	// The router won't accept paths containing a slash, so we craft one
 	// that's syntactically a single path segment but trips the store's
 	// validator (leading dot).
-	rec := doRequest(s,"/manifest/.hidden")
+	rec := doRequest(s, "/manifest/.hidden")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}

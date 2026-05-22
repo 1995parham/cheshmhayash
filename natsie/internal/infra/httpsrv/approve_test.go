@@ -62,7 +62,7 @@ func TestApprovalPreviewRequiresToken(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/approve/m-1?token=wrong", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/approve/m-1?token=wrong", nil)
 	s.e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
@@ -89,7 +89,7 @@ func TestApprovalPreviewHappyPath(t *testing.T) {
 
 	tok := s.SignApproval("m-1")
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/approve/m-1?token="+tok, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/approve/m-1?token="+tok, nil)
 	s.e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -104,7 +104,7 @@ func TestApprovalPreviewHappyPath(t *testing.T) {
 func TestApprovalDoBadToken(t *testing.T) {
 	s, _ := newApprovalServer(t)
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/approve/m-1?token=wrong", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/approve/m-1?token=wrong", nil)
 	s.e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
@@ -136,7 +136,7 @@ func TestApprovalDoHappyPath(t *testing.T) {
 
 	tok := s.SignApproval("m-1")
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(),http.MethodPost, "/approve/m-1?token="+tok, nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/approve/m-1?token="+tok, nil)
 	s.e.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -165,7 +165,7 @@ func TestApprovalDisabledWithoutKey(t *testing.T) {
 	connector := func(string) (*nats.Conn, func(), error) { return nil, func() {}, nil }
 	s := New(":0", st, Options{Connector: connector}, log.New(io.Discard, "", 0))
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(context.Background(),http.MethodGet, "/approve/m-1?token=anything", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/approve/m-1?token=anything", nil)
 	s.e.ServeHTTP(rec, req)
 
 	if rec.Code == http.StatusOK {
