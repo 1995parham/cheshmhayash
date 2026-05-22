@@ -2,9 +2,10 @@
 // environment variables, layered in that order.
 //
 // File: ~/.config/natsie/config.yaml (override with --config or NATSIE_CONFIG).
-// Env:  any variable prefixed NATSIE_, with underscores mapped to dots so
+// Env:  any variable prefixed NATSIE_, with double-underscore as the section
+// separator so single underscores can appear inside field names. For example
 //
-//	NATSIE_DEFAULTS_MIN_PENDING=10000
+//	NATSIE_DEFAULTS__MIN_PENDING=10000
 //	sets defaults.min_pending to 10000.
 //
 // Command-line flags are applied on top of this in the calling command (urfave
@@ -32,6 +33,7 @@ const envPrefix = "NATSIE_"
 type Config struct {
 	Defaults Defaults                  `koanf:"defaults"`
 	Contexts map[string]ContextOptions `koanf:"contexts"`
+	Bot      Bot                       `koanf:"bot"`
 }
 
 type Defaults struct {
@@ -44,6 +46,37 @@ type Defaults struct {
 // not need a --peer-context flag on every invocation.
 type ContextOptions struct {
 	Peer string `koanf:"peer"`
+}
+
+// Bot holds everything `natsie bot serve` needs to run unattended. Each
+// schedule produces manifests, the store persists them, the notify list
+// announces them, and the HTTP listener exposes them.
+type Bot struct {
+	Schedules  []Schedule `koanf:"schedules"`
+	Notify     []string   `koanf:"notify"`
+	Store      string     `koanf:"store"`
+	AuditLog   string     `koanf:"audit_log"`
+	HTTP       HTTP       `koanf:"http"`
+	SigningKey string     `koanf:"signing_key"`
+}
+
+// Schedule is one recurring scan. Cron uses standard 5-field syntax
+// (or @daily/@hourly/etc.).
+type Schedule struct {
+	Name        string        `koanf:"name"`
+	Cron        string        `koanf:"cron"`
+	Context     string        `koanf:"context"`
+	PeerContext string        `koanf:"peer_context"`
+	Stream      string        `koanf:"stream"`
+	MinPending  int64         `koanf:"min_pending"`
+	MinIdle     time.Duration `koanf:"min_idle"`
+}
+
+// HTTP configures the bot's listener used for the manifest viewer,
+// slash-command webhook, and approval URLs.
+type HTTP struct {
+	Listen  string `koanf:"listen"`
+	BaseURL string `koanf:"base_url"`
 }
 
 // Load reads the config file (if it exists) and overlays environment variables.
@@ -64,7 +97,8 @@ func Load(path string) (*Config, error) {
 	envProvider := env.Provider(".", env.Opt{
 		Prefix: envPrefix,
 		TransformFunc: func(key, val string) (string, any) {
-			return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(key, envPrefix)), "_", "."), val
+			base := strings.ToLower(strings.TrimPrefix(key, envPrefix))
+			return strings.ReplaceAll(base, "__", "."), val
 		},
 	})
 	if err := k.Load(envProvider, nil); err != nil {
