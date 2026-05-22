@@ -31,7 +31,7 @@ func (s *Server) handleSlash(c *echo.Context) error {
 	// the form body. (Slack also signs requests via X-Slack-Signature; we
 	// add HMAC verification in the approval-flow commit.)
 	token := form.Get("token")
-	if subtle.ConstantTimeCompare([]byte(token), []byte(s.slashToken)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(token), []byte(s.signingKey)) != 1 {
 		return c.JSON(http.StatusUnauthorized, errorResponse("invalid token"))
 	}
 

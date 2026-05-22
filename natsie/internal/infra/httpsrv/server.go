@@ -13,28 +13,46 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/store"
 )
 
 const defaultGracefulTimeout = 10 * time.Second
 
 // Server wraps an Echo instance with the bot-specific dependencies it
-// needs (manifest store, logger, shared slash-command verification token).
+// needs (manifest store, signing key, NATS connector, logger).
 type Server struct {
 	e          *echo.Echo
 	listen     string
 	store      store.Store
 	log        *log.Logger
-	slashToken string
+	signingKey string
+	connect    cleanup.Connector
+}
+
+// Options groups optional Server inputs that have grown beyond a sensible
+// positional argument list. Both signingKey and connector are optional;
+// supplying neither restricts the listener to the read-only endpoints
+// (/health and /manifest/:id).
+type Options struct {
+	SigningKey string
+	Connector  cleanup.Connector
 }
 
 // New constructs the Server. Routes are registered immediately so callers
-// can list them in startup logs. slashToken is the shared verification
-// token configured in the Mattermost/Slack slash-command integration;
-// empty disables the /slash endpoint.
-func New(listen string, st store.Store, slashToken string, logger *log.Logger) *Server {
+// can list them in startup logs. SigningKey gates the /slash and
+// /approve endpoints; Connector additionally gates /approve (we don't
+// expose the deletion path without a way to actually delete).
+func New(listen string, st store.Store, opts Options, logger *log.Logger) *Server {
 	e := echo.New()
-	s := &Server{e: e, listen: listen, store: st, slashToken: slashToken, log: logger}
+	s := &Server{
+		e:          e,
+		listen:     listen,
+		store:      st,
+		log:        logger,
+		signingKey: opts.SigningKey,
+		connect:    opts.Connector,
+	}
 	s.routes()
 	return s
 }
@@ -42,9 +60,20 @@ func New(listen string, st store.Store, slashToken string, logger *log.Logger) *
 func (s *Server) routes() {
 	s.e.GET("/health", s.health)
 	s.e.GET("/manifest/:id", s.getManifest)
-	if s.slashToken != "" {
+	if s.signingKey != "" {
 		s.e.POST("/slash", s.handleSlash)
 	}
+	if s.signingKey != "" && s.connect != nil {
+		s.e.GET("/approve/:id", s.previewApproval)
+		s.e.POST("/approve/:id", s.doApproval)
+	}
+}
+
+// SignApproval returns the HMAC-SHA256 token (base64url) that authorises
+// the approval URL for the given manifest ID. Exported so the bot can
+// build the link before sending it to chat.
+func (s *Server) SignApproval(manifestID string) string {
+	return signApproval(s.signingKey, manifestID)
 }
 
 // Start launches the HTTP listener and blocks until ctx is canceled.

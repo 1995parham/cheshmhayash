@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/carlmjohnson/versioninfo"
+	"github.com/nats-io/nats.go"
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/infra/config"
@@ -21,6 +22,16 @@ import (
 	"github.com/1995parham/natsie/internal/manifest"
 	"github.com/1995parham/natsie/internal/scanner"
 )
+
+// botConnector is the cleanup.Connector for the running bot — same shape
+// as the CLI's, but kept here so the bot package owns its NATS dialer.
+func botConnector(cluster string) (*nats.Conn, func(), error) {
+	nc, err := natsctx.Connect(cluster)
+	if err != nil {
+		return nil, nil, fmt.Errorf("connect %s: %w", cluster, err)
+	}
+	return nc.Conn, nc.Close, nil
+}
 
 const (
 	scanTimeout     = 2 * time.Minute
@@ -59,7 +70,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
 	sched := scheduler.New(logger)
 	for _, s := range cfg.Bot.Schedules {
-		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, logger)
+		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, logger)
 		if err := sched.Add(job); err != nil {
 			return fmt.Errorf("add schedule %s: %w", s.Name, err)
 		}
@@ -71,7 +82,10 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	httpErrCh := make(chan error, 1)
 	if cfg.Bot.HTTP.Listen != "" {
-		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore, cfg.Bot.SigningKey, logger)
+		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore,
+			httpsrv.Options{SigningKey: cfg.Bot.SigningKey, Connector: botConnector},
+			logger,
+		)
 		go func() {
 			logger.Printf("http listener: %s", cfg.Bot.HTTP.Listen)
 			httpErrCh <- server.Start(ctx)
@@ -127,17 +141,17 @@ func dialNotifiers(urls []string) ([]notify.Notifier, error) {
 
 // buildScanJob captures one schedule's settings and returns the function
 // the scheduler will fire on the cron clock.
-func buildScanJob(s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL string, logger *log.Logger) scheduler.Job {
+func buildScanJob(s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
-			return runScan(ctx, s, manifestStore, notifiers, baseURL, logger)
+			return runScan(ctx, s, manifestStore, notifiers, baseURL, signingKey, logger)
 		},
 	}
 }
 
-func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL string, logger *log.Logger) error {
+func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, logger *log.Logger) error {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
@@ -179,7 +193,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 		return fmt.Errorf("store manifest %s: %w", id, err)
 	}
 
-	msg := buildMessage(s, m, id, baseURL)
+	msg := buildMessage(s, m, id, baseURL, signingKey)
 	for _, n := range notifiers {
 		if err := n.Post(ctx, msg); err != nil {
 			logger.Printf("notify %s: %v", n.Name(), err)
@@ -219,7 +233,7 @@ func buildManifest(s config.Schedule, rows []scanner.Row) *manifest.Manifest {
 	return m
 }
 
-func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL string) notify.Message {
+func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL, signingKey string) notify.Message {
 	var body strings.Builder
 	fmt.Fprintf(&body, "Schedule **%s** found %d stale consumer", s.Name, len(m.Entries))
 	if len(m.Entries) != 1 {
@@ -233,9 +247,15 @@ func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL string) n
 		}
 		fmt.Fprintf(&body, "- `%s/%s` (pending=%d, idle=%s)\n", e.Stream, e.Consumer, e.NumPending, e.Idle)
 	}
+
+	base := strings.TrimSuffix(baseURL, "/")
 	link := ""
-	if baseURL != "" {
-		link = strings.TrimSuffix(baseURL, "/") + "/manifest/" + id
+	if base != "" {
+		link = base + "/manifest/" + id
+	}
+	if base != "" && signingKey != "" {
+		token := httpsrv.SignApprovalToken(signingKey, id)
+		fmt.Fprintf(&body, "\nApprove: %s/approve/%s?token=%s\n", base, id, token)
 	}
 	return notify.Message{
 		Title:      fmt.Sprintf("natsie cleanup candidates (%s)", s.Name),

@@ -22,7 +22,7 @@ func newSlashServer(t *testing.T, token string) (*Server, store.Store) {
 	if err != nil {
 		t.Fatalf("NewFile: %v", err)
 	}
-	return New(":0", st, token, log.New(io.Discard, "", 0)), st
+	return New(":0", st, Options{SigningKey: token}, log.New(io.Discard, "", 0)), st
 }
 
 func doSlash(s *Server, form neturl.Values) *httptest.ResponseRecorder {
