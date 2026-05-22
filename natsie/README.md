@@ -230,4 +230,4 @@ borrows whatever the operator already trusts.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+GPL-3.0-only. See [LICENSE](LICENSE).

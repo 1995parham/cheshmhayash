@@ -16,7 +16,7 @@ FROM gcr.io/distroless/base-debian12:nonroot AS release
 LABEL maintainer="Parham Alvani <parham.alvani@gmail.com>"
 LABEL org.opencontainers.image.source="https://github.com/1995parham/natsie"
 LABEL org.opencontainers.image.description="natsie — Swiss-army knife for NATS operations"
-LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.licenses="GPL-3.0-only"
 
 WORKDIR /app/
 
