@@ -1,60 +1,23 @@
 package consumer
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
-func TestIsActive(t *testing.T) {
-	manifestTime := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
-	afterManifest := manifestTime.Add(5 * time.Minute)
-	beforeManifest := manifestTime.Add(-1 * time.Hour)
+// The isActive / consumerInfo unit tests moved to internal/cleanup with
+// the underlying logic. This file keeps a minimal smoke test for the CLI
+// wiring so the consumer package still has direct coverage.
 
-	cases := []struct {
-		name string
-		info consumerInfo
-		want bool
-	}{
-		{
-			name: "push bound",
-			info: consumerInfo{PushBound: true},
-			want: true,
-		},
-		{
-			name: "pull waiter present",
-			info: consumerInfo{NumWaiting: 1},
-			want: true,
-		},
-		{
-			name: "ack since manifest",
-			info: func() consumerInfo {
-				var c consumerInfo
-				c.AckFloor.LastActive = &afterManifest
-				return c
-			}(),
-			want: true,
-		},
-		{
-			name: "ack before manifest",
-			info: func() consumerInfo {
-				var c consumerInfo
-				c.AckFloor.LastActive = &beforeManifest
-				return c
-			}(),
-			want: false,
-		},
-		{
-			name: "never acked",
-			info: consumerInfo{},
-			want: false,
-		},
+func TestConsumerCommandRegistersBothSubcommands(t *testing.T) {
+	cmd := Command()
+	if cmd.Name != "consumer" {
+		t.Errorf("Name=%q want consumer", cmd.Name)
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := isActive(&c.info, manifestTime) != ""
-			if got != c.want {
-				t.Fatalf("isActive=%v want %v", got, c.want)
-			}
-		})
+	names := map[string]bool{}
+	for _, c := range cmd.Commands {
+		names[c.Name] = true
+	}
+	for _, want := range []string{"scan", "apply"} {
+		if !names[want] {
+			t.Errorf("missing subcommand %q (got %v)", want, names)
+		}
 	}
 }
