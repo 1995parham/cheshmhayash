@@ -20,7 +20,9 @@ func Dial(url string) (Notifier, error) {
 		return NewMattermost(u)
 	case "slack":
 		return NewSlack(u)
+	case "webhook":
+		return NewWebhook(u)
 	default:
-		return nil, fmt.Errorf("notify scheme %q is not registered (try stdout://, mattermost://..., slack://...)", u.Scheme)
+		return nil, fmt.Errorf("notify scheme %q is not registered (try stdout://, mattermost://..., slack://..., webhook://...)", u.Scheme)
 	}
 }

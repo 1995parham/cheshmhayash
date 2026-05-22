@@ -123,6 +123,7 @@ bot:
   notify:
     - mattermost://chat.example.com/hooks/abc-xyz?channel=nats-cleanup
     # - slack://hooks.slack.com/services/T.../B.../...
+    # - webhook://hooks.example.com/n8n/abc   # structured JSON: {title, body, manifest_id, link}
     # - stdout://   # for local testing
 
   store: file:///var/lib/natsie/manifests
