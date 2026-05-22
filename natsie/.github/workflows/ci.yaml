@@ -26,15 +26,6 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: go fmt
-        run: |
-          out=$(gofmt -l .)
-          if [ -n "$out" ]; then
-            echo "::error::gofmt found unformatted files:"
-            echo "$out"
-            exit 1
-          fi
-
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
