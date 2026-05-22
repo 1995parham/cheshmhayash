@@ -38,9 +38,53 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- with .Values.initContainers }}
+      {{- if or .Values.initContainers (and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts) }}
       initContainers:
+        {{- if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+        - name: render-nats-contexts
+          image: {{ printf "%s:%s" .Values.natsContexts.fromEnv.image.repository .Values.natsContexts.fromEnv.image.tag }}
+          imagePullPolicy: {{ .Values.natsContexts.fromEnv.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities:
+              drop:
+                - ALL
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              mkdir -p /shared
+              {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
+              cat > /shared/{{ $c.name }}.json <<EOF
+              {
+                "url": "{{ $c.url }}",
+                "user": "${CTX_{{ $i }}_USER}",
+                "password": "${CTX_{{ $i }}_PASSWORD}"
+              }
+              EOF
+              {{- end }}
+          env:
+            {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
+            - name: CTX_{{ $i }}_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.secret.name }}
+                  key: {{ $c.secret.userKey }}
+            - name: CTX_{{ $i }}_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $c.secret.name }}
+                  key: {{ $c.secret.passwordKey }}
+            {{- end }}
+          volumeMounts:
+            - name: nats-contexts
+              mountPath: /shared
+        {{- end }}
+        {{- with .Values.initContainers }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
@@ -123,6 +167,10 @@ spec:
             - name: nats-contexts
               mountPath: /home/nonroot/.config/nats/context
               readOnly: true
+            {{- else if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+            - name: nats-contexts
+              mountPath: /home/nonroot/.config/nats/context
+              readOnly: true
             {{- end }}
             - name: state
               mountPath: /var/lib/natsie
@@ -145,6 +193,10 @@ spec:
           secret:
             secretName: {{ include "natsie-chart.natsCtxSecretEffective" . }}
             defaultMode: 0400
+        {{- else if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+        - name: nats-contexts
+          emptyDir:
+            sizeLimit: 1Mi
         {{- end }}
         - name: state
           {{- if .Values.persistence.enabled }}

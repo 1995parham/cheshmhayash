@@ -139,21 +139,45 @@ persistence:
 
 # ---- NATS context files ---------------------------------------------------
 # natsie dials NATS clusters via files at ~/.config/nats/context/<name>.json
-# (the same store the official `nats context` CLI uses). The chart mounts
-# them from a Secret. Two ways to supply that Secret:
+# (the same store the official `nats context` CLI uses). Three ways to
+# supply the files — pick exactly one.
 #
-#   natsContexts.inline:
-#     - name: snapp-js-main-teh1
-#       content: |
-#         { "url": "nats://...", "user": "...", "password": "..." }
+#   1. inline: chart-managed Secret built from the literal JSON content.
+#      natsContexts.inline:
+#        - name: snapp-js-main-teh1
+#          content: |
+#            { "url": "nats://...", "user": "...", "password": "..." }
 #
-#   natsContexts.existingSecret:
-#     name: natsie-nats-contexts        # one Secret with one key per context file
-#                                       # (keys must end in .json)
+#   2. existingSecret: operator-managed Secret already in the namespace.
+#      natsContexts.existingSecret: my-nats-contexts
+#
+#   3. fromEnv: init container renders the JSON files at pod startup from
+#      env vars sourced from an existing Secret (e.g. a NATS operator's
+#      system-account Secret that you don't own). Each context names
+#      the URL inline and points at the {user,password} keys in the Secret.
+#
+#      natsContexts.fromEnv:
+#        enabled: true
+#        contexts:
+#          - name: snapp-js-main-teh1
+#            url: nats://js-nats-production.nats-production.svc.cluster.local:4222
+#            secret:
+#              name: nats-system-account
+#              userKey: admin_username
+#              passwordKey: admin_password
 #
 natsContexts:
   inline: []
   existingSecret: ""
+  fromEnv:
+    enabled: false
+    # Image used by the init container. busybox sh is enough to write the
+    # JSON files; override if you have a stricter image policy.
+    image:
+      repository: busybox
+      tag: "1.37"
+      pullPolicy: IfNotPresent
+    contexts: []
 
 # ---- application config ---------------------------------------------------
 # Each entry below is rendered into the bot config.yaml the daemon reads.
