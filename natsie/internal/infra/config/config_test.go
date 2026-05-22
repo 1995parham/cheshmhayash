@@ -82,6 +82,51 @@ bot:
 	}
 }
 
+func TestLoadOwners(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	body := `
+bot:
+  owners:
+    - name: chronos
+      streams: [rides]
+      consumer_prefix: [chronos-]
+      notify:
+        - mattermost://chat.example.com/hooks/abc?channel=chronos-alerts
+    - name: dolos
+      consumer_prefix: [dolos-, dolos-dolos-]
+      notify:
+        - stdout://
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Bot.Owners) != 2 {
+		t.Fatalf("owners=%d want 2", len(cfg.Bot.Owners))
+	}
+	chronos := cfg.Bot.Owners[0]
+	if chronos.Name != "chronos" {
+		t.Errorf("name=%q want chronos", chronos.Name)
+	}
+	if len(chronos.Streams) != 1 || chronos.Streams[0] != "rides" {
+		t.Errorf("streams=%v", chronos.Streams)
+	}
+	if len(chronos.ConsumerPrefix) != 1 || chronos.ConsumerPrefix[0] != "chronos-" {
+		t.Errorf("consumer_prefix=%v", chronos.ConsumerPrefix)
+	}
+	if len(chronos.Notify) != 1 {
+		t.Errorf("notify=%v", chronos.Notify)
+	}
+	dolos := cfg.Bot.Owners[1]
+	if len(dolos.ConsumerPrefix) != 2 {
+		t.Errorf("dolos prefixes=%v", dolos.ConsumerPrefix)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

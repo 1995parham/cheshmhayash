@@ -54,10 +54,22 @@ type ContextOptions struct {
 type Bot struct {
 	Schedules  []Schedule `koanf:"schedules"`
 	Notify     []string   `koanf:"notify"`
+	Owners     []Owner    `koanf:"owners"`
 	Store      string     `koanf:"store"`
 	AuditLog   string     `koanf:"audit_log"`
 	HTTP       HTTP       `koanf:"http"`
 	SigningKey string     `koanf:"signing_key"`
+}
+
+// Owner routes a subset of manifest entries to a team-specific notify list.
+// An entry matches an owner if its stream appears in Streams (exact match)
+// or its consumer name starts with one of ConsumerPrefix. Matching is
+// first-hit, evaluated in the order the owners appear in config.
+type Owner struct {
+	Name           string   `koanf:"name"`
+	Streams        []string `koanf:"streams"`
+	ConsumerPrefix []string `koanf:"consumer_prefix"`
+	Notify         []string `koanf:"notify"`
 }
 
 // Schedule is one recurring scan. Cron uses standard 5-field syntax
