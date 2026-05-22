@@ -24,7 +24,7 @@ Early. The first working subcommand is `natsie consumer scan` — the rest of th
 | `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run`. |
 | `stream report` | planned | Per-stream size, retention, replication, and ownership signals. |
 | `peer check` | planned | Detect ghost peers / phantom Raft groups from past shrinks. |
-| `bot serve` | planned | Long-running daemon: periodic scans, chat notifications (Slack/Mattermost/webhook), `/approve` slash command flow. |
+| `bot serve` | **working** | Long-running daemon: scheduled scans, chat notifications (Slack / Mattermost / stdout), HTTP listener with manifest viewer, slash-command handler, signed approval URLs, JSONL audit log. |
 
 ## Design pillars
 
@@ -93,6 +93,121 @@ has pull waiters, or has acked since the manifest's `generated_at` — is
 preserved. The window is the safety property that lets the bot operate
 unattended later; deleting from a stale snapshot is the failure mode that
 makes other cleanup tools dangerous.
+
+## Running as a bot
+
+`natsie bot serve` is the long-lived daemon mode. It runs scheduled scans,
+posts chat messages with a signed approval URL, exposes a small HTTP
+listener for the manifest viewer / slash commands / approval clicks, and
+appends every action to a JSONL audit log.
+
+### Configuration
+
+```yaml
+# ~/.config/natsie/config.yaml (or /etc/natsie/config.yaml in production)
+
+bot:
+  schedules:
+    - name: daily
+      cron: "0 3 * * *"
+      context: snapp-js-main-teh1
+      peer_context: snapp-js-main-teh2
+      min_pending: 10000
+      min_idle: 24h
+    - name: hodhod-hourly
+      cron: "0 * * * *"
+      context: snapp-js-hodhod
+      min_pending: 5000
+      min_idle: 6h
+
+  notify:
+    - mattermost://chat.example.com/hooks/abc-xyz?channel=nats-cleanup
+    # - slack://hooks.slack.com/services/T.../B.../...
+    # - stdout://   # for local testing
+
+  store: file:///var/lib/natsie/manifests
+  audit_log: /var/lib/natsie/audit.jsonl
+
+  http:
+    listen: ":8080"
+    base_url: https://natsie.example.com   # public URL used in chat links
+
+  signing_key: change-me-to-32-random-bytes
+```
+
+`signing_key` does two jobs:
+
+- **Slash-command verification token.** Configure the same string in your
+  Mattermost or Slack slash-command integration; the bot compares it
+  with `crypto/subtle.ConstantTimeCompare`.
+- **HMAC-SHA256 key for approval URLs.** Every approval link in chat is
+  bound to its manifest ID, so a leaked URL can only approve the one
+  manifest it was issued for.
+
+### Endpoints
+
+| Method | Path | Purpose |
+| ------ | ---- | ------- |
+| `GET`  | `/health` | JSON `{"status":"ok"}` for load-balancer probes. |
+| `GET`  | `/manifest/{id}` | Returns the stored manifest as `application/yaml`. |
+| `POST` | `/slash` | Slash-command handler (`list`, `show <id>`, `help`). Token-protected. |
+| `GET`  | `/approve/{id}?token=...` | Renders a plain-text preview of what would be deleted. |
+| `POST` | `/approve/{id}?token=...` | Re-verifies + applies. Returns JSON summary. |
+
+### Slash commands
+
+Configure `/natsie` in Mattermost or Slack to POST to `https://<your-host>/slash`
+with the configured token. From chat:
+
+```
+/natsie list          → list stored manifest IDs
+/natsie show m-...    → preview a manifest
+/natsie help          → usage
+```
+
+### Audit log
+
+Every scan run, approval preview, and apply attempt is appended as one
+JSON object per line to `bot.audit_log`. Rotate it with logrotate or
+similar; the bot opens the file in append mode and does not hold an
+exclusive lock.
+
+### Kubernetes
+
+A minimal Deployment + Service + ConfigMap, with the config mounted
+into `/etc/natsie/config.yaml`:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: natsie }
+spec:
+  replicas: 1                          # do not scale > 1; schedules + store assume single-writer
+  selector: { matchLabels: { app: natsie } }
+  template:
+    metadata: { labels: { app: natsie } }
+    spec:
+      containers:
+        - name: natsie
+          image: ghcr.io/1995parham/natsie:latest
+          args: ["bot", "serve", "--config", "/etc/natsie/config.yaml"]
+          ports: [{ containerPort: 8080 }]
+          volumeMounts:
+            - { name: config,    mountPath: /etc/natsie }
+            - { name: state,     mountPath: /var/lib/natsie }
+            - { name: nats-ctx,  mountPath: /root/.config/nats }
+          livenessProbe:
+            httpGet: { path: /health, port: 8080 }
+      volumes:
+        - { name: config,   configMap: { name: natsie-config } }
+        - { name: state,    persistentVolumeClaim: { claimName: natsie-state } }
+        - { name: nats-ctx, secret:    { secretName: natsie-nats-contexts } }
+```
+
+The `natsie-nats-contexts` Secret should contain the same `*.json` files
+the official `nats context` CLI writes — one per cluster, with the
+credentials inline. The bot does not run as a NATS account by itself; it
+borrows whatever the operator already trusts.
 
 ## Project layout
 
