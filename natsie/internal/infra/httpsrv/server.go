@@ -19,19 +19,22 @@ import (
 const defaultGracefulTimeout = 10 * time.Second
 
 // Server wraps an Echo instance with the bot-specific dependencies it
-// needs (manifest store, logger).
+// needs (manifest store, logger, shared slash-command verification token).
 type Server struct {
-	e      *echo.Echo
-	listen string
-	store  store.Store
-	log    *log.Logger
+	e          *echo.Echo
+	listen     string
+	store      store.Store
+	log        *log.Logger
+	slashToken string
 }
 
 // New constructs the Server. Routes are registered immediately so callers
-// can list them in startup logs.
-func New(listen string, st store.Store, logger *log.Logger) *Server {
+// can list them in startup logs. slashToken is the shared verification
+// token configured in the Mattermost/Slack slash-command integration;
+// empty disables the /slash endpoint.
+func New(listen string, st store.Store, slashToken string, logger *log.Logger) *Server {
 	e := echo.New()
-	s := &Server{e: e, listen: listen, store: st, log: logger}
+	s := &Server{e: e, listen: listen, store: st, slashToken: slashToken, log: logger}
 	s.routes()
 	return s
 }
@@ -39,6 +42,9 @@ func New(listen string, st store.Store, logger *log.Logger) *Server {
 func (s *Server) routes() {
 	s.e.GET("/health", s.health)
 	s.e.GET("/manifest/:id", s.getManifest)
+	if s.slashToken != "" {
+		s.e.POST("/slash", s.handleSlash)
+	}
 }
 
 // Start launches the HTTP listener and blocks until ctx is canceled.

@@ -25,7 +25,7 @@ func newTestServer(t *testing.T) (*Server, store.Store) {
 		t.Fatalf("NewFile: %v", err)
 	}
 	logger := log.New(io.Discard, "", 0)
-	return New(":0", st, logger), st
+	return New(":0", st, "", logger), st
 }
 
 func doRequest(s *Server, method, path string) *httptest.ResponseRecorder {

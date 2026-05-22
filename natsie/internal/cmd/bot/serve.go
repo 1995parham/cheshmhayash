@@ -71,7 +71,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	httpErrCh := make(chan error, 1)
 	if cfg.Bot.HTTP.Listen != "" {
-		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore, logger)
+		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore, cfg.Bot.SigningKey, logger)
 		go func() {
 			logger.Printf("http listener: %s", cfg.Bot.HTTP.Listen)
 			httpErrCh <- server.Start(ctx)
