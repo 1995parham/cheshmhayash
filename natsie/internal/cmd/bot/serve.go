@@ -21,8 +21,20 @@ import (
 	"github.com/1995parham/natsie/internal/infra/scheduler"
 	"github.com/1995parham/natsie/internal/infra/store"
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/owners"
 	"github.com/1995parham/natsie/internal/scanner"
 )
+
+// dispatcher fans manifest notifications out to (a) the configured global
+// notify sinks and (b) any owner-specific sinks that match individual
+// entries. The master message — the one that carries the signed approve
+// URL — always goes to the global sinks; owner sinks receive an
+// informational subset of the manifest for awareness.
+type dispatcher struct {
+	global   []notify.Notifier
+	router   *owners.Router
+	perOwner map[string][]notify.Notifier
+}
 
 // botConnector is the cleanup.Connector for the running bot — same shape
 // as the CLI's, but kept here so the bot package owns its NATS dialer.
@@ -65,7 +77,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("dial store: %w", err)
 	}
 
-	notifiers, err := dialNotifiers(cfg.Bot.Notify)
+	dispatch, err := buildDispatcher(cfg.Bot)
 	if err != nil {
 		return err
 	}
@@ -80,15 +92,15 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	sched := scheduler.New(logger)
 	for _, s := range cfg.Bot.Schedules {
-		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
+		job := buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
 		if err := sched.Add(job); err != nil { //nolint:contextcheck // job carries its own ctx via Job.Run
 			return fmt.Errorf("add schedule %s: %w", s.Name, err)
 		}
 	}
 
 	sched.Start()
-	logger.Printf("bot started: schedules=%d notify=%d store=%s",
-		len(cfg.Bot.Schedules), len(notifiers), manifestStore.Name())
+	logger.Printf("bot started: schedules=%d notify=%d owners=%d store=%s",
+		len(cfg.Bot.Schedules), len(dispatch.global), len(dispatch.perOwner), manifestStore.Name())
 
 	httpErrCh := make(chan error, 1)
 
@@ -167,19 +179,47 @@ func dialNotifiers(urls []string) ([]notify.Notifier, error) {
 	return out, nil
 }
 
+// buildDispatcher wires the global notify list, the owner router, and a
+// per-owner notifier map. Owner notify lists are validated and dialed up
+// front so a typo crashes serve at startup, not at the first scan.
+func buildDispatcher(b config.Bot) (*dispatcher, error) {
+	global, err := dialNotifiers(b.Notify)
+	if err != nil {
+		return nil, err
+	}
+
+	router, err := owners.NewRouter(b.Owners)
+	if err != nil {
+		return nil, fmt.Errorf("owners: %w", err)
+	}
+
+	perOwner := map[string][]notify.Notifier{}
+
+	for _, o := range b.Owners {
+		ns, err := dialNotifiers(o.Notify)
+		if err != nil {
+			return nil, fmt.Errorf("owner %q notify: %w", o.Name, err)
+		}
+
+		perOwner[o.Name] = ns
+	}
+
+	return &dispatcher{global: global, router: router, perOwner: perOwner}, nil
+}
+
 // buildScanJob captures one schedule's settings and returns the function
 // the scheduler will fire on the cron clock.
-func buildScanJob(s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
+func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
-			return runScan(ctx, s, manifestStore, notifiers, baseURL, signingKey, auditLog, logger)
+			return runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, logger)
 		},
 	}
 }
 
-func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) error {
+func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) error {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
@@ -225,14 +265,38 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 
 	_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Manifest: id, Entries: len(m.Entries)})
 
-	msg := buildMessage(s, m, id, baseURL, signingKey)
-	for _, n := range notifiers {
-		if err := n.Post(ctx, msg); err != nil {
-			logger.Printf("notify %s: %v", n.Name(), err)
+	dispatch.post(ctx, s, m, id, baseURL, signingKey, logger)
+
+	return nil
+}
+
+// post fans the manifest out: per-owner subset messages to each owner's
+// notify list (no approve URL — owners get visibility, not approval),
+// and the full manifest with the signed approve URL to the global list.
+func (d *dispatcher) post(ctx context.Context, s config.Schedule, m *manifest.Manifest, id, baseURL, signingKey string, logger *log.Logger) {
+	if len(d.perOwner) > 0 {
+		grouped := d.router.Group(m.Entries)
+		for ownerName, entries := range grouped {
+			sinks := d.perOwner[ownerName]
+			if len(sinks) == 0 || len(entries) == 0 {
+				continue
+			}
+
+			msg := buildOwnerMessage(s, ownerName, entries)
+			for _, n := range sinks {
+				if err := n.Post(ctx, msg); err != nil {
+					logger.Printf("notify owner=%s sink=%s: %v", ownerName, n.Name(), err)
+				}
+			}
 		}
 	}
 
-	return nil
+	master := buildMessage(s, m, id, baseURL, signingKey)
+	for _, n := range d.global {
+		if err := n.Post(ctx, master); err != nil {
+			logger.Printf("notify global sink=%s: %v", n.Name(), err)
+		}
+	}
 }
 
 func buildManifest(s config.Schedule, rows []scanner.Row) *manifest.Manifest {
@@ -306,5 +370,37 @@ func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL, signingK
 		Body:       body.String(),
 		ManifestID: id,
 		Link:       link,
+	}
+}
+
+// buildOwnerMessage renders the owner-scoped subset of a manifest. No
+// approve URL: owners get visibility so they can flag entries that
+// shouldn't be deleted; the operator with the global notification holds
+// the actual approval URL.
+func buildOwnerMessage(s config.Schedule, ownerName string, entries []manifest.Entry) notify.Message {
+	var body strings.Builder
+	fmt.Fprintf(&body, "Schedule **%s** flagged %d consumer", s.Name, len(entries))
+
+	if len(entries) != 1 {
+		body.WriteString("s")
+	}
+
+	fmt.Fprintf(&body, " owned by **%s**:\n", ownerName)
+
+	for i, e := range entries {
+		if i >= 10 {
+			fmt.Fprintf(&body, "...and %d more\n", len(entries)-10)
+
+			break
+		}
+
+		fmt.Fprintf(&body, "- `%s/%s` (pending=%d, idle=%s)\n", e.Stream, e.Consumer, e.NumPending, e.Idle)
+	}
+
+	body.WriteString("\n_Approval happens centrally — flag any of these to your operator if they should be preserved._")
+
+	return notify.Message{
+		Title: fmt.Sprintf("natsie cleanup candidates for %s (%s)", ownerName, s.Name),
+		Body:  body.String(),
 	}
 }
