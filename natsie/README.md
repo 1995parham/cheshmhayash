@@ -1,5 +1,12 @@
 # natsie
 
+[![CI](https://img.shields.io/github/actions/workflow/status/1995parham/natsie/test.yaml?branch=main&style=for-the-badge&logo=github&label=ci)](https://github.com/1995parham/natsie/actions/workflows/test.yaml)
+[![Release](https://img.shields.io/github/v/release/1995parham/natsie?style=for-the-badge&logo=github&color=blue)](https://github.com/1995parham/natsie/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/1995parham/natsie?style=for-the-badge)](https://goreportcard.com/report/github.com/1995parham/natsie)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge)](./LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go)](https://go.dev)
+[![Codecov](https://img.shields.io/codecov/c/github/1995parham/natsie?style=for-the-badge&logo=codecov)](https://codecov.io/gh/1995parham/natsie)
+
 A Swiss-army knife for NATS operations: report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
 
 `natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. It is **never autonomous** — every destructive action requires an explicit manifest + apply step. Detection and reporting run unattended; deletion does not.
