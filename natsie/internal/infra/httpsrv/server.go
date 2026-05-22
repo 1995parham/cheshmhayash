@@ -13,6 +13,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/store"
 )
@@ -20,23 +21,26 @@ import (
 const defaultGracefulTimeout = 10 * time.Second
 
 // Server wraps an Echo instance with the bot-specific dependencies it
-// needs (manifest store, signing key, NATS connector, logger).
+// needs (manifest store, signing key, NATS connector, audit log, logger).
 type Server struct {
 	e          *echo.Echo
 	listen     string
 	store      store.Store
 	log        *log.Logger
+	audit      *audit.Logger
 	signingKey string
 	connect    cleanup.Connector
 }
 
 // Options groups optional Server inputs that have grown beyond a sensible
-// positional argument list. Both signingKey and connector are optional;
+// positional argument list. SigningKey and Connector are optional;
 // supplying neither restricts the listener to the read-only endpoints
-// (/health and /manifest/:id).
+// (/health and /manifest/:id). Audit may be nil; the audit logger
+// already treats a nil receiver as a no-op.
 type Options struct {
 	SigningKey string
 	Connector  cleanup.Connector
+	Audit      *audit.Logger
 }
 
 // New constructs the Server. Routes are registered immediately so callers
@@ -50,6 +54,7 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 		listen:     listen,
 		store:      st,
 		log:        logger,
+		audit:      opts.Audit,
 		signingKey: opts.SigningKey,
 		connect:    opts.Connector,
 	}

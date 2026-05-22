@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v5"
+
+	"github.com/1995parham/natsie/internal/audit"
 )
 
 // SignApprovalToken returns the HMAC-SHA256 token (URL-safe base64) that
@@ -35,6 +37,10 @@ func (s *Server) previewApproval(c *echo.Context) error {
 	id := c.Param("id")
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {
+		_ = s.audit.Log(audit.Event{
+			Kind: "approve.preview", Manifest: id, Source: c.RealIP(),
+			Error: "invalid token",
+		})
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 	}
 
@@ -42,6 +48,10 @@ func (s *Server) previewApproval(c *echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "manifest not found", "id": id})
 	}
+	_ = s.audit.Log(audit.Event{
+		Kind: "approve.preview", Manifest: id, Source: c.RealIP(),
+		Entries: len(m.Entries),
+	})
 
 	var body strings.Builder
 	fmt.Fprintf(&body, "Confirm cleanup for manifest %s (%d entries):\n\n", id, len(m.Entries))
@@ -66,6 +76,10 @@ func (s *Server) doApproval(c *echo.Context) error {
 	id := c.Param("id")
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {
+		_ = s.audit.Log(audit.Event{
+			Kind: "approve.apply", Manifest: id, Source: c.RealIP(),
+			Error: "invalid token",
+		})
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 	}
 
@@ -76,11 +90,20 @@ func (s *Server) doApproval(c *echo.Context) error {
 
 	result, err := applyManifest(c.Request().Context(), m, s.connect)
 	if err != nil {
+		_ = s.audit.Log(audit.Event{
+			Kind: "approve.apply", Manifest: id, Source: c.RealIP(),
+			Entries: len(m.Entries), Result: result.Summary(), Error: err.Error(),
+		})
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error":   err.Error(),
 			"summary": result.Summary(),
 		})
 	}
+
+	_ = s.audit.Log(audit.Event{
+		Kind: "approve.apply", Manifest: id, Source: c.RealIP(),
+		Entries: len(m.Entries), Result: result.Summary(),
+	})
 
 	return c.JSON(http.StatusOK, map[string]any{
 		"id":      id,

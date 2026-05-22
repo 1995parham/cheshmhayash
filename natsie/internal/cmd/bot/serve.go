@@ -13,6 +13,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/urfave/cli/v3"
 
+	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/httpsrv"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
@@ -67,10 +68,16 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
+	auditLog, err := audit.NewLogger(cfg.Bot.AuditLog)
+	if err != nil {
+		return fmt.Errorf("open audit log: %w", err)
+	}
+	defer func() { _ = auditLog.Close() }()
+
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
 	sched := scheduler.New(logger)
 	for _, s := range cfg.Bot.Schedules {
-		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, logger)
+		job := buildScanJob(s, manifestStore, notifiers, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
 		if err := sched.Add(job); err != nil {
 			return fmt.Errorf("add schedule %s: %w", s.Name, err)
 		}
@@ -83,7 +90,11 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	httpErrCh := make(chan error, 1)
 	if cfg.Bot.HTTP.Listen != "" {
 		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore,
-			httpsrv.Options{SigningKey: cfg.Bot.SigningKey, Connector: botConnector},
+			httpsrv.Options{
+				SigningKey: cfg.Bot.SigningKey,
+				Connector:  botConnector,
+				Audit:      auditLog,
+			},
 			logger,
 		)
 		go func() {
@@ -141,17 +152,17 @@ func dialNotifiers(urls []string) ([]notify.Notifier, error) {
 
 // buildScanJob captures one schedule's settings and returns the function
 // the scheduler will fire on the cron clock.
-func buildScanJob(s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, logger *log.Logger) scheduler.Job {
+func buildScanJob(s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
-			return runScan(ctx, s, manifestStore, notifiers, baseURL, signingKey, logger)
+			return runScan(ctx, s, manifestStore, notifiers, baseURL, signingKey, auditLog, logger)
 		},
 	}
 }
 
-func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, logger *log.Logger) error {
+func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, notifiers []notify.Notifier, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) error {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
@@ -184,6 +195,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	logger.Printf("schedule=%s entries=%d", s.Name, len(m.Entries))
 
 	if len(m.Entries) == 0 {
+		_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Entries: 0})
 		// Nothing to do; don't generate noise. Future: optional "all clear" ping.
 		return nil
 	}
@@ -192,6 +204,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	if err := manifestStore.Put(ctx, id, m); err != nil {
 		return fmt.Errorf("store manifest %s: %w", id, err)
 	}
+	_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Manifest: id, Entries: len(m.Entries)})
 
 	msg := buildMessage(s, m, id, baseURL, signingKey)
 	for _, n := range notifiers {
