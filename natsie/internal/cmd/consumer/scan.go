@@ -8,10 +8,12 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/carlmjohnson/versioninfo"
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
+	"github.com/1995parham/natsie/internal/manifest"
 	"github.com/1995parham/natsie/internal/scanner"
 )
 
@@ -44,6 +46,14 @@ func scanCommand() *cli.Command {
 			&cli.DurationFlag{
 				Name:  "min-idle",
 				Usage: "Only report consumers idle longer than this",
+			},
+			&cli.StringFlag{
+				Name:  "emit-manifest",
+				Usage: "Also write a YAML cleanup manifest of stale rows to this path (for use with `consumer apply`)",
+			},
+			&cli.BoolFlag{
+				Name:  "force",
+				Usage: "Overwrite an existing manifest at --emit-manifest path",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -103,6 +113,14 @@ func scanCommand() *cli.Command {
 				return err
 			}
 
+			if manifestPath := cmd.String("emit-manifest"); manifestPath != "" {
+				m := buildManifest(rows, ctxName, peerName, opts)
+				if err := m.Write(manifestPath, cmd.Bool("force")); err != nil {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "wrote manifest %s (%d stale entries)\n", manifestPath, len(m.Entries))
+			}
+
 			switch format {
 			case "json":
 				enc := json.NewEncoder(os.Stdout)
@@ -121,4 +139,35 @@ func scanCommand() *cli.Command {
 			}
 		},
 	}
+}
+
+func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Options) *manifest.Manifest {
+	m := &manifest.Manifest{
+		Version:     manifest.Version,
+		GeneratedAt: time.Now().UTC(),
+		GeneratedBy: "natsie " + versioninfo.Short(),
+		Scan: manifest.ScanInfo{
+			Context:     ctxName,
+			PeerContext: peerName,
+			Stream:      opts.Stream,
+			MinPending:  opts.MinPending,
+			MinIdle:     opts.MinIdle,
+		},
+	}
+	for _, r := range rows {
+		if r.Status != scanner.StatusStale {
+			continue
+		}
+		m.Entries = append(m.Entries, manifest.Entry{
+			Cluster:    r.Cluster,
+			Stream:     r.Stream,
+			Consumer:   r.Consumer,
+			Status:     string(r.Status),
+			PeerStatus: string(r.PeerStatus),
+			NumPending: r.NumPending,
+			Idle:       r.Idle.Truncate(time.Second),
+			LastAck:    r.LastAck.UTC(),
+		})
+	}
+	return m
 }
