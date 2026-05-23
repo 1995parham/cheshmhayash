@@ -4,11 +4,11 @@ description: Long-lived NATS cleanup bot — scheduled scans, chat notifications
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 0.4.0
+version: 0.5.0
 
 # Application version — matches the natsie binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
-appVersion: "0.5.0"
+appVersion: "0.6.0"
 
 # Lower bound for the Kubernetes API. The chart sticks to stable APIs
 # (apps/v1, networking.k8s.io/v1) — anything from 1.23 works.
