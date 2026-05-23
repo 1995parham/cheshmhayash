@@ -59,6 +59,25 @@ type Bot struct {
 	AuditLog   string     `koanf:"audit_log"`
 	HTTP       HTTP       `koanf:"http"`
 	SigningKey string     `koanf:"signing_key"`
+	Mattermost Mattermost `koanf:"mattermost"`
+}
+
+// Mattermost is the pull-mode listener block: natsie opens a WebSocket
+// to Server using a bot-account token, listens for posts in Channel on
+// Team, and reacts to messages starting with Trigger. Leave Enabled
+// false (or omit the block entirely) to run with push-mode only.
+//
+// Token may be supplied directly or via TokenFile; the file path takes
+// priority so the secret can live in a mounted Kubernetes Secret rather
+// than in env/yaml.
+type Mattermost struct {
+	Enabled   bool   `koanf:"enabled"`
+	Server    string `koanf:"server"`
+	Token     string `koanf:"token"`
+	TokenFile string `koanf:"token_file"`
+	Team      string `koanf:"team"`
+	Channel   string `koanf:"channel"`
+	Trigger   string `koanf:"trigger"`
 }
 
 // Owner routes a subset of manifest entries to a team-specific notify list.

@@ -15,6 +15,7 @@ import (
 	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/httpsrv"
+	"github.com/1995parham/natsie/internal/infra/mattermost"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/infra/notify"
 	"github.com/1995parham/natsie/internal/infra/scheduler"
@@ -122,6 +123,12 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		logger.Print("http listener: disabled (no bot.http.listen configured)")
 	}
 
+	if cfg.Bot.Mattermost.Enabled {
+		if err := startMattermostListener(ctx, cfg.Bot.Mattermost, manifestStore, logger); err != nil {
+			return fmt.Errorf("mattermost listener: %w", err)
+		}
+	}
+
 	select {
 	case <-ctx.Done():
 	case err := <-httpErrCh:
@@ -139,6 +146,39 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	sched.Stop(stopCtx) //nolint:contextcheck // shutdown deliberately uses a fresh deadline, see comment above
 	logger.Print("stopped")
+
+	return nil
+}
+
+// startMattermostListener resolves the bot token (file > inline), opens
+// the WebSocket, and launches the listener goroutine. Token-file errors
+// are fatal at boot — a misconfigured Secret should crash the pod, not
+// silently lose chat command support.
+func startMattermostListener(ctx context.Context, cfg config.Mattermost, st store.Store, logger *log.Logger) error {
+	token := cfg.Token
+	if cfg.TokenFile != "" {
+		raw, err := os.ReadFile(cfg.TokenFile)
+		if err != nil {
+			return fmt.Errorf("read token_file: %w", err)
+		}
+
+		token = strings.TrimSpace(string(raw))
+	}
+
+	listener, err := mattermost.New(ctx, mattermost.Config{
+		Server:  cfg.Server,
+		Token:   token,
+		Team:    cfg.Team,
+		Channel: cfg.Channel,
+		Trigger: cfg.Trigger,
+	}, st, logger)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		_ = listener.Run(ctx)
+	}()
 
 	return nil
 }
