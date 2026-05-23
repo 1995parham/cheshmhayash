@@ -43,7 +43,7 @@ func TestDispatch(t *testing.T) {
 		{"empty defaults to help", nil, "natsie commands"},
 		{"help", []string{"help"}, "natsie commands"},
 		{"list", []string{"list"}, "demo"},
-		{"show existing", []string{"show", "demo"}, "rides/stale-1"},
+		{"show existing", []string{"show", "demo"}, "`stale-1`"},
 		{"show missing", []string{"show", "nope"}, "not found"},
 		{"unknown", []string{"frobnicate"}, "unknown subcommand"},
 	}

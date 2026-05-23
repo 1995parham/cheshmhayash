@@ -10,7 +10,7 @@ package chatops
 import (
 	"context"
 	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/1995parham/natsie/internal/infra/store"
 )
@@ -26,6 +26,8 @@ func Help(trigger string) string {
 	return "natsie commands:\n" +
 		fmt.Sprintf("- `%s list` — list stored manifest IDs\n", trigger) +
 		fmt.Sprintf("- `%s show <id>` — preview a manifest\n", trigger) +
+		fmt.Sprintf("- `%s clusters` — list NATS contexts this bot can dial\n", trigger) +
+		fmt.Sprintf("- `%s streams [ctx]` — list streams (one ctx or all)\n", trigger) +
 		fmt.Sprintf("- `%s help` — this message", trigger)
 }
 
@@ -51,6 +53,15 @@ func Dispatch(ctx context.Context, st store.Store, trigger string, argv []string
 		}
 
 		return show(ctx, st, argv[1])
+	case "clusters":
+		return clusters(ctx)
+	case "streams":
+		target := ""
+		if len(argv) >= 2 {
+			target = argv[1]
+		}
+
+		return streams(ctx, target)
 	case "help":
 		return Help(trigger)
 	default:
@@ -68,20 +79,21 @@ func list(ctx context.Context, st store.Store) string {
 		return "no manifests in store"
 	}
 
-	var b strings.Builder
-	b.WriteString("Manifests:\n")
+	rows := make([][]string, 0, len(ids))
 
 	for i, id := range ids {
 		if i >= listLimit {
-			fmt.Fprintf(&b, "...and %d more\n", len(ids)-listLimit)
+			rows = append(rows, []string{fmt.Sprintf("…and %d more", len(ids)-listLimit)})
 
 			break
 		}
 
-		fmt.Fprintf(&b, "- `%s`\n", id)
+		rows = append(rows, []string{"`" + id + "`"})
 	}
 
-	return b.String()
+	header := fmt.Sprintf("**Manifests in store** (%d)\n\n", len(ids))
+
+	return header + mdTable([]string{"ID"}, rows)
 }
 
 func show(ctx context.Context, st store.Store, id string) string {
@@ -90,20 +102,28 @@ func show(ctx context.Context, st store.Store, id string) string {
 		return fmt.Sprintf("manifest `%s` not found: %v", id, err)
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "Manifest `%s` (%d entries, generated %s):\n",
-		id, len(m.Entries), m.GeneratedAt.Format(timeLayout))
+	rows := make([][]string, 0, len(m.Entries))
 
 	for i, e := range m.Entries {
 		if i >= showLimit {
-			fmt.Fprintf(&b, "...and %d more\n", len(m.Entries)-showLimit)
+			rows = append(rows, []string{fmt.Sprintf("…and %d more", len(m.Entries)-showLimit), "", "", ""})
 
 			break
 		}
 
-		fmt.Fprintf(&b, "- `%s/%s` (pending=%d, idle=%s)\n",
-			e.Stream, e.Consumer, e.NumPending, e.Idle)
+		rows = append(rows, []string{
+			"`" + e.Stream + "`",
+			"`" + e.Consumer + "`",
+			strconv.FormatInt(e.NumPending, 10),
+			e.Idle.String(),
+		})
 	}
 
-	return b.String()
+	header := fmt.Sprintf("**Manifest `%s`** — %d entries, generated %s\n\n",
+		id, len(m.Entries), m.GeneratedAt.Format(timeLayout))
+
+	return header + mdTable(
+		[]string{"Stream", "Consumer", "Pending", "Idle"},
+		rows,
+	)
 }
