@@ -110,11 +110,17 @@ spec:
               protocol: TCP
           env:
             # natsctx looks up ~/.config/nats/context/<name>.json via
-            # os.UserHomeDir(). distroless/static-debian12:nonroot leaves
-            # HOME unset, so the lookup falls back to "/" and misses the
-            # mount point. Pin HOME explicitly.
+            # os.UserHomeDir(). Two problems with the default home:
+            #  - distroless/static-debian12:nonroot leaves HOME unset, so
+            #    the lookup falls back to "/" and misses the mount point.
+            #  - The image pre-creates /home/nonroot at mode 0700 owned by
+            #    uid 65532, which OpenShift's namespace-injected runAsUser
+            #    can't traverse.
+            # Pin HOME to a path the image does NOT pre-create so the
+            # kubelet mount-point creation produces 0755 root:root dirs
+            # that any uid can traverse.
             - name: HOME
-              value: /home/nonroot
+              value: /home/natsie
             {{- if or (eq (include "natsie-chart.hasManagedSigningKey" .) "true") .Values.bot.existingSigningKeySecret.name }}
             - name: NATSIE_BOT__SIGNING_KEY
               valueFrom:
@@ -178,11 +184,11 @@ spec:
               readOnly: true
             {{- if or .Values.natsContexts.existingSecret (eq (include "natsie-chart.hasManagedNatsContexts" .) "true") }}
             - name: nats-contexts
-              mountPath: /home/nonroot/.config/nats/context
+              mountPath: /home/natsie/.config/nats/context
               readOnly: true
             {{- else if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
             - name: nats-contexts
-              mountPath: /home/nonroot/.config/nats/context
+              mountPath: /home/natsie/.config/nats/context
               readOnly: true
             {{- end }}
             - name: state

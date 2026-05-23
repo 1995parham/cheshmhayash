@@ -4,7 +4,7 @@ description: Long-lived NATS cleanup bot — scheduled scans, chat notifications
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 0.2.1
+version: 0.2.2
 
 # Application version — matches the natsie binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
