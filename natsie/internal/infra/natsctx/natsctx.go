@@ -3,10 +3,15 @@
 package natsctx
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -84,3 +89,119 @@ func Connect(name string) (*Conn, error) {
 
 	return &Conn{Conn: nc, Name: name}, nil
 }
+
+// Info is a metadata snapshot of one context file: enough to render a
+// clusters table without dialing. The user/password fields are *not*
+// included on purpose — this is the chat-readable view.
+type Info struct {
+	Name string
+	URL  string
+	User string
+}
+
+// List enumerates every ~/.config/nats/context/*.json the bot can see,
+// sorted by name. Returns an empty slice when the directory is absent
+// (e.g. a CLI invocation with no contexts installed) rather than an error.
+func List() ([]Info, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	dir := filepath.Join(home, ".config", "nats", "context")
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+
+	out := make([]Info, 0, len(entries))
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+
+		name := strings.TrimSuffix(e.Name(), ".json")
+
+		b, err := os.ReadFile(filepath.Join(dir, e.Name())) //nolint:gosec // path composed from os.ReadDir result inside our config dir
+		if err != nil {
+			continue
+		}
+
+		var cf contextFile
+		if err := json.Unmarshal(b, &cf); err != nil {
+			continue
+		}
+
+		out = append(out, Info{Name: name, URL: cf.URL, User: cf.Username})
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+
+	return out, nil
+}
+
+// probeTimeout caps how long Probe will wait. Short on purpose — chat
+// commands feel slow past ~5 s and the bot may probe several contexts
+// in parallel.
+const probeTimeout = 3 * time.Second
+
+// Probe opens a short-lived connection to the named context and
+// immediately closes it. Used by the `clusters` chat command to render a
+// reachable Y/N column without keeping a long-lived connection open.
+func Probe(_ context.Context, name string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(home, ".config", "nats", "context", name+".json")
+
+	b, err := os.ReadFile(path) //nolint:gosec // path composed from the context name we just looked up
+	if err != nil {
+		return err
+	}
+
+	var cf contextFile
+	if err := json.Unmarshal(b, &cf); err != nil {
+		return err
+	}
+
+	if cf.URL == "" {
+		return fmt.Errorf("context %s has no url", name)
+	}
+
+	var opts []nats.Option
+
+	switch {
+	case cf.Creds != "":
+		opts = append(opts, nats.UserCredentials(cf.Creds))
+	case cf.UserJWT != "" && cf.Nkey != "":
+		opts = append(opts, nats.UserJWTAndSeed(cf.UserJWT, cf.Nkey))
+	case cf.Token != "":
+		opts = append(opts, nats.Token(cf.Token))
+	case cf.Username != "":
+		opts = append(opts, nats.UserInfo(cf.Username, cf.Password))
+	}
+
+	opts = append(opts,
+		nats.Name("natsie-probe"),
+		nats.Timeout(probeTimeout),
+		nats.NoReconnect(),
+	)
+
+	nc, err := nats.Connect(cf.URL, opts...)
+	if err != nil {
+		return err
+	}
+
+	nc.Close()
+
+	return nil
+}
+
