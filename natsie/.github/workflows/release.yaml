@@ -1,14 +1,17 @@
 ---
 name: release
 
-# Build + push images to GHCR on every push to main (rolling :main + :sha-…
-# tags) and on every semver tag (:vX.Y.Z + :X.Y + :latest). Tagged releases
-# also publish the Helm chart as an OCI artifact and sign the image with
-# cosign keyless.
+# Build + push images to GHCR on every semver tag push (:vX.Y.Z + :X.Y +
+# :latest), publish the Helm chart as an OCI artifact, and sign the image
+# with cosign keyless. Main-branch pushes used to trigger here too for
+# rolling :main / :sha-… tags but consistently failed at GHCR auth ("Bad
+# credentials") with no production consumer of those rolling tags, so the
+# branch trigger was dropped to cut the noisy red-check feedback.
+# workflow_dispatch is kept so a manual rebuild from a chosen ref is
+# still possible.
 
 on:
   push:
-    branches: [main]
     tags: ["v*.*.*"]
   workflow_dispatch:
 
