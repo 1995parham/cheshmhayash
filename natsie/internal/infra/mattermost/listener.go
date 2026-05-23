@@ -29,11 +29,11 @@ import (
 // the channel name (without leading #). Trigger is the bang-prefix the
 // listener reacts to, e.g. "!natsie".
 type Config struct {
-	Server   string
-	Token    string
-	Team     string
-	Channel  string
-	Trigger  string
+	Server  string
+	Token   string
+	Team    string
+	Channel string
+	Trigger string
 }
 
 // Validate returns nil iff every required field is set. Called from
@@ -63,15 +63,22 @@ func (c Config) Validate() error {
 	return nil
 }
 
-// Listener owns the long-lived bot connection. One Listener per process;
-// goroutine-safety is restricted to a single Run goroutine plus
-// reply-side calls into the REST client (Client4 is itself safe for
-// concurrent use).
+// Listener owns the long-lived bot connection. New does NO I/O — every
+// REST and WebSocket call lives inside Run, so a Mattermost outage at
+// process startup logs + backs off instead of crashing the pod. The
+// scheduler and HTTP listener keep running independently.
 type Listener struct {
 	cfg   Config
 	store store.Store
 	log   *log.Logger
+}
 
+// session holds the per-WebSocket-life state: the REST client + the
+// channel / bot ids resolved at the start of this session. A new
+// session is created on every reconnect because IDs *could* change
+// (channel renamed, bot user re-created) and re-resolving them is
+// nearly free compared to a WebSocket lifetime.
+type session struct {
 	rest      *model.Client4
 	teamID    string
 	channelID string
@@ -86,65 +93,46 @@ const (
 	backoffMax = 60 * time.Second
 )
 
-// New constructs a Listener. The REST handshake (resolve team/channel/bot
-// IDs) runs here so a misconfiguration is caught at boot.
-func New(ctx context.Context, cfg Config, st store.Store, logger *log.Logger) (*Listener, error) {
+// New constructs a Listener. Pure: validates config, allocates nothing
+// network-bound. The actual REST handshake runs inside Run so a
+// Mattermost API failure at boot is recoverable.
+func New(cfg Config, st store.Store, logger *log.Logger) (*Listener, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	rest := model.NewAPIv4Client(cfg.Server)
-	rest.SetToken(cfg.Token)
-
-	me, _, err := rest.GetMe(ctx, "")
-	if err != nil {
-		return nil, fmt.Errorf("mattermost get_me: %w", err)
-	}
-
-	team, _, err := rest.GetTeamByName(ctx, cfg.Team, "")
-	if err != nil {
-		return nil, fmt.Errorf("mattermost get_team_by_name(%s): %w", cfg.Team, err)
-	}
-
-	channel, _, err := rest.GetChannelByName(ctx, cfg.Channel, team.Id, "")
-	if err != nil {
-		return nil, fmt.Errorf("mattermost get_channel_by_name(%s/%s): %w", cfg.Team, cfg.Channel, err)
-	}
-
-	logger.Printf("mattermost: connected as %s (user_id=%s) team=%s channel=%s",
-		me.Username, me.Id, team.Name, channel.Name)
-
-	return &Listener{
-		cfg:       cfg,
-		store:     st,
-		log:       logger,
-		rest:      rest,
-		teamID:    team.Id,
-		channelID: channel.Id,
-		botUserID: me.Id,
-	}, nil
+	return &Listener{cfg: cfg, store: st, log: logger}, nil
 }
 
-// Run blocks until ctx is canceled, reconnecting on every WebSocket drop
-// with exponential backoff. Each iteration opens a fresh client because
-// model.WebSocketClient holds connection-bound state that cannot be
-// safely reused after Close.
+// Run blocks until ctx is canceled, reconnecting on every REST or
+// WebSocket failure with exponential backoff. Each iteration is one
+// "session": resolve IDs, open WS, pump events until the WS dies.
+//
+// Run never returns a non-nil error — failures are logged inline and
+// retried forever. Returning nil on ctx.Done() lets callers drop the
+// goroutine cleanly during shutdown.
 func (l *Listener) Run(ctx context.Context) error {
 	backoff := backoffMin
 
 	for {
-		if err := ctx.Err(); err != nil {
-			return nil //nolint:nilerr // cancellation is normal shutdown
+		if ctx.Err() != nil {
+			return nil //nolint:nilerr // ctx cancellation is normal shutdown, not a Run error
 		}
 
-		err := l.connectAndListen(ctx)
-		if err != nil {
-			l.log.Printf("mattermost: websocket loop exited: %v (reconnecting in %s)", err, backoff)
+		err := l.session(ctx)
+		switch {
+		case err == nil:
+			// Clean shutdown via ctx — exit immediately, no backoff.
+			return nil
+		case ctx.Err() != nil:
+			return nil //nolint:nilerr // shutdown wins over a stale session error
+		default:
+			l.log.Printf("mattermost: session ended: %v (reconnecting in %s)", err, backoff)
 		}
 
 		select {
 		case <-ctx.Done():
-			return nil
+			return nil //nolint:nilerr // shutdown wins over the session error we just logged
 		case <-time.After(backoff):
 		}
 
@@ -155,10 +143,15 @@ func (l *Listener) Run(ctx context.Context) error {
 	}
 }
 
-// connectAndListen opens one WebSocket connection and pumps events until
-// it dies. Returned error is informational — the caller always
-// reconnects.
-func (l *Listener) connectAndListen(ctx context.Context) error {
+// session is one REST handshake + one WebSocket lifetime. Errors from
+// either phase bubble up to Run for backoff + retry. Returns nil only
+// when ctx was canceled mid-session.
+func (l *Listener) session(ctx context.Context) error {
+	s, err := l.handshake(ctx)
+	if err != nil {
+		return err
+	}
+
 	wsURL := websocketURL(l.cfg.Server)
 
 	wsc, err := model.NewWebSocketClient4(wsURL, l.cfg.Token)
@@ -182,9 +175,42 @@ func (l *Listener) connectAndListen(ctx context.Context) error {
 				return errors.New("event channel closed")
 			}
 
-			l.handleEvent(ctx, ev)
+			l.handleEvent(ctx, s, ev)
 		}
 	}
+}
+
+// handshake resolves bot user / team / channel via REST. Called at the
+// start of every session so an ID change (bot recreated, channel
+// renamed) is picked up on the next reconnect without a pod restart.
+func (l *Listener) handshake(ctx context.Context) (*session, error) {
+	rest := model.NewAPIv4Client(l.cfg.Server)
+	rest.SetToken(l.cfg.Token)
+
+	me, _, err := rest.GetMe(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("get_me: %w", err)
+	}
+
+	team, _, err := rest.GetTeamByName(ctx, l.cfg.Team, "")
+	if err != nil {
+		return nil, fmt.Errorf("get_team_by_name(%s): %w", l.cfg.Team, err)
+	}
+
+	channel, _, err := rest.GetChannelByName(ctx, l.cfg.Channel, team.Id, "")
+	if err != nil {
+		return nil, fmt.Errorf("get_channel_by_name(%s/%s): %w", l.cfg.Team, l.cfg.Channel, err)
+	}
+
+	l.log.Printf("mattermost: connected as %s (user_id=%s) team=%s channel=%s",
+		me.Username, me.Id, team.Name, channel.Name)
+
+	return &session{
+		rest:      rest,
+		teamID:    team.Id,
+		channelID: channel.Id,
+		botUserID: me.Id,
+	}, nil
 }
 
 // websocketURL rewrites https:// → wss:// (or http → ws) for the
@@ -204,7 +230,7 @@ func websocketURL(serverURL string) string {
 // handleEvent is the per-event hot path. It must be cheap on the common
 // case (event we don't care about) so the WebSocket reader doesn't fall
 // behind.
-func (l *Listener) handleEvent(ctx context.Context, ev *model.WebSocketEvent) {
+func (l *Listener) handleEvent(ctx context.Context, s *session, ev *model.WebSocketEvent) {
 	if ev.EventType() != model.WebsocketEventPosted {
 		return
 	}
@@ -222,11 +248,11 @@ func (l *Listener) handleEvent(ctx context.Context, ev *model.WebSocketEvent) {
 	// Channel scope and self-skip: avoid feedback loops where the bot
 	// reacts to its own replies, and avoid leaking responses into
 	// unrelated channels.
-	if post.ChannelId != l.channelID {
+	if post.ChannelId != s.channelID {
 		return
 	}
 
-	if post.UserId == l.botUserID {
+	if post.UserId == s.botUserID {
 		return
 	}
 
@@ -240,7 +266,7 @@ func (l *Listener) handleEvent(ctx context.Context, ev *model.WebSocketEvent) {
 		return
 	}
 
-	l.reply(ctx, post.Id, reply)
+	l.reply(ctx, s, post.Id, reply)
 }
 
 // matchTrigger returns the argv after the trigger prefix, or ok=false
@@ -259,14 +285,14 @@ func matchTrigger(trigger, message string) ([]string, bool) {
 // reply posts the bot's response as a threaded reply on the source post.
 // Errors are logged but don't crash the loop — a single failed reply
 // shouldn't kill the WebSocket.
-func (l *Listener) reply(ctx context.Context, rootID, text string) {
+func (l *Listener) reply(ctx context.Context, s *session, rootID, text string) {
 	out := &model.Post{
-		ChannelId: l.channelID,
+		ChannelId: s.channelID,
 		Message:   text,
 		RootId:    rootID,
 	}
 
-	if _, _, err := l.rest.CreatePost(ctx, out); err != nil {
+	if _, _, err := s.rest.CreatePost(ctx, out); err != nil {
 		l.log.Printf("mattermost: reply failed: %v", err)
 	}
 }

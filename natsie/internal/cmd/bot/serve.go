@@ -124,6 +124,12 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	}
 
 	if cfg.Bot.Mattermost.Enabled {
+		// A misconfigured block (missing token, empty server) is still
+		// fatal — there's no point pretending to listen when the
+		// config is unusable. But a *Mattermost-side* failure (REST
+		// unreachable, team not yet joined) is recoverable: the
+		// listener logs and retries forever in its own goroutine, and
+		// the scheduler + HTTP listener keep running without it.
 		if err := startMattermostListener(ctx, cfg.Bot.Mattermost, manifestStore, logger); err != nil {
 			return fmt.Errorf("mattermost listener: %w", err)
 		}
@@ -150,10 +156,12 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-// startMattermostListener resolves the bot token (file > inline), opens
-// the WebSocket, and launches the listener goroutine. Token-file errors
-// are fatal at boot — a misconfigured Secret should crash the pod, not
-// silently lose chat command support.
+// startMattermostListener resolves the bot token (file > inline),
+// constructs the Listener, and launches its Run goroutine. Only
+// configuration errors (missing/unreadable token, missing required
+// field) are fatal — Listener.Run handles transient Mattermost
+// failures itself with retry + backoff, so a Mattermost outage at
+// pod start no longer crashes the scheduler.
 func startMattermostListener(ctx context.Context, cfg config.Mattermost, st store.Store, logger *log.Logger) error {
 	token := cfg.Token
 	if cfg.TokenFile != "" {
@@ -165,7 +173,7 @@ func startMattermostListener(ctx context.Context, cfg config.Mattermost, st stor
 		token = strings.TrimSpace(string(raw))
 	}
 
-	listener, err := mattermost.New(ctx, mattermost.Config{
+	listener, err := mattermost.New(mattermost.Config{
 		Server:  cfg.Server,
 		Token:   token,
 		Team:    cfg.Team,
