@@ -37,7 +37,7 @@ func scanCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "format",
-				Usage: "Output format: tsv | json",
+				Usage: "Output format: tsv | json | pretty",
 			},
 			&cli.IntFlag{
 				Name:  "min-pending",
@@ -145,8 +145,12 @@ func scanCommand() *cli.Command {
 				}
 
 				return w.Flush()
+			case "pretty":
+				renderPretty(os.Stdout, rows)
+
+				return nil
 			default:
-				return fmt.Errorf("unknown --format %q (want tsv|json)", format)
+				return fmt.Errorf("unknown --format %q (want tsv|json|pretty)", format)
 			}
 		},
 	}
