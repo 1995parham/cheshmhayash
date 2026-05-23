@@ -140,6 +140,18 @@ spec:
                   name: {{ .Values.bot.notifySecret }}
                   key: urls
             {{- end }}
+            {{- if .Values.bot.mattermost.enabled }}
+            - name: NATSIE_BOT__MATTERMOST__TOKEN
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.bot.mattermost.existingTokenSecret.name }}
+                  name: {{ .Values.bot.mattermost.existingTokenSecret.name }}
+                  key: {{ .Values.bot.mattermost.existingTokenSecret.key | default "token" }}
+                  {{- else }}
+                  name: {{ include "natsie-chart.mattermostTokenSecretName" . }}
+                  key: token
+                  {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

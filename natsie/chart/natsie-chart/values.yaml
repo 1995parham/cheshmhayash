@@ -232,6 +232,27 @@ bot:
   signingKey: ""
   existingSigningKeySecret: {}
 
+  # Pull-mode chat listener. natsie opens an outbound WebSocket to the
+  # Mattermost server using a bot-account token — useful when the chat
+  # server can't POST to the bot (no slash-command support, the bot is
+  # behind a private ingress, or there's no public URL at all).
+  #
+  # Supply the token via either an inline value (chart-managed Secret)
+  # or an existing Secret already in the namespace. The bot reads the
+  # token from an env var sourced from that Secret at runtime; it never
+  # appears in the rendered ConfigMap.
+  mattermost:
+    enabled: false
+    server: ""           # https://chat.example.com (no trailing slash)
+    team: ""             # team slug the channel lives on
+    channel: ""          # channel name (no leading #)
+    trigger: "!natsie"   # bang-prefix the bot reacts to
+    token: ""            # inline → chart-managed Secret
+    existingTokenSecret: {}
+    # existingTokenSecret:
+    #   name: natsie-mattermost-token
+    #   key: token
+
   # /var/lib/natsie paths live inside the PVC. Adjust only if you change
   # the mount.
   storePath: /var/lib/natsie/manifests

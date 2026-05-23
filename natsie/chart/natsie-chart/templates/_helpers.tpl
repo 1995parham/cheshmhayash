@@ -96,6 +96,23 @@ true
 {{- end }}
 
 {{/*
+True when the chart should create its own Mattermost-token Secret.
+*/}}
+{{- define "natsie-chart.hasManagedMattermostToken" -}}
+{{- if and .Values.bot.mattermost.enabled .Values.bot.mattermost.token (not .Values.bot.mattermost.existingTokenSecret.name) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+Mattermost-token Secret name (chart-managed) — only meaningful when
+hasManagedMattermostToken is true.
+*/}}
+{{- define "natsie-chart.mattermostTokenSecretName" -}}
+{{- printf "%s-mattermost-token" (include "natsie-chart.fullname" .) -}}
+{{- end }}
+
+{{/*
 True when the chart should create the NATS contexts Secret from inline data.
 */}}
 {{- define "natsie-chart.hasManagedNatsContexts" -}}
@@ -191,5 +208,13 @@ bot:
 {{- end }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- if .Values.bot.mattermost.enabled }}
+  mattermost:
+    enabled: true
+    server: {{ .Values.bot.mattermost.server | quote }}
+    team: {{ .Values.bot.mattermost.team | quote }}
+    channel: {{ .Values.bot.mattermost.channel | quote }}
+    trigger: {{ .Values.bot.mattermost.trigger | quote }}
 {{- end }}
 {{- end }}
