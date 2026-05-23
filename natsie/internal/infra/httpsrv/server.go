@@ -30,17 +30,21 @@ type Server struct {
 	audit      *audit.Logger
 	signingKey string
 	connect    cleanup.Connector
+	baseURL    string
 }
 
 // Options groups optional Server inputs that have grown beyond a sensible
 // positional argument list. SigningKey and Connector are optional;
 // supplying neither restricts the listener to the read-only endpoints
 // (/health and /manifest/:id). Audit may be nil; the audit logger
-// already treats a nil receiver as a no-op.
+// already treats a nil receiver as a no-op. BaseURL is the public URL
+// the bot prints into chat replies (e.g. `https://natsie.example.com`);
+// only used by the on-demand scan chat command.
 type Options struct {
 	SigningKey string
 	Connector  cleanup.Connector
 	Audit      *audit.Logger
+	BaseURL    string
 }
 
 // New constructs the Server. Routes are registered immediately so callers
@@ -57,6 +61,7 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 		audit:      opts.Audit,
 		signingKey: opts.SigningKey,
 		connect:    opts.Connector,
+		baseURL:    opts.BaseURL,
 	}
 	s.routes()
 

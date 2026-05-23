@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/audit"
+	"github.com/1995parham/natsie/internal/chatops"
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/httpsrv"
 	"github.com/1995parham/natsie/internal/infra/mattermost"
@@ -105,12 +106,23 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	httpErrCh := make(chan error, 1)
 
+	// Deps the chat command dispatcher needs. Both transports use the
+	// same set — HTTP slash and the Mattermost WebSocket listener both
+	// route through chatops.Dispatch.
+	deps := chatops.Deps{
+		Store:      manifestStore,
+		Audit:      auditLog,
+		BaseURL:    cfg.Bot.HTTP.BaseURL,
+		SigningKey: cfg.Bot.SigningKey,
+	}
+
 	if cfg.Bot.HTTP.Listen != "" {
 		server := httpsrv.New(cfg.Bot.HTTP.Listen, manifestStore,
 			httpsrv.Options{
 				SigningKey: cfg.Bot.SigningKey,
 				Connector:  botConnector,
 				Audit:      auditLog,
+				BaseURL:    cfg.Bot.HTTP.BaseURL,
 			},
 			logger,
 		)
@@ -130,7 +142,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		// unreachable, team not yet joined) is recoverable: the
 		// listener logs and retries forever in its own goroutine, and
 		// the scheduler + HTTP listener keep running without it.
-		if err := startMattermostListener(ctx, cfg.Bot.Mattermost, manifestStore, logger); err != nil {
+		if err := startMattermostListener(ctx, cfg.Bot.Mattermost, deps, logger); err != nil {
 			return fmt.Errorf("mattermost listener: %w", err)
 		}
 	}
@@ -162,7 +174,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 // field) are fatal — Listener.Run handles transient Mattermost
 // failures itself with retry + backoff, so a Mattermost outage at
 // pod start no longer crashes the scheduler.
-func startMattermostListener(ctx context.Context, cfg config.Mattermost, st store.Store, logger *log.Logger) error {
+func startMattermostListener(ctx context.Context, cfg config.Mattermost, deps chatops.Deps, logger *log.Logger) error {
 	token := cfg.Token
 	if cfg.TokenFile != "" {
 		raw, err := os.ReadFile(cfg.TokenFile)
@@ -179,7 +191,7 @@ func startMattermostListener(ctx context.Context, cfg config.Mattermost, st stor
 		Team:    cfg.Team,
 		Channel: cfg.Channel,
 		Trigger: cfg.Trigger,
-	}, st, logger)
+	}, deps, logger)
 	if err != nil {
 		return err
 	}

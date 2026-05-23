@@ -12,8 +12,23 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/infra/store"
 )
+
+// Deps is the set of dependencies the chat commands need. Both transports
+// (HTTP /slash and the pull-mode WebSocket listener) build one of these
+// and pass it to Dispatch.
+//
+// Store + Audit are always required. BaseURL + SigningKey are needed
+// only by the on-demand scan command (which embeds a signed approve URL
+// in its reply); other commands ignore them.
+type Deps struct {
+	Store      store.Store
+	Audit      *audit.Logger
+	BaseURL    string
+	SigningKey string
+}
 
 // Help is the canned usage message. It's identical across transports so
 // users who hop between web slash commands and chat triggers learn one
@@ -28,6 +43,11 @@ func Help(trigger string) string {
 		fmt.Sprintf("- `%s show <id>` — preview a manifest\n", trigger) +
 		fmt.Sprintf("- `%s clusters` — list NATS contexts this bot can dial\n", trigger) +
 		fmt.Sprintf("- `%s streams [ctx]` — list streams (one ctx or all)\n", trigger) +
+		fmt.Sprintf("- `%s stream <ctx> <name>` — single-stream detail\n", trigger) +
+		fmt.Sprintf("- `%s consumers <ctx> <stream>` — all consumers, unfiltered\n", trigger) +
+		fmt.Sprintf("- `%s usage [ctx]` — aggregate footprint + top streams by bytes\n", trigger) +
+		fmt.Sprintf("- `%s cluster <ctx>` — connected server, peers, account\n", trigger) +
+		fmt.Sprintf("- `%s scan <ctx> [<stream>]` — on-demand scan, replies with approve URL\n", trigger) +
 		fmt.Sprintf("- `%s help` — this message", trigger)
 }
 
@@ -39,20 +59,20 @@ const (
 
 // Dispatch parses the user's argv and returns the reply text to render.
 // trigger is purely cosmetic — used to echo the right prefix in help.
-func Dispatch(ctx context.Context, st store.Store, trigger string, argv []string) string {
+func Dispatch(ctx context.Context, deps Deps, trigger string, argv []string) string {
 	if len(argv) == 0 {
 		return Help(trigger)
 	}
 
 	switch argv[0] {
 	case "list":
-		return list(ctx, st)
+		return list(ctx, deps.Store)
 	case "show":
 		if len(argv) < 2 {
 			return fmt.Sprintf("usage: `%s show <manifest-id>`", trigger)
 		}
 
-		return show(ctx, st, argv[1])
+		return show(ctx, deps.Store, argv[1])
 	case "clusters":
 		return clusters(ctx)
 	case "streams":
@@ -62,6 +82,42 @@ func Dispatch(ctx context.Context, st store.Store, trigger string, argv []string
 		}
 
 		return streams(ctx, target)
+	case "stream":
+		if len(argv) < 3 {
+			return fmt.Sprintf("usage: `%s stream <ctx> <name>`", trigger)
+		}
+
+		return streamDetail(ctx, argv[1], argv[2])
+	case "consumers":
+		if len(argv) < 3 {
+			return fmt.Sprintf("usage: `%s consumers <ctx> <stream>`", trigger)
+		}
+
+		return consumersDetail(ctx, argv[1], argv[2])
+	case "usage":
+		target := ""
+		if len(argv) >= 2 {
+			target = argv[1]
+		}
+
+		return usage(ctx, target)
+	case "cluster":
+		if len(argv) < 2 {
+			return fmt.Sprintf("usage: `%s cluster <ctx>`", trigger)
+		}
+
+		return clusterDetail(ctx, argv[1])
+	case "scan":
+		if len(argv) < 2 {
+			return fmt.Sprintf("usage: `%s scan <ctx> [<stream>]`", trigger)
+		}
+
+		streamArg := ""
+		if len(argv) >= 3 {
+			streamArg = argv[2]
+		}
+
+		return scan(ctx, deps, argv[1], streamArg)
 	case "help":
 		return Help(trigger)
 	default:

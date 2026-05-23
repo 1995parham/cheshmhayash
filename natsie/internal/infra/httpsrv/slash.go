@@ -38,7 +38,12 @@ func (s *Server) handleSlash(c *echo.Context) error {
 	}
 
 	argv := strings.Fields(strings.TrimSpace(form.Get("text")))
-	reply := chatops.Dispatch(c.Request().Context(), s.store, slashTrigger, argv)
+	reply := chatops.Dispatch(c.Request().Context(), chatops.Deps{
+		Store:      s.store,
+		Audit:      s.audit,
+		BaseURL:    s.baseURL,
+		SigningKey: s.signingKey,
+	}, slashTrigger, argv)
 
 	return c.JSON(http.StatusOK, slashResponse{
 		ResponseType: responseEphemeral,

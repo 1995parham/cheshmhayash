@@ -52,7 +52,7 @@ func TestDispatch(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatops.Dispatch(ctx, st, "!natsie", c.argv)
+			got := chatops.Dispatch(ctx, chatops.Deps{Store: st}, "!natsie", c.argv)
 			if !strings.Contains(got, c.wantSub) {
 				t.Errorf("Dispatch(%v) = %q, want substring %q", c.argv, got, c.wantSub)
 			}

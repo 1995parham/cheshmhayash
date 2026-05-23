@@ -20,7 +20,6 @@ import (
 	"github.com/mattermost/mattermost/server/public/model"
 
 	"github.com/1995parham/natsie/internal/chatops"
-	"github.com/1995parham/natsie/internal/infra/store"
 )
 
 // Config is the listener's configuration block. Server is the Mattermost
@@ -68,9 +67,9 @@ func (c Config) Validate() error {
 // process startup logs + backs off instead of crashing the pod. The
 // scheduler and HTTP listener keep running independently.
 type Listener struct {
-	cfg   Config
-	store store.Store
-	log   *log.Logger
+	cfg  Config
+	deps chatops.Deps
+	log  *log.Logger
 }
 
 // session holds the per-WebSocket-life state: the REST client + the
@@ -96,12 +95,12 @@ const (
 // New constructs a Listener. Pure: validates config, allocates nothing
 // network-bound. The actual REST handshake runs inside Run so a
 // Mattermost API failure at boot is recoverable.
-func New(cfg Config, st store.Store, logger *log.Logger) (*Listener, error) {
+func New(cfg Config, deps chatops.Deps, logger *log.Logger) (*Listener, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	return &Listener{cfg: cfg, store: st, log: logger}, nil
+	return &Listener{cfg: cfg, deps: deps, log: logger}, nil
 }
 
 // Run blocks until ctx is canceled, reconnecting on every REST or
@@ -261,7 +260,7 @@ func (l *Listener) handleEvent(ctx context.Context, s *session, ev *model.WebSoc
 		return
 	}
 
-	reply := chatops.Dispatch(ctx, l.store, l.cfg.Trigger, argv)
+	reply := chatops.Dispatch(ctx, l.deps, l.cfg.Trigger, argv)
 	if reply == "" {
 		return
 	}
