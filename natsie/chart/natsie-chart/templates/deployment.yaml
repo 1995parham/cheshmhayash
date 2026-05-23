@@ -55,6 +55,12 @@ spec:
           args:
             - |
               set -eu
+              # Make the file world-readable up front. The main container
+              # runs as a different uid than busybox's `cat` default
+              # (busybox writes mode 0600 in some SCC contexts), so an
+              # explicit umask + chmod is the only way to guarantee the
+              # nonroot natsie user can open the file.
+              umask 0022
               mkdir -p /shared
               {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
               cat > /shared/{{ $c.name }}.json <<EOF
@@ -64,6 +70,7 @@ spec:
                 "password": "${CTX_{{ $i }}_PASSWORD}"
               }
               EOF
+              chmod 0644 /shared/{{ $c.name }}.json
               {{- end }}
           env:
             {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
@@ -102,6 +109,12 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            # natsctx looks up ~/.config/nats/context/<name>.json via
+            # os.UserHomeDir(). distroless/static-debian12:nonroot leaves
+            # HOME unset, so the lookup falls back to "/" and misses the
+            # mount point. Pin HOME explicitly.
+            - name: HOME
+              value: /home/nonroot
             {{- if or (eq (include "natsie-chart.hasManagedSigningKey" .) "true") .Values.bot.existingSigningKeySecret.name }}
             - name: NATSIE_BOT__SIGNING_KEY
               valueFrom:
