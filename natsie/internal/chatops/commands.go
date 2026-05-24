@@ -44,6 +44,7 @@ func Help(trigger string) string {
 		fmt.Sprintf("- `%s clusters` — list NATS contexts this bot can dial\n", trigger) +
 		fmt.Sprintf("- `%s streams [ctx]` — list streams (one ctx or all)\n", trigger) +
 		fmt.Sprintf("- `%s stream <ctx> <name>` — single-stream detail\n", trigger) +
+		fmt.Sprintf("- `%s last <ctx> <stream> [<subject>]` — metadata for the last message\n", trigger) +
 		fmt.Sprintf("- `%s consumers <ctx> <stream>` — all consumers, unfiltered\n", trigger) +
 		fmt.Sprintf("- `%s usage [ctx]` — aggregate footprint + top streams by bytes\n", trigger) +
 		fmt.Sprintf("- `%s cluster <ctx>` — connected server, peers, account\n", trigger) +
@@ -88,6 +89,17 @@ func Dispatch(ctx context.Context, deps Deps, trigger string, argv []string) str
 		}
 
 		return streamDetail(ctx, argv[1], argv[2])
+	case "last":
+		if len(argv) < 3 {
+			return fmt.Sprintf("usage: `%s last <ctx> <stream> [<subject>]`", trigger)
+		}
+
+		subjectArg := ""
+		if len(argv) >= 4 {
+			subjectArg = argv[3]
+		}
+
+		return streamLast(ctx, argv[1], argv[2], subjectArg)
 	case "consumers":
 		if len(argv) < 3 {
 			return fmt.Sprintf("usage: `%s consumers <ctx> <stream>`", trigger)

@@ -45,6 +45,8 @@ func TestDispatch(t *testing.T) {
 		{"list", []string{"list"}, "demo"},
 		{"show existing", []string{"show", "demo"}, "`stale-1`"},
 		{"show missing", []string{"show", "nope"}, "not found"},
+		{"last needs args", []string{"last"}, "usage:"},
+		{"last needs stream", []string{"last", "ctx"}, "usage:"},
 		{"unknown", []string{"frobnicate"}, "unknown subcommand"},
 	}
 
