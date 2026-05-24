@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/nats-io/jsm.go"
 
@@ -56,14 +57,26 @@ func streamDetail(_ context.Context, ctxName, name string) string {
 
 	b.WriteString("\n**Configuration**\n\n")
 	b.WriteString(mdTable(
-		[]string{"Retention", "Storage", "Replicas", "Max Age", "Max Bytes", "Max Msgs"},
+		[]string{"Retention", "Storage", "Replicas", "Discard"},
 		[][]string{{
 			fmt.Sprintf("`%s`", cfg.Retention),
 			fmt.Sprintf("`%s`", cfg.Storage),
 			intStr(cfg.Replicas),
-			cfg.MaxAge.String(),
+			fmt.Sprintf("`%s`", cfg.Discard),
+		}},
+	))
+
+	b.WriteString("\n**Limits**\n\n")
+	b.WriteString(mdTable(
+		[]string{"Max Age", "Max Bytes", "Max Msgs", "Max Msg Size", "Max Msgs/Subject", "Max Consumers", "Dup Window"},
+		[][]string{{
+			durationOrDash(cfg.MaxAge),
 			humanBytesSigned(cfg.MaxBytes),
 			humanIntSigned(cfg.MaxMsgs),
+			humanBytesSigned(int64(cfg.MaxMsgSize)),
+			humanIntSigned(cfg.MaxMsgsPer),
+			humanIntSigned(int64(cfg.MaxConsumers)),
+			durationOrDash(cfg.Duplicates),
 		}},
 	))
 
@@ -127,4 +140,14 @@ func humanBytesSigned(n int64) string {
 	}
 
 	return humanBytes(uint64(n)) //nolint:gosec // n>0 verified above
+}
+
+// durationOrDash formats a duration limit, rendering zero ("unlimited"
+// in JetStream's MaxAge / Duplicates fields) as "—".
+func durationOrDash(d time.Duration) string {
+	if d <= 0 {
+		return "—"
+	}
+
+	return d.String()
 }
