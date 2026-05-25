@@ -1,11 +1,13 @@
-# natsie
+<h1 align="center">natsie</h1>
 
-[![CI](https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci)](https://github.com/1995parham/natsie/actions/workflows/test.yaml)
-[![Release](https://img.shields.io/github/v/tag/1995parham/natsie?sort=semver&style=for-the-badge&logo=github)](https://github.com/1995parham/natsie/tags)
-[![Go Report Card](https://goreportcard.com/badge/github.com/1995parham/natsie?style=for-the-badge)](https://goreportcard.com/report/github.com/1995parham/natsie)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge)](./LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go)](https://go.dev)
-[![Codecov](https://img.shields.io/codecov/c/github/1995parham/natsie?style=for-the-badge&logo=codecov)](https://codecov.io/gh/1995parham/natsie)
+<p align="center">
+  <a href="https://github.com/1995parham/natsie/actions/workflows/test.yaml"><img src="https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci" alt="CI"></a>
+  <a href="https://github.com/1995parham/natsie/tags"><img src="https://img.shields.io/github/v/tag/1995parham/natsie?sort=semver&style=for-the-badge&logo=github" alt="Release"></a>
+  <a href="https://goreportcard.com/report/github.com/1995parham/natsie"><img src="https://goreportcard.com/badge/github.com/1995parham/natsie?style=for-the-badge" alt="Go Report Card"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge" alt="License: GPL v3"></a>
+  <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go" alt="Go Version"></a>
+  <a href="https://codecov.io/gh/1995parham/natsie"><img src="https://img.shields.io/codecov/c/github/1995parham/natsie?style=for-the-badge&logo=codecov" alt="Codecov"></a>
+</p>
 
 A Swiss-army knife for NATS operations: report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
 
