@@ -20,6 +20,14 @@ import (
 // (avoids hidden files and parent traversal).
 var validID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
 
+// ValidID reports whether id is a well-formed manifest ID: the same safe
+// shape the file store enforces (alphanumerics plus dot/dash/underscore, no
+// path separators or leading dot). HTTP handlers use it to reject malformed
+// IDs before echoing them back in a response or building a path.
+func ValidID(id string) bool {
+	return validID.MatchString(id)
+}
+
 const manifestExt = ".yaml"
 
 // File stores manifests as <dir>/<id>.yaml.
@@ -44,7 +52,7 @@ func NewFile(dir string) (*File, error) {
 func (f *File) Name() string { return "file://" + f.Dir }
 
 func (f *File) path(id string) (string, error) {
-	if !validID.MatchString(id) {
+	if !ValidID(id) {
 		return "", fmt.Errorf("invalid manifest id %q (allowed: [a-zA-Z0-9][a-zA-Z0-9._-]+)", id)
 	}
 

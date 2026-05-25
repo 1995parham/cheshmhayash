@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/1995parham/natsie/internal/audit"
+	"github.com/1995parham/natsie/internal/infra/store"
 )
 
 // SignApprovalToken returns the HMAC-SHA256 token (URL-safe base64) that
@@ -37,6 +38,9 @@ func (s *Server) checkApprovalToken(id, presented string) bool {
 
 func (s *Server) previewApproval(c *echo.Context) error {
 	id := c.Param("id")
+	if !store.ValidID(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid manifest id"})
+	}
 
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {
@@ -84,6 +88,9 @@ func (s *Server) previewApproval(c *echo.Context) error {
 
 func (s *Server) doApproval(c *echo.Context) error {
 	id := c.Param("id")
+	if !store.ValidID(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid manifest id"})
+	}
 
 	token := c.QueryParam("token")
 	if !s.checkApprovalToken(id, token) {

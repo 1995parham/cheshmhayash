@@ -70,6 +70,26 @@ func TestApprovalPreviewRequiresToken(t *testing.T) {
 	}
 }
 
+// TestApprovalPreviewRejectsMalformedID guards against reflecting an
+// unvalidated id into the response (reflected XSS): a malformed id is
+// rejected with 400 before the token check or any echo of the value.
+func TestApprovalPreviewRejectsMalformedID(t *testing.T) {
+	s, _ := newApprovalServer(t)
+
+	rec := httptest.NewRecorder()
+	// "<script>" url-encoded; the would-be XSS payload must never reach the body.
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/approve/%3Cscript%3E?token=wrong", nil)
+	s.e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d want 400", rec.Code)
+	}
+
+	if contains(rec.Body.String(), "<script>") {
+		t.Errorf("malformed id reflected into body: %s", rec.Body.String())
+	}
+}
+
 func TestApprovalPreviewHappyPath(t *testing.T) {
 	s, st := newApprovalServer(t)
 

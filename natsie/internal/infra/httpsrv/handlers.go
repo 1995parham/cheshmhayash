@@ -2,10 +2,11 @@ package httpsrv
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v5"
 	"gopkg.in/yaml.v3"
+
+	"github.com/1995parham/natsie/internal/infra/store"
 )
 
 func (s *Server) health(c *echo.Context) error {
@@ -14,18 +15,12 @@ func (s *Server) health(c *echo.Context) error {
 
 func (s *Server) getManifest(c *echo.Context) error {
 	id := c.Param("id")
-	if id == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing id"})
+	if !store.ValidID(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid manifest id"})
 	}
 
 	m, err := s.store.Get(c.Request().Context(), id)
 	if err != nil {
-		// Distinguish invalid-id (caller bug) from not-found (legitimate).
-		// The store rejects bad ids with an "invalid manifest id" message.
-		if strings.Contains(err.Error(), "invalid manifest id") {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-		}
-
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "manifest not found", "id": id})
 	}
 
