@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 
@@ -62,8 +63,12 @@ func (s *Server) previewApproval(c *echo.Context) error {
 		Entries: len(m.Entries),
 	})
 
+	// id has already passed store.ValidID (alphanumerics plus ._-, no
+	// HTML-significant characters) and the response is text/plain, so this is
+	// not exploitable; escape it anyway as defense-in-depth and to keep the
+	// reflected-XSS dataflow provably sanitised at the sink.
 	var body strings.Builder
-	fmt.Fprintf(&body, "Confirm cleanup for manifest %s (%d entries):\n\n", id, len(m.Entries))
+	fmt.Fprintf(&body, "Confirm cleanup for manifest %s (%d entries):\n\n", html.EscapeString(id), len(m.Entries))
 
 	for i, e := range m.Entries {
 		if i >= 20 {
