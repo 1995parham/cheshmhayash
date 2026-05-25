@@ -40,16 +40,31 @@ type Conn struct {
 	Name string
 }
 
+// contextPath resolves the on-disk path for a NATS context name. It refuses
+// names that aren't a single, local path component so a name reaching us
+// from chat (e.g. `/natsie cluster <ctx>`) can't escape the context
+// directory with separators or ".." (e.g. "../../etc/passwd").
+func contextPath(name string) (string, error) {
+	if name == "" || strings.ContainsAny(name, `/\`) || !filepath.IsLocal(name) {
+		return "", fmt.Errorf("invalid nats context name %q", name)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(home, ".config", "nats", "context", name+".json"), nil
+}
+
 // Connect dials the cluster described by ~/.config/nats/context/<name>.json.
 func Connect(name string) (*Conn, error) {
-	home, err := os.UserHomeDir()
+	path, err := contextPath(name)
 	if err != nil {
 		return nil, err
 	}
 
-	path := filepath.Join(home, ".config", "nats", "context", name+".json")
-
-	b, err := os.ReadFile(path) //nolint:gosec // path is composed from the nats context name
+	b, err := os.ReadFile(path) //nolint:gosec // contextPath validated name is a single local component
 	if err != nil {
 		return nil, fmt.Errorf("read context %s: %w", path, err)
 	}
@@ -155,14 +170,12 @@ const probeTimeout = 3 * time.Second
 // immediately closes it. Used by the `clusters` chat command to render a
 // reachable Y/N column without keeping a long-lived connection open.
 func Probe(_ context.Context, name string) error {
-	home, err := os.UserHomeDir()
+	path, err := contextPath(name)
 	if err != nil {
 		return err
 	}
 
-	path := filepath.Join(home, ".config", "nats", "context", name+".json")
-
-	b, err := os.ReadFile(path) //nolint:gosec // path composed from the context name we just looked up
+	b, err := os.ReadFile(path) //nolint:gosec // contextPath validated name is a single local component
 	if err != nil {
 		return err
 	}
