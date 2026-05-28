@@ -93,8 +93,15 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
 
 	sched := scheduler.New(logger)
+
 	for _, s := range cfg.Bot.Schedules {
-		job := buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
+		var job scheduler.Job
+		if s.Kind == config.KindStreamUnlimited {
+			job = buildStreamCheckJob(s, dispatch, auditLog, logger)
+		} else {
+			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
+		}
+
 		if err := sched.Add(job); err != nil { //nolint:contextcheck // job carries its own ctx via Job.Run
 			return fmt.Errorf("add schedule %s: %w", s.Name, err)
 		}
@@ -220,6 +227,12 @@ func validateBotConfig(b *config.Bot) error {
 		if s.Name == "" || s.Cron == "" || s.Context == "" {
 			return fmt.Errorf("bot.schedules[%d]: name, cron, and context are required", i)
 		}
+
+		switch s.Kind {
+		case "", config.KindConsumerStale, config.KindStreamUnlimited:
+		default:
+			return fmt.Errorf("bot.schedules[%d]: unknown kind %q", i, s.Kind)
+		}
 	}
 
 	return nil
@@ -277,6 +290,53 @@ func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispat
 			return runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, logger)
 		},
 	}
+}
+
+// buildStreamCheckJob captures a stream-unlimited schedule and returns the
+// function the scheduler fires. Unlike a scan job it produces no manifest and
+// no approve URL — it is a notify-only report (natsie never deletes a stream).
+func buildStreamCheckJob(s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
+	return scheduler.Job{
+		Name: s.Name,
+		Spec: s.Cron,
+		Run: func(ctx context.Context) error {
+			return runStreamCheck(ctx, s, dispatch, auditLog, logger)
+		},
+	}
+}
+
+func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) error {
+	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
+	defer cancel()
+
+	nc, err := natsctx.Connect(s.Context)
+	if err != nil {
+		return fmt.Errorf("connect %s: %w", s.Context, err)
+	}
+	defer nc.Close()
+
+	rows, err := scanner.ScanUnlimitedStreams(scanCtx, nc)
+	if err != nil {
+		return fmt.Errorf("stream check: %w", err)
+	}
+
+	logger.Printf("schedule=%s unlimited-streams=%d", s.Name, len(rows))
+
+	_ = auditLog.Log(audit.Event{Kind: "stream-check", Schedule: s.Name, Entries: len(rows)})
+
+	if len(rows) == 0 {
+		// Nothing unbounded; stay quiet rather than posting an all-clear.
+		return nil
+	}
+
+	msg := buildStreamCheckMessage(s, rows)
+	for _, n := range dispatch.global {
+		if err := n.Post(ctx, msg); err != nil {
+			logger.Printf("notify global sink=%s: %v", n.Name(), err)
+		}
+	}
+
+	return nil
 }
 
 func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) error {
@@ -430,6 +490,40 @@ func buildMessage(s config.Schedule, m *manifest.Manifest, id, baseURL, signingK
 		Body:       body.String(),
 		ManifestID: id,
 		Link:       link,
+	}
+}
+
+// buildStreamCheckMessage renders the unlimited-streams report. No approve
+// URL or manifest link: the fix (setting a retention limit) is a human config
+// change, not a natsie deletion.
+func buildStreamCheckMessage(s config.Schedule, rows []scanner.StreamRow) notify.Message {
+	const maxList = 20
+
+	var body strings.Builder
+	fmt.Fprintf(&body, "Schedule **%s** found %d stream", s.Name, len(rows))
+
+	if len(rows) != 1 {
+		body.WriteString("s")
+	}
+
+	fmt.Fprintf(&body, " with no retention limit on `%s`:\n", s.Context)
+
+	for i, r := range rows {
+		if i >= maxList {
+			fmt.Fprintf(&body, "...and %d more\n", len(rows)-maxList)
+
+			break
+		}
+
+		fmt.Fprintf(&body, "- `%s` (R=%d, msgs=%d, %.1f MiB)\n",
+			r.Stream, r.Replicas, r.Messages, float64(r.Bytes)/(1<<20))
+	}
+
+	body.WriteString("\n_No MaxAge/MaxBytes/MaxMsgs — these grow until disk or memory pressure. Set a limit if unbounded growth isn't intended._")
+
+	return notify.Message{
+		Title: fmt.Sprintf("natsie unlimited streams (%s)", s.Name),
+		Body:  body.String(),
 	}
 }
 

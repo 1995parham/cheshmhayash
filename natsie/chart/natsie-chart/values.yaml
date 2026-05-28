@@ -194,7 +194,10 @@ contexts: {}
 #       peer: snapp-js-main-teh2
 
 bot:
-  # Each entry becomes a [[schedules]] in config.yaml.
+  # Each entry becomes a [[schedules]] in config.yaml. `kind` selects the
+  # job: omit it (or "consumer-stale") for the stale-consumer cleanup scan;
+  # "stream-unlimited" for a notify-only report of streams with no retention
+  # limit (no manifest, no approval).
   schedules: []
   # - name: daily
   #   cron: "0 3 * * *"
@@ -202,6 +205,10 @@ bot:
   #   peerContext: snapp-js-main-teh2
   #   minPending: 10000
   #   minIdle: 24h
+  # - name: unlimited-streams
+  #   cron: "0 6 * * *"
+  #   kind: stream-unlimited
+  #   context: snapp-js-main-teh1
 
   # Notify URLs. URLs may contain secrets — if you don't want them in the
   # ConfigMap, set `bot.notifySecret` to a Secret whose `urls` key holds a

@@ -171,6 +171,9 @@ bot:
     - name: {{ .name | quote }}
       cron: {{ .cron | quote }}
       context: {{ .context | quote }}
+{{- if .kind }}
+      kind: {{ .kind | quote }}
+{{- end }}
 {{- if .peerContext }}
       peer_context: {{ .peerContext | quote }}
 {{- end }}

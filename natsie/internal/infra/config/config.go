@@ -91,11 +91,25 @@ type Owner struct {
 	Notify         []string `koanf:"notify"`
 }
 
+// Schedule kinds. An empty Kind is treated as KindConsumerStale so existing
+// configs keep working without change.
+const (
+	// KindConsumerStale scans a stream's consumers and reports the stale
+	// ones as a cleanup manifest (the original, approval-gated flow).
+	KindConsumerStale = "consumer-stale"
+	// KindStreamUnlimited reports streams with no retention limit. It is a
+	// notify-only report — no manifest, no approval, nothing is deleted.
+	KindStreamUnlimited = "stream-unlimited"
+)
+
 // Schedule is one recurring scan. Cron uses standard 5-field syntax
-// (or @daily/@hourly/etc.).
+// (or @daily/@hourly/etc.). Kind selects what the schedule does; the
+// consumer-stale fields (Stream/MinPending/MinIdle/PeerContext) are
+// ignored by kinds that don't use them.
 type Schedule struct {
 	Name        string        `koanf:"name"`
 	Cron        string        `koanf:"cron"`
+	Kind        string        `koanf:"kind"`
 	Context     string        `koanf:"context"`
 	PeerContext string        `koanf:"peer_context"`
 	Stream      string        `koanf:"stream"`
