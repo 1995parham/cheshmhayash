@@ -10,7 +10,8 @@ import { LoginScreen } from "./components/LoginScreen";
 import { ToastProvider, useToast } from "./state/toast";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { Footer } from "./components/Footer";
-import { useAuth, displayName } from "./hooks/useAuth";
+import { useAuth, displayName, canWrite } from "./hooks/useAuth";
+import { CanWriteProvider } from "./state/access";
 
 type Tab = "servers" | "accounts" | "jetstream" | "topology";
 
@@ -68,8 +69,12 @@ function Shell() {
     return <LoginScreen />;
   }
 
+  const writable = canWrite(status);
+  const readOnly =
+    status.state === "authenticated" && status.identity.role === "readonly";
+
   return (
-    <>
+    <CanWriteProvider value={writable}>
       <section className="hero" aria-label="cheshmhayash">
         <div className="hero-overlay">
           <h1 className="hero-title">cheshmhayash</h1>
@@ -130,6 +135,11 @@ function Shell() {
           </button>
           {status.state === "authenticated" ? (
             <div className="user-menu">
+              {readOnly ? (
+                <span className="role-badge" title="You have read-only access; write actions are hidden.">
+                  read-only
+                </span>
+              ) : null}
               <span
                 className="who"
                 title={status.identity.email ?? status.identity.sub ?? ""}
@@ -168,6 +178,6 @@ function Shell() {
         )}
       </main>
       <Footer />
-    </>
+    </CanWriteProvider>
   );
 }

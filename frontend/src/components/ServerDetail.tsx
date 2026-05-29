@@ -5,6 +5,7 @@ import { bytes, iso, num } from "../fmt";
 import type { PingReply, VarzReply, ConnzReply, HealthzReply } from "../types";
 import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "../state/toast";
+import { useCanWrite } from "../state/access";
 
 const SUBTABS = [
   "overview",
@@ -28,6 +29,7 @@ interface Props {
 
 export function ServerDetail({ cluster, server, onClose }: Props) {
   const [tab, setTab] = useState<Subtab>("overview");
+  const canWrite = useCanWrite();
   const id = server.server.id;
 
   return (
@@ -38,7 +40,7 @@ export function ServerDetail({ cluster, server, onClose }: Props) {
           <div className="sub">{id}</div>
         </div>
         <div className="spacer"></div>
-        <ServerActions cluster={cluster} server={server} />
+        {canWrite ? <ServerActions cluster={cluster} server={server} /> : null}
         <button className="close-btn" onClick={onClose} aria-label="close">
           <X size={18} />
         </button>

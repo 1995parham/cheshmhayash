@@ -72,22 +72,31 @@ func (a *Authenticator) Enabled() bool {
 	return a != nil && a.cfg.Enabled
 }
 
-// allowed checks the post-login allowlist. Empty slices are ignored
-// (Settings.validate already requires at least one of the three).
-func (a *Authenticator) allowed(s sessionData) bool {
-	for _, e := range a.cfg.Access.AllowedEmails {
+// Role is the access tier a session resolves to. RoleReadOnly may issue
+// only safe (GET) requests; RoleAdmin may also mutate (POST/PUT/DELETE).
+type Role string
+
+const (
+	RoleReadOnly Role = "readonly"
+	RoleAdmin    Role = "admin"
+)
+
+// matchIdentity reports whether the session satisfies any of the given
+// email / domain / group rules. Empty slices match nobody.
+func matchIdentity(s sessionData, emails, domains, groups []string) bool {
+	for _, e := range emails {
 		if strings.EqualFold(e, s.Email) {
 			return true
 		}
 	}
 	if domain := domainOf(s.Email); domain != "" {
-		for _, d := range a.cfg.Access.AllowedDomains {
+		for _, d := range domains {
 			if strings.EqualFold(d, domain) {
 				return true
 			}
 		}
 	}
-	for _, want := range a.cfg.Access.AllowedGroups {
+	for _, want := range groups {
 		for _, have := range s.Groups {
 			if strings.EqualFold(want, have) {
 				return true
@@ -95,6 +104,41 @@ func (a *Authenticator) allowed(s sessionData) bool {
 		}
 	}
 	return false
+}
+
+// authorize decides whether a session may access the dashboard and at what
+// role. A user is let in if they match the sign-in allowlist OR the admin
+// allowlist (so an admin who isn't also on the base list still gets in).
+//
+// Role resolution:
+//   - admin allowlist empty  → every signed-in user is RoleAdmin (this is
+//     the pre-role behaviour, kept for backward compatibility).
+//   - matches admin allowlist → RoleAdmin.
+//   - otherwise (sign-in only) → RoleReadOnly.
+//
+// Re-evaluated on every request, so moving someone between tiers in
+// settings takes effect on their next call without a re-login.
+func (a *Authenticator) authorize(s sessionData) (Role, bool) {
+	base := matchIdentity(s, a.cfg.Access.AllowedEmails, a.cfg.Access.AllowedDomains, a.cfg.Access.AllowedGroups)
+	admin := matchIdentity(s,
+		a.cfg.Access.Admin.AllowedEmails,
+		a.cfg.Access.Admin.AllowedDomains,
+		a.cfg.Access.Admin.AllowedGroups,
+	)
+
+	if a.cfg.Access.Admin.IsEmpty() {
+		if base {
+			return RoleAdmin, true
+		}
+		return "", false
+	}
+	if admin {
+		return RoleAdmin, true
+	}
+	if base {
+		return RoleReadOnly, true
+	}
+	return "", false
 }
 
 func domainOf(email string) string {
@@ -114,7 +158,7 @@ const (
 
 // Identity is the subset of session data we expose to other packages —
 // kept tiny on purpose so handlers don't grow accidental dependencies on
-// the cookie format.
+// the cookie format. Role is the resolved access tier.
 type Identity struct {
 	Sub        string
 	Email      string
@@ -122,15 +166,24 @@ type Identity struct {
 	GivenName  string
 	FamilyName string
 	Groups     []string
+	Role       Role
+}
+
+// sessionCtx is what the middleware stashes in the request context: the
+// verified cookie payload plus the role resolved for this request.
+type sessionCtx struct {
+	data sessionData
+	role Role
 }
 
 // FromContext returns the identity attached by the middleware, or zero if
 // none — useful for /api/auth/me.
 func FromContext(ctx context.Context) (Identity, bool) {
-	s, ok := ctx.Value(sessionKey).(sessionData)
+	v, ok := ctx.Value(sessionKey).(sessionCtx)
 	if !ok {
 		return Identity{}, false
 	}
+	s := v.data
 	return Identity{
 		Sub:        s.Sub,
 		Email:      s.Email,
@@ -138,11 +191,12 @@ func FromContext(ctx context.Context) (Identity, bool) {
 		GivenName:  s.GivenName,
 		FamilyName: s.FamilyName,
 		Groups:     s.Groups,
+		Role:       v.role,
 	}, true
 }
 
 // withSession returns a new request whose context carries the verified
-// session payload.
-func withSession(r *http.Request, s sessionData) *http.Request {
-	return r.WithContext(context.WithValue(r.Context(), sessionKey, s))
+// session payload and resolved role.
+func withSession(r *http.Request, s sessionData, role Role) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), sessionKey, sessionCtx{data: s, role: role}))
 }

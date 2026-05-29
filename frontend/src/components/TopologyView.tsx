@@ -6,6 +6,7 @@ import { num } from "../fmt";
 import { TopologyGraph, type GraphRaftGroup } from "./TopologyGraph";
 import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "../state/toast";
+import { useCanWrite } from "../state/access";
 import { useOverviewStream } from "../hooks/useOverviewStream";
 import { StreamStatus } from "./StreamStatus";
 
@@ -478,6 +479,7 @@ function MetaStepdownButton({
 }) {
   const confirm = useConfirm();
   const toast = useToast();
+  const canWrite = useCanWrite();
   async function go() {
     if (!(await confirm.ask(
       "Step down meta leader",
@@ -491,6 +493,7 @@ function MetaStepdownButton({
       toast.push(`step-down failed: ${(e as Error).message}`, "error");
     }
   }
+  if (!canWrite) return null;
   return (
     <button
       className="link-btn"

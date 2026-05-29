@@ -36,18 +36,42 @@ func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		// Cookie outlived the allowlist — re-checks every request so
-		// kicking someone is as simple as removing them from settings.toml
-		// and either reloading the binary or letting the next-request
-		// path tear their session down.
-		if !a.allowed(sess) {
+		// kicking someone (or changing their tier) is as simple as editing
+		// settings.toml; the next request re-resolves it.
+		role, ok := a.authorize(sess)
+		if !ok {
 			clearCookie(w, a.cfg.Session.CookieName, a.cfg.Session.Secure)
 			writeJSON(w, http.StatusForbidden, map[string]any{
 				"message": "access denied",
 			})
 			return
 		}
-		next.ServeHTTP(w, withSession(r, sess))
+		// Read-only sessions may issue safe requests only. Every mutating
+		// API route is POST/PUT/PATCH/DELETE, so gating by method is
+		// sufficient — and resilient to new write routes being added.
+		// Public paths (/api/auth/*, /mcp, healthz, version, SPA) already
+		// returned above via isPublic, so this only fences /api/admin and
+		// /api/jsm mutations.
+		if role != RoleAdmin && isWriteMethod(r.Method) {
+			writeJSON(w, http.StatusForbidden, map[string]any{
+				"message": "write access requires the admin role",
+				"role":    string(role),
+			})
+			return
+		}
+		next.ServeHTTP(w, withSession(r, sess, role))
 	})
+}
+
+// isWriteMethod reports whether an HTTP method mutates state. OPTIONS is
+// short-circuited by the CORS middleware before it reaches here.
+func isWriteMethod(m string) bool {
+	switch m {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 // isPublic lists the path prefixes that bypass the session check. SPA

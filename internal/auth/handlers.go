@@ -119,7 +119,8 @@ func (a *Authenticator) handleCallback(w http.ResponseWriter, r *http.Request) {
 		a.callbackError(w, r, err.Error())
 		return
 	}
-	if !a.allowed(sess) {
+	role, ok := a.authorize(sess)
+	if !ok {
 		a.log.Warn("auth: rejected — not on allowlist", "email", sess.Email, "sub", sess.Sub)
 		http.Error(w, "access denied: "+sess.Email+" is not on the allowlist", http.StatusForbidden)
 		return
@@ -128,7 +129,7 @@ func (a *Authenticator) handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "write session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	a.log.Info("auth: login", "email", sess.Email, "sub", sess.Sub)
+	a.log.Info("auth: login", "email", sess.Email, "sub", sess.Sub, "role", role)
 	http.Redirect(w, r, flow.ReturnTo, http.StatusFound)
 }
 
@@ -137,40 +138,39 @@ func (a *Authenticator) handleLogout(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// handleMe returns 200 + identity when authenticated, 401 otherwise. The
-// SPA polls this on boot to decide whether to show the login splash.
+// handleMe returns 200 + identity (incl. role) when authenticated, 401
+// otherwise. The SPA polls this on boot to decide whether to show the
+// login splash and which write controls to render. Middleware lets
+// /api/auth/* through without injecting context, so we resolve from the
+// cookie directly here.
 func (a *Authenticator) handleMe(w http.ResponseWriter, r *http.Request) {
-	id, ok := FromContext(r.Context())
+	c, err := r.Cookie(a.cfg.Session.CookieName)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"authenticated": false})
+		return
+	}
+	s, err := a.signer.readSession(c.Value)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"authenticated": false})
+		return
+	}
+	role, ok := a.authorize(s)
 	if !ok {
-		// Try to read directly — middleware lets /api/auth/* through
-		// without injecting context, so we resolve here.
-		c, err := r.Cookie(a.cfg.Session.CookieName)
-		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"authenticated": false})
-			return
-		}
-		s, err := a.signer.readSession(c.Value)
-		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]any{"authenticated": false})
-			return
-		}
-		id = Identity{
-			Sub:        s.Sub,
-			Email:      s.Email,
-			Name:       s.Name,
-			GivenName:  s.GivenName,
-			FamilyName: s.FamilyName,
-			Groups:     s.Groups,
-		}
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"authenticated": false,
+			"message":       "access denied",
+		})
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authenticated": true,
-		"sub":           id.Sub,
-		"email":         id.Email,
-		"name":          id.Name,
-		"given_name":    id.GivenName,
-		"family_name":   id.FamilyName,
-		"groups":        id.Groups,
+		"sub":           s.Sub,
+		"email":         s.Email,
+		"name":          s.Name,
+		"given_name":    s.GivenName,
+		"family_name":   s.FamilyName,
+		"groups":        s.Groups,
+		"role":          string(role),
 	})
 }
 
