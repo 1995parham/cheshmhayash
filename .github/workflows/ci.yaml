@@ -25,22 +25,13 @@ jobs:
           go-version: "1.26.3"
           check-latest: true
 
-      - name: go vet
-        run: go vet ./...
-
-      - name: go fmt
-        run: |
-          out=$(gofmt -l .)
-          if [ -n "$out" ]; then
-            echo "::error::gofmt found unformatted files:"
-            echo "$out"
-            exit 1
-          fi
-
+      # golangci-lint is the single source of truth for Go linting: `run`
+      # also reports the `formatters` (gofmt/goimports) as issues and runs
+      # go vet (govet), so there are no separate vet/fmt steps.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.12.2
+          version: latest
           args: --timeout=5m
 
   backend-test:

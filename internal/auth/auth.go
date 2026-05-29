@@ -76,6 +76,7 @@ func (a *Authenticator) Enabled() bool {
 // only safe (GET) requests; RoleAdmin may also mutate (POST/PUT/DELETE).
 type Role string
 
+// The two access tiers a session can resolve to.
 const (
 	RoleReadOnly Role = "readonly"
 	RoleAdmin    Role = "admin"

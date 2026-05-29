@@ -62,7 +62,7 @@ func classify(subject string, raw []byte) *Event {
 // prefix, or "" if it isn't a JetStream advisory we care about.
 //
 // $JS.EVENT.ADVISORY.<rest>                          → <rest>
-// $SYS.ACCOUNT.<acct>.JETSTREAM.EVENT.ADVISORY.<rest> → <rest>
+// $SYS.ACCOUNT.<acct>.JETSTREAM.EVENT.ADVISORY.<rest> → <rest>.
 func jsAdvisorySuffix(subj string) string {
 	if s, ok := strings.CutPrefix(subj, "$JS.EVENT.ADVISORY."); ok {
 		return s
@@ -149,7 +149,7 @@ func replicaTail(replicas []string) string {
 	if len(replicas) == 0 {
 		return ""
 	}
-	return fmt.Sprintf(" · replicas: %s", strings.Join(replicas, ", "))
+	return " · replicas: " + strings.Join(replicas, ", ")
 }
 
 // str returns the named string field if present.

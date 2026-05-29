@@ -52,7 +52,7 @@ func (a *admin) ping(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRawArray(w, http.StatusOK, out)
+	writeRawArray(w, out)
 }
 
 func (a *admin) pingEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +70,7 @@ func (a *admin) pingEndpoint(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRawArray(w, http.StatusOK, out)
+	writeRawArray(w, out)
 }
 
 func (a *admin) serverEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func (a *admin) serverEndpoint(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (a *admin) accountEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,7 @@ func (a *admin) accountEndpoint(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRawArray(w, http.StatusOK, out)
+	writeRawArray(w, out)
 }
 
 func (a *admin) reload(w http.ResponseWriter, r *http.Request) {
@@ -119,7 +119,7 @@ func (a *admin) reload(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (a *admin) lameDuck(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +132,7 @@ func (a *admin) lameDuck(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 type kickBody struct {
@@ -158,7 +158,7 @@ func (a *admin) kick(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, a.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func unknownEndpoint(w http.ResponseWriter, ep string, allowed []string) {

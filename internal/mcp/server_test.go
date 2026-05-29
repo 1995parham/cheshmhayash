@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -47,7 +46,7 @@ func rpcLine(t *testing.T, id any, method string, params any) []byte {
 func runServer(t *testing.T, write bool, input [][]byte) []map[string]any {
 	t.Helper()
 	mgr := emptyManager(t)
-	srv := NewServer(mgr, slog.New(slog.NewTextHandler(io.Discard, nil)), write)
+	srv := NewServer(mgr, slog.New(slog.DiscardHandler), write)
 
 	var in bytes.Buffer
 	for _, line := range input {
