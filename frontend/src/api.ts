@@ -98,7 +98,10 @@ export const api = {
   metaStepdown: (c: string) =>
     http<unknown>("POST", `/api/jsm/clusters/${enc(c)}/actions/meta-stepdown?confirm=true`),
   streamStepdown: (c: string, s: string) =>
-    http<unknown>("POST", `/api/jsm/clusters/${enc(c)}/streams/${enc(s)}/actions/stepdown?confirm=true`),
+    http<unknown>(
+      "POST",
+      `/api/jsm/clusters/${enc(c)}/streams/${enc(s)}/actions/stepdown?confirm=true`,
+    ),
   consumerStepdown: (c: string, s: string, n: string) =>
     http<unknown>(
       "POST",
@@ -183,9 +186,7 @@ export function aggregateOverview(
     }
   }
 
-  const accountList = [...accountMap.values()].sort(
-    (a, b) => b.totals.streams - a.totals.streams,
-  );
+  const accountList = [...accountMap.values()].sort((a, b) => b.totals.streams - a.totals.streams);
   return {
     cluster: cluster ?? replies[0]?.data?.meta_cluster?.name,
     meta,

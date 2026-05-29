@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { aggregateOverview, api, ApiError } from "../api";
+import { type ApiError, aggregateOverview, api } from "../api";
 import type { AggregatedOverview, JszData } from "../types";
 
 type RawOverviewReply = { server: { name: string }; data: JszData };
@@ -29,6 +29,7 @@ export function useOverviewStream(cluster: string, refreshKey: number): State {
   const [state, setState] = useState<State>(initial);
   const fallbackTimer = useRef<number | undefined>(undefined);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional retrigger signal — bumping it re-subscribes the stream even though the body doesn't read it.
   useEffect(() => {
     setState(initial);
 
@@ -43,7 +44,12 @@ export function useOverviewStream(cluster: string, refreshKey: number): State {
       if (cancelled) return;
       try {
         const agg = aggregateOverview(replies);
-        setState({ overview: agg, status: "live", lastError: null, lastUpdate: new Date() });
+        setState({
+          overview: agg,
+          status: "live",
+          lastError: null,
+          lastUpdate: new Date(),
+        });
       } catch (e) {
         setStatus("error", (e as Error).message);
       }

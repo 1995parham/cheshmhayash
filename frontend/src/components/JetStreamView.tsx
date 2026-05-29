@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AggregatedAccount, AggregatedStream } from "../types";
 import { bytes, num } from "../fmt";
-import { StreamDetail } from "./StreamDetail";
 import { useOverviewStream } from "../hooks/useOverviewStream";
+import type { AggregatedAccount, AggregatedStream } from "../types";
+import { StreamDetail } from "./StreamDetail";
 import { StreamStatus } from "./StreamStatus";
 
 interface Props {
@@ -13,16 +13,20 @@ interface Props {
 export function JetStreamView({ cluster, refreshKey }: Props) {
   const { overview, status, lastError, lastUpdate } = useOverviewStream(cluster, refreshKey);
   const [focusedAccount, setFocusedAccount] = useState<string | null>(null);
-  const [openStream, setOpenStream] = useState<{ account: string; stream: string } | null>(null);
+  const [openStream, setOpenStream] = useState<{
+    account: string;
+    stream: string;
+  } | null>(null);
 
   // Auto-focus the single-account case the first time the overview lands.
   useEffect(() => {
     if (overview && overview.accountList.length === 1 && focusedAccount === null) {
-      setFocusedAccount(overview.accountList[0]!.name);
+      setFocusedAccount(overview.accountList[0]?.name);
     }
   }, [overview, focusedAccount]);
 
   // Close any open stream detail when the cluster changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cluster is an intentional reset trigger — the body only resets state, but we want it to re-run on every cluster switch.
   useEffect(() => {
     setOpenStream(null);
     setFocusedAccount(null);

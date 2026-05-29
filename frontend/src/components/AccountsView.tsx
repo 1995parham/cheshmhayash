@@ -59,8 +59,8 @@ export function AccountsView({ cluster }: Props) {
         <pre className="raw">{JSON.stringify(data, null, 2)}</pre>
       ) : (
         <div className="muted">
-          Pick an account and endpoint. <code>$G</code> is the default user account; <code>$SYS</code> is the
-          system account.
+          Pick an account and endpoint. <code>$G</code> is the default user account;{" "}
+          <code>$SYS</code> is the system account.
         </div>
       )}
     </section>

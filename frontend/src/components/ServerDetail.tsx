@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "../api";
 import { bytes, iso, num } from "../fmt";
-import type { PingReply, VarzReply, ConnzReply, HealthzReply } from "../types";
-import { useConfirm } from "./ConfirmDialog";
-import { useToast } from "../state/toast";
 import { useCanWrite } from "../state/access";
+import { useToast } from "../state/toast";
+import type { ConnzReply, HealthzReply, PingReply, VarzReply } from "../types";
+import { useConfirm } from "./ConfirmDialog";
 
 const SUBTABS = [
   "overview",
@@ -47,17 +47,17 @@ export function ServerDetail({ cluster, server, onClose }: Props) {
       </header>
       <div className="subtabs">
         {SUBTABS.map((t) => (
-          <button
-            key={t}
-            className={t === tab ? "active" : ""}
-            onClick={() => setTab(t)}
-          >
+          <button key={t} className={t === tab ? "active" : ""} onClick={() => setTab(t)}>
             {t}
           </button>
         ))}
       </div>
       <div className="detail-body">
-        {tab === "overview" ? <Overview reply={server} /> : <Endpoint cluster={cluster} id={id} ep={tab} />}
+        {tab === "overview" ? (
+          <Overview reply={server} />
+        ) : (
+          <Endpoint cluster={cluster} id={id} ep={tab} />
+        )}
       </div>
     </section>
   );

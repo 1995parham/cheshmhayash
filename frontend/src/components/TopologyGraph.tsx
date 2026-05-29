@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
 import { Crown } from "lucide-react";
+import { useMemo, useState } from "react";
 
 // A clean SVG visualization of raft-group placement across servers.
 // Servers sit around a circle; each raft group is drawn as a translucent
@@ -10,7 +10,7 @@ export interface GraphRaftGroup {
   id: string;
   kind: "meta" | "stream" | "consumer";
   leader?: string;
-  members: string[];           // server names
+  members: string[]; // server names
   label: string;
 }
 
@@ -31,7 +31,11 @@ const RADIUS = 220;
 const NODE_R = 38;
 
 export function TopologyGraph({ servers, groups, metaLeader }: Props) {
-  const [show, setShow] = useState({ meta: true, stream: true, consumer: false });
+  const [show, setShow] = useState({
+    meta: true,
+    stream: true,
+    consumer: false,
+  });
   const [hoverServer, setHoverServer] = useState<string | null>(null);
   const [hoverGroup, setHoverGroup] = useState<string | null>(null);
 
@@ -50,7 +54,11 @@ export function TopologyGraph({ servers, groups, metaLeader }: Props) {
   }
 
   const counts = useMemo(() => {
-    const c: Record<GraphRaftGroup["kind"], number> = { meta: 0, stream: 0, consumer: 0 };
+    const c: Record<GraphRaftGroup["kind"], number> = {
+      meta: 0,
+      stream: 0,
+      consumer: 0,
+    };
     for (const g of groups) c[g.kind]++;
     return c;
   }, [groups]);
@@ -162,7 +170,8 @@ export function TopologyGraph({ servers, groups, metaLeader }: Props) {
         <HoverGroupTip group={visibleGroups.find((g) => g.id === hoverGroup)} />
       ) : (
         <div className="topo-graph-tip muted">
-          showing {visibleGroups.length} raft group{visibleGroups.length === 1 ? "" : "s"}
+          showing {visibleGroups.length} raft group
+          {visibleGroups.length === 1 ? "" : "s"}
         </div>
       )}
     </div>
@@ -173,9 +182,8 @@ function HoverGroupTip({ group }: { group?: GraphRaftGroup }) {
   if (!group) return null;
   return (
     <div className="topo-graph-tip">
-      <span className="mono">{group.label}</span> ·{" "}
-      <span className="muted">{group.kind} raft</span> · leader{" "}
-      <span className="mono">{group.leader ?? "—"}</span> ·{" "}
+      <span className="mono">{group.label}</span> · <span className="muted">{group.kind} raft</span>{" "}
+      · leader <span className="mono">{group.leader ?? "—"}</span> ·{" "}
       <span className="muted">replicas {group.members.join(", ")}</span>
     </div>
   );
@@ -344,7 +352,7 @@ function RaftPolygon({
 
   // Edge for R2, polygon for R3+.
   if (pts.length === 2) {
-    const [a, b] = pts as [typeof pts[0], typeof pts[0]];
+    const [a, b] = pts as [(typeof pts)[0], (typeof pts)[0]];
     return (
       <g
         onMouseEnter={() => onHover(true)}
@@ -364,7 +372,7 @@ function RaftPolygon({
     );
   }
 
-  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
+  const path = `${pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")} Z`;
   return (
     <g
       onMouseEnter={() => onHover(true)}
@@ -415,7 +423,7 @@ function layoutServers(servers: string[]): Map<string, { x: number; y: number }>
 function shortName(s: string): string {
   // js-nats-production-3 → "js-…-3"
   const m = s.match(/^(.*?)-(\d+)$/);
-  if (m && m[1] && m[2]) {
+  if (m?.[1] && m[2]) {
     const head = m[1].split("-")[0] ?? m[1];
     return `${head}-${m[2]}`;
   }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError } from "../api";
-import type { PingReply } from "../types";
+import { type ApiError, api } from "../api";
 import { bytes, num, shortId } from "../fmt";
+import type { PingReply } from "../types";
 import { ServerDetail } from "./ServerDetail";
 
 interface Props {
@@ -15,6 +15,7 @@ export function ServersView({ cluster, refreshKey }: Props) {
   const [err, setErr] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshKey is an intentional retrigger signal — bumping it re-runs the fetch even though the body doesn't read it.
   useEffect(() => {
     setLoading(true);
     setErr(null);
@@ -38,7 +39,15 @@ export function ServersView({ cluster, refreshKey }: Props) {
         acc.out_bytes += s.out_bytes ?? 0;
         return acc;
       },
-      { servers: 0, connections: 0, subs: 0, in_msgs: 0, out_msgs: 0, in_bytes: 0, out_bytes: 0 },
+      {
+        servers: 0,
+        connections: 0,
+        subs: 0,
+        in_msgs: 0,
+        out_msgs: 0,
+        in_bytes: 0,
+        out_bytes: 0,
+      },
     );
   }, [replies]);
 
@@ -113,8 +122,6 @@ function ServerCard({
     <article
       className={`card${selected ? " selected" : ""}`}
       onClick={onClick}
-      role="button"
-      tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();

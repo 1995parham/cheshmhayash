@@ -195,6 +195,8 @@ Destructive verbs require `?confirm=true`; without it the server returns
 - `github.com/knadh/koanf/v2` for config (struct defaults → toml → env)
 - React 19, TypeScript 6, Vite 8, CodeMirror 6 (`@uiw/react-codemirror`,
   `@codemirror/lang-json`, `@codemirror/theme-one-dark`)
+- Biome 2.x is the frontend lint + formatter (`frontend/biome.jsonc`,
+  replaces ESLint/Prettier); `tsc -b` still owns type checking
 - Runtime image: `gcr.io/distroless/static-debian12:nonroot`
 - Chart published to `oci://ghcr.io/1995parham/cheshmhayash-chart`,
   image to `ghcr.io/1995parham/cheshmhayash`. Release workflow signs
@@ -206,9 +208,10 @@ Destructive verbs require `?confirm=true`; without it the server returns
   `golangci-lint run` (the single source of truth for Go — it also
   reports gofmt/goimports formatting and runs `go vet`; config in
   `.golangci.yml` enables ~all linters minus documented dogma), `go test
-  ./...`, `npx tsc -b`, `npx vite build`. Zero warnings, zero issues —
-  the CI workflow runs the same set. Use `golangci-lint fmt` to auto-fix
-  formatting.
+  ./...`, and in `frontend/`: `npm run ci` (Biome lint + format),
+  `npm run typecheck` (`tsc -b`), `npx vite build`. Zero warnings, zero
+  issues — the CI workflow runs the same set. `golangci-lint fmt` and
+  `npm run lint:fix` auto-fix formatting on each side.
 - Backend handlers pass NATS replies through as `json.RawMessage` —
   don't unmarshal + re-marshal, it loses field ordering and number
   precision.

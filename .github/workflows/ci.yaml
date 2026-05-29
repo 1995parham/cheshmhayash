@@ -53,7 +53,7 @@ jobs:
         run: go test -race -count=1 ./...
 
   frontend:
-    name: frontend / typecheck + build
+    name: frontend / lint + typecheck + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -70,6 +70,11 @@ jobs:
 
       - name: install
         run: npm ci
+
+      # Biome is the single lint+format tool for the SPA (replaces ESLint +
+      # Prettier); `biome ci` checks both. tsc -b still owns type checking.
+      - name: lint + format (biome)
+        run: npm run ci
 
       - name: typecheck
         run: npm run typecheck

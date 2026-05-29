@@ -124,7 +124,12 @@ export interface StreamCluster {
   name?: string;
   raft_group?: string;
   leader?: string;
-  replicas?: { name: string; current: boolean; active?: number; peer?: string }[];
+  replicas?: {
+    name: string;
+    current: boolean;
+    active?: number;
+    peer?: string;
+  }[];
 }
 export interface StreamConfig {
   name: string;
@@ -204,7 +209,12 @@ export interface AggregatedAccount {
   id?: string;
   api?: { total?: number; errors?: number };
   streams: AggregatedStream[];
-  totals: { streams: number; consumers: number; messages: number; bytes: number };
+  totals: {
+    streams: number;
+    consumers: number;
+    messages: number;
+    bytes: number;
+  };
 }
 export interface AggregatedStream {
   name: string;
@@ -221,7 +231,10 @@ export interface AggregatedConsumer {
   account: string;
   config?: ConsumerConfig;
   created?: string;
-  cluster?: { leader?: string; replicas?: { name: string; current: boolean }[] };
+  cluster?: {
+    leader?: string;
+    replicas?: { name: string; current: boolean }[];
+  };
   num_pending?: number;
   num_ack_pending?: number;
   num_redelivered?: number;

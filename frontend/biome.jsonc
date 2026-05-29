@@ -1,0 +1,57 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["src/**", "*.ts", "*.json", "!**/dist", "!**/node_modules"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      // Internal NATS ops dashboard, not a public site. These a11y rules need
+      // broad markup churn (a type on every <button>, roles on the custom
+      // SVG/div topology viz) for little operator value — a deliberate
+      // follow-up, not a silent drop.
+      "a11y": {
+        "useButtonType": "off",
+        "noSvgWithoutTitle": "off",
+        "noStaticElementInteractions": "off",
+        "useSemanticElements": "off",
+        "noNoninteractiveElementToInteractiveRole": "off"
+      },
+      "style": {
+        // Non-null assertions are used deliberately where the value is
+        // known-present (e.g. a just-indexed array element).
+        "noNonNullAssertion": "off",
+        // Cascade-ordering heuristic on hand-written CSS; reordering rules to
+        // satisfy it risks real visual regressions for no functional gain.
+        "noDescendingSpecificity": "off"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  }
+}

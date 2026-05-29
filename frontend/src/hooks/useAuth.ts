@@ -86,7 +86,10 @@ export function useAuth(): {
   }, [refresh]);
 
   const logout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin",
+    });
     setStatus({ state: "anonymous" });
   }, []);
 

@@ -1,14 +1,14 @@
+import { CircleDot, Crown, Filter, Minus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Crown, CircleDot, Minus, Filter } from "lucide-react";
 import { api } from "../api";
-import type { AggregatedConsumer, AggregatedOverview, AggregatedStream } from "../types";
 import { num } from "../fmt";
-import { TopologyGraph, type GraphRaftGroup } from "./TopologyGraph";
-import { useConfirm } from "./ConfirmDialog";
-import { useToast } from "../state/toast";
-import { useCanWrite } from "../state/access";
 import { useOverviewStream } from "../hooks/useOverviewStream";
+import { useCanWrite } from "../state/access";
+import { useToast } from "../state/toast";
+import type { AggregatedConsumer, AggregatedOverview, AggregatedStream } from "../types";
+import { useConfirm } from "./ConfirmDialog";
 import { StreamStatus } from "./StreamStatus";
+import { type GraphRaftGroup, TopologyGraph } from "./TopologyGraph";
 
 interface Props {
   cluster: string;
@@ -19,12 +19,12 @@ interface Props {
 type Role = "leader" | "follower" | "stale" | "absent";
 
 interface RaftRow {
-  group: string;       // raft_group identifier (if known)
-  label: string;       // human label rendered in the first column
-  account?: string;    // for grouping/filter
-  stream?: string;     // for grouping/filter
-  leader?: string;     // server name of leader
-  members: Map<string, { current: boolean }>;  // member server → freshness
+  group: string; // raft_group identifier (if known)
+  label: string; // human label rendered in the first column
+  account?: string; // for grouping/filter
+  stream?: string; // for grouping/filter
+  leader?: string; // server name of leader
+  members: Map<string, { current: boolean }>; // member server → freshness
 }
 
 interface ServerStats {
@@ -103,8 +103,9 @@ export function TopologyView({ cluster, refreshKey }: Props) {
     <section>
       <div className="row-toolbar">
         <span className="muted">
-          {topology.servers.length} servers · meta cluster size {overview.meta?.cluster_size ?? "?"} ·{" "}
-          {filteredStreams.length} stream raft groups · {filteredConsumers.length} consumer raft groups
+          {topology.servers.length} servers · meta cluster size {overview.meta?.cluster_size ?? "?"}{" "}
+          · {filteredStreams.length} stream raft groups · {filteredConsumers.length} consumer raft
+          groups
         </span>
         {accounts.length > 1 ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -130,13 +131,20 @@ export function TopologyView({ cluster, refreshKey }: Props) {
 
       <DistributionChart stats={topology.serverStats} servers={topology.servers} />
 
-      <h4 style={{ margin: "20px 0 6px", display: "flex", alignItems: "center", gap: 8 }}>
+      <h4
+        style={{
+          margin: "20px 0 6px",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Meta raft
         <MetaStepdownButton cluster={cluster} leader={overview.meta?.leader} />
       </h4>
       <p className="muted" style={{ marginTop: 0 }}>
-        One Raft group per cluster, owned by <code>$SYS</code>. Manages stream/consumer
-        placement decisions. Leader: <b className="mono">{overview.meta?.leader ?? "—"}</b>.
+        One Raft group per cluster, owned by <code>$SYS</code>. Manages stream/consumer placement
+        decisions. Leader: <b className="mono">{overview.meta?.leader ?? "—"}</b>.
       </p>
       <Heatmap servers={topology.servers} rows={[topology.metaRow]} />
 
@@ -152,8 +160,7 @@ export function TopologyView({ cluster, refreshKey }: Props) {
         Consumer raft groups <span className="muted">({filteredConsumers.length})</span>
       </h4>
       <p className="muted" style={{ marginTop: 0 }}>
-        Replicated consumers run their own Raft group co-located with their parent
-        stream's peers.{" "}
+        Replicated consumers run their own Raft group co-located with their parent stream's peers.{" "}
         {filteredConsumers.length > 30 && !showConsumers ? (
           <button className="link-btn" onClick={() => setShowConsumers(true)}>
             show all {filteredConsumers.length}
@@ -286,7 +293,13 @@ function buildTopology(
     }
   }
 
-  return { servers: allServers, metaRow, streamRows, consumerRows, serverStats };
+  return {
+    servers: allServers,
+    metaRow,
+    streamRows,
+    consumerRows,
+    serverStats,
+  };
 }
 
 function membersOf(s: AggregatedStream): Map<string, { current: boolean }> {
@@ -309,7 +322,7 @@ function roleOf(row: RaftRow, server: string): Role {
 
 function shorten(s: string, n = 36): string {
   if (s.length <= n) return s;
-  return s.slice(0, n - 1) + "…";
+  return `${s.slice(0, n - 1)}…`;
 }
 
 // Suppress lint warning until consumed elsewhere — we use it via the API
@@ -470,22 +483,19 @@ function shortServer(s: string): string {
 // MetaStepdownButton — small inline action next to the Meta raft heading.
 // The SSE stream will deliver the new state within the cache period
 // (≤10s by default), so we don't need to force a refresh here.
-function MetaStepdownButton({
-  cluster,
-  leader,
-}: {
-  cluster: string;
-  leader: string | undefined;
-}) {
+function MetaStepdownButton({ cluster, leader }: { cluster: string; leader: string | undefined }) {
   const confirm = useConfirm();
   const toast = useToast();
   const canWrite = useCanWrite();
   async function go() {
-    if (!(await confirm.ask(
-      "Step down meta leader",
-      `Force ${leader ?? "the current meta leader"} on ${cluster} to step down? Triggers a re-election.`,
-      "primary",
-    ))) return;
+    if (
+      !(await confirm.ask(
+        "Step down meta leader",
+        `Force ${leader ?? "the current meta leader"} on ${cluster} to step down? Triggers a re-election.`,
+        "primary",
+      ))
+    )
+      return;
     try {
       await api.metaStepdown(cluster);
       toast.push(`meta leader step-down requested on ${cluster}`, "ok");
