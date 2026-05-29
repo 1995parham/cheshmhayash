@@ -1089,3 +1089,15 @@ dialog button.primary:hover {
 .user-menu .icon-btn {
   padding: 4px 6px;
 }
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(243, 183, 96, 0.15);
+  color: var(--warn);
+  border: 1px solid rgba(243, 183, 96, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+}

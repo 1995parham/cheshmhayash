@@ -5,6 +5,7 @@ import { bytes, duration, iso, num } from "../fmt";
 import type { AggregatedOverview, AggregatedStream } from "../types";
 import { useConfirm } from "./ConfirmDialog";
 import { useToast } from "../state/toast";
+import { useCanWrite } from "../state/access";
 import { StreamEditor } from "./StreamEditor";
 
 interface Props {
@@ -28,6 +29,7 @@ export function StreamDetail({
   const s: AggregatedStream | undefined = acct?.streams.find((x) => x.name === streamName);
   const confirm = useConfirm();
   const toast = useToast();
+  const canWrite = useCanWrite();
   const [editing, setEditing] = useState(false);
 
   if (!s) return null;
@@ -97,24 +99,26 @@ export function StreamDetail({
             </div>
           </div>
           <div className="spacer"></div>
-          <div className="detail-actions">
-            <button onClick={() => setEditing(true)}>
-              <Pencil size={14} />
-              Edit
-            </button>
-            <button onClick={stepdown} title="Force raft leader re-election">
-              <Crown size={14} />
-              Step down
-            </button>
-            <button className="danger" onClick={purge}>
-              <Eraser size={14} />
-              Purge
-            </button>
-            <button className="danger" onClick={del}>
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </div>
+          {canWrite ? (
+            <div className="detail-actions">
+              <button onClick={() => setEditing(true)}>
+                <Pencil size={14} />
+                Edit
+              </button>
+              <button onClick={stepdown} title="Force raft leader re-election">
+                <Crown size={14} />
+                Step down
+              </button>
+              <button className="danger" onClick={purge}>
+                <Eraser size={14} />
+                Purge
+              </button>
+              <button className="danger" onClick={del}>
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+          ) : null}
           <button className="close-btn" onClick={onClose} aria-label="close">
             <X size={18} />
           </button>
@@ -183,13 +187,15 @@ export function StreamDetail({
                         <td className="num">{num(c.num_pending)}</td>
                         <td className="mono">{c.cluster?.leader ?? ""}</td>
                         <td>
-                          <button
-                            className="link-btn"
-                            title="Force consumer raft re-election"
-                            onClick={() => consumerStepdown(name, c.cluster?.leader)}
-                          >
-                            step down
-                          </button>
+                          {canWrite ? (
+                            <button
+                              className="link-btn"
+                              title="Force consumer raft re-election"
+                              onClick={() => consumerStepdown(name, c.cluster?.leader)}
+                            >
+                              step down
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     );

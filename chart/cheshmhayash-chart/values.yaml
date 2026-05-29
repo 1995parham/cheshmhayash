@@ -290,11 +290,22 @@ auth:
     #   name: cheshmhayash-oidc
     #   key: client_secret
   access:
-    # At least one of these three must be non-empty when `auth.enabled`.
+    # Sign-in allowlist — at least one of these three must be non-empty
+    # when `auth.enabled`. Everyone who matches may open the dashboard and
+    # read; write access is granted separately by `access.admin` below.
     allowedEmails: []
     allowedDomains: []
     allowedGroups: []
     groupsClaim: groups
+    # Write-access (admin) allowlist. A signed-in user who additionally
+    # matches anything here gets the "admin" role (full read + write);
+    # everyone else who passes the sign-in allowlist above is read-only.
+    # Leave all three empty to grant every signed-in user full access
+    # (the legacy, pre-role behaviour).
+    admin:
+      allowedEmails: []
+      allowedDomains: []
+      allowedGroups: []
   session:
     ttlSeconds: 43200
     cookieName: cheshmhayash_session

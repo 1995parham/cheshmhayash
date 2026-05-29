@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+export type Role = "admin" | "readonly";
+
 export interface AuthIdentity {
   authenticated: boolean;
   sub?: string;
@@ -8,6 +10,19 @@ export interface AuthIdentity {
   given_name?: string;
   family_name?: string;
   groups?: string[];
+  role?: Role;
+}
+
+// canWrite decides whether mutating controls should be shown. Auth-disabled
+// deployments ("disabled" status) keep full access, matching the
+// backward-compatible server default. When authenticated, only the admin
+// role may write; a missing role (older server) is treated as admin so a
+// dashboard never silently loses its controls after a partial upgrade.
+export function canWrite(status: AuthStatus): boolean {
+  if (status.state === "authenticated") {
+    return status.identity.role !== "readonly";
+  }
+  return status.state === "disabled";
 }
 
 // displayName picks the best label to show in the UI:

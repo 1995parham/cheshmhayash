@@ -189,6 +189,19 @@ allowed_groups = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end 
 {{- if .Values.auth.access.groupsClaim }}
 groups_claim = "{{ .Values.auth.access.groupsClaim }}"
 {{- end }}
+{{- if or .Values.auth.access.admin.allowedEmails .Values.auth.access.admin.allowedDomains .Values.auth.access.admin.allowedGroups }}
+
+[auth.access.admin]
+{{- with .Values.auth.access.admin.allowedEmails }}
+allowed_emails = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- with .Values.auth.access.admin.allowedDomains }}
+allowed_domains = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- with .Values.auth.access.admin.allowedGroups }}
+allowed_groups = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- end }}
 
 [auth.session]
 ttl_seconds = {{ .Values.auth.session.ttlSeconds }}

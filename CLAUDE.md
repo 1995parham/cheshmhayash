@@ -109,6 +109,9 @@ discovery_timeout_ms = 1500
 # for the full template). Off by default; turning [auth].enabled = true
 # requires oidc.issuer/client_id/redirect_url, a session.secret (≥16 chars),
 # and at least one entry under access.allowed_{emails,domains,groups}.
+# Optionally set [auth.access.admin].allowed_{emails,domains,groups} to
+# split write access from read-only — everyone who signs in but isn't on
+# the admin list is read-only.
 ```
 
 Env knobs:
@@ -172,9 +175,18 @@ Destructive verbs require `?confirm=true`; without it the server returns
 - **Auth** (`internal/auth/`) — OIDC login flow (`/api/auth/{login,
   callback,logout,me}`) with PKCE + state + nonce, allowlist gate on
   email / domain / group claims, and HMAC-SHA256-signed cookie sessions
-  (no DB). `MCPMiddleware` checks `Authorization: Bearer …` against the
-  static keys in `auth.mcp_keys` for `/mcp`; stdio MCP stays open. Auth
-  is fully off when `auth.enabled = false` (the default).
+  (no DB). Two roles: `authorize()` resolves each session to `admin`
+  (read + write) or `readonly` (GET only). `admin` ⇔ identity matches the
+  `[auth.access.admin]` allowlist; everyone else who passes the sign-in
+  allowlist is `readonly`. When `[auth.access.admin]` is empty, every
+  signed-in user is `admin` (pre-role default). The middleware enforces
+  it by HTTP method — any `POST/PUT/PATCH/DELETE` under `/api/` needs the
+  `admin` role (403 otherwise), so write gating is automatic for new
+  routes. The role rides in `/api/auth/me` (`"role"`); the SPA hides
+  destructive controls for `readonly`. `MCPMiddleware` checks
+  `Authorization: Bearer …` against the static keys in `auth.mcp_keys`
+  for `/mcp`; stdio MCP stays open. Auth is fully off when
+  `auth.enabled = false` (the default).
 
 ## Tech / versions
 

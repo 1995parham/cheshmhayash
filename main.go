@@ -146,11 +146,18 @@ func run(log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("auth init: %w", err)
 		}
+		admin := settings.Auth.Access.Admin
 		log.Info("auth enabled",
 			"issuer", settings.Auth.OIDC.Issuer,
 			"allowed_emails", len(settings.Auth.Access.AllowedEmails),
 			"allowed_domains", len(settings.Auth.Access.AllowedDomains),
 			"allowed_groups", len(settings.Auth.Access.AllowedGroups),
+			"admin_emails", len(admin.AllowedEmails),
+			"admin_domains", len(admin.AllowedDomains),
+			"admin_groups", len(admin.AllowedGroups),
+			// When the admin allowlist is empty every signed-in user is an
+			// admin (legacy behaviour); log it so the tier model is obvious.
+			"admin_allowlist_set", !admin.IsEmpty(),
 		)
 	}
 	mcpKeys := mcpKeyMatchers(settings.Auth.MCPKeys)

@@ -58,14 +58,37 @@ type AuthOIDC struct {
 	Scopes       []string `json:"scopes"       koanf:"scopes"`
 }
 
-// AuthAccess is the post-login allowlist. At least one of the three slices
-// must be populated when auth is enabled — otherwise any account in the
-// IdP can sign in, which is almost never what you want.
+// AuthAccess is the post-login allowlist. At least one of the three
+// sign-in slices must be populated when auth is enabled — otherwise any
+// account in the IdP can sign in, which is almost never what you want.
+//
+// The sign-in slices (AllowedEmails/Domains/Groups) decide who may open
+// the dashboard at all; everyone who passes them gets at least read-only
+// access. Admin carries a second, write-access allowlist: a signed-in
+// user who additionally matches it gets the "admin" role (full read +
+// write). When Admin is empty every signed-in user is an admin, which
+// preserves the pre-role behaviour where any allowed account had full
+// access.
 type AuthAccess struct {
+	AllowedEmails  []string   `json:"allowed_emails,omitempty"  koanf:"allowed_emails"`
+	AllowedDomains []string   `json:"allowed_domains,omitempty" koanf:"allowed_domains"`
+	AllowedGroups  []string   `json:"allowed_groups,omitempty"  koanf:"allowed_groups"`
+	GroupsClaim    string     `json:"groups_claim,omitempty"    koanf:"groups_claim"`
+	Admin          AccessRule `json:"admin,omitzero"            koanf:"admin"`
+}
+
+// AccessRule is an email/domain/group allowlist triple. Used for the
+// write-access (admin) tier; the same matching logic as the sign-in
+// allowlist, scoped to a narrower set of identities.
+type AccessRule struct {
 	AllowedEmails  []string `json:"allowed_emails,omitempty"  koanf:"allowed_emails"`
 	AllowedDomains []string `json:"allowed_domains,omitempty" koanf:"allowed_domains"`
 	AllowedGroups  []string `json:"allowed_groups,omitempty"  koanf:"allowed_groups"`
-	GroupsClaim    string   `json:"groups_claim,omitempty"    koanf:"groups_claim"`
+}
+
+// IsEmpty reports whether the rule matches nobody (all three slices empty).
+func (r AccessRule) IsEmpty() bool {
+	return len(r.AllowedEmails) == 0 && len(r.AllowedDomains) == 0 && len(r.AllowedGroups) == 0
 }
 
 type AuthSession struct {
@@ -297,6 +320,7 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 //	enabled
 //	oidc.{issuer,client_id,client_secret,redirect_url,scopes}     scopes is comma-separated
 //	access.{allowed_emails,allowed_domains,allowed_groups,groups_claim}   slices comma-separated
+//	access.admin.{allowed_emails,allowed_domains,allowed_groups}          write-access allowlist
 //	session.{secret,ttl_seconds,cookie_name,secure}
 //	mcp_keys.<idx>.{name,value}
 func applyAuthEnv(a *Auth, parts []string, val string) error {
@@ -329,21 +353,7 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 			return fmt.Errorf("unknown auth.oidc field %q", parts[1])
 		}
 	case "access":
-		if len(parts) != 2 {
-			return fmt.Errorf("expected auth.access.<key>")
-		}
-		switch strings.ToLower(parts[1]) {
-		case "allowed_emails":
-			a.Access.AllowedEmails = splitCSV(val)
-		case "allowed_domains":
-			a.Access.AllowedDomains = splitCSV(val)
-		case "allowed_groups":
-			a.Access.AllowedGroups = splitCSV(val)
-		case "groups_claim":
-			a.Access.GroupsClaim = val
-		default:
-			return fmt.Errorf("unknown auth.access field %q", parts[1])
-		}
+		return applyAccessEnv(&a.Access, parts[1:], val)
 	case "session":
 		if len(parts) != 2 {
 			return fmt.Errorf("expected auth.session.<key>")
@@ -389,6 +399,42 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		}
 	default:
 		return fmt.Errorf("unknown auth field %q", parts[0])
+	}
+	return nil
+}
+
+// applyAccessEnv handles CHESHMHAYASH__AUTH__ACCESS__* env keys, including
+// the nested admin allowlist (auth.access.admin.allowed_{emails,domains,
+// groups}). Slice values are comma-separated.
+func applyAccessEnv(acc *AuthAccess, parts []string, val string) error {
+	if len(parts) == 0 {
+		return fmt.Errorf("expected auth.access.<key>")
+	}
+	switch strings.ToLower(parts[0]) {
+	case "allowed_emails":
+		acc.AllowedEmails = splitCSV(val)
+	case "allowed_domains":
+		acc.AllowedDomains = splitCSV(val)
+	case "allowed_groups":
+		acc.AllowedGroups = splitCSV(val)
+	case "groups_claim":
+		acc.GroupsClaim = val
+	case "admin":
+		if len(parts) != 2 {
+			return fmt.Errorf("expected auth.access.admin.<key>")
+		}
+		switch strings.ToLower(parts[1]) {
+		case "allowed_emails":
+			acc.Admin.AllowedEmails = splitCSV(val)
+		case "allowed_domains":
+			acc.Admin.AllowedDomains = splitCSV(val)
+		case "allowed_groups":
+			acc.Admin.AllowedGroups = splitCSV(val)
+		default:
+			return fmt.Errorf("unknown auth.access.admin field %q", parts[1])
+		}
+	default:
+		return fmt.Errorf("unknown auth.access field %q", parts[0])
 	}
 	return nil
 }
