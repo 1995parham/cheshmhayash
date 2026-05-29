@@ -1,11 +1,11 @@
+import { Crown, Eraser, Pencil, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import { Pencil, Trash2, Eraser, X, Crown } from "lucide-react";
 import { api } from "../api";
 import { bytes, duration, iso, num } from "../fmt";
+import { useCanWrite } from "../state/access";
+import { useToast } from "../state/toast";
 import type { AggregatedOverview, AggregatedStream } from "../types";
 import { useConfirm } from "./ConfirmDialog";
-import { useToast } from "../state/toast";
-import { useCanWrite } from "../state/access";
 import { StreamEditor } from "./StreamEditor";
 
 interface Props {
@@ -59,11 +59,14 @@ export function StreamDetail({
     }
   }
   async function stepdown() {
-    if (!(await confirm.ask(
-      "Step down stream leader",
-      `Force ${streamName}'s raft leader (${cl.leader ?? "?"}) to step down? A new leader will be elected from the replicas.`,
-      "primary",
-    ))) return;
+    if (
+      !(await confirm.ask(
+        "Step down stream leader",
+        `Force ${streamName}'s raft leader (${cl.leader ?? "?"}) to step down? A new leader will be elected from the replicas.`,
+        "primary",
+      ))
+    )
+      return;
     try {
       await api.streamStepdown(cluster, streamName);
       toast.push(`${streamName}: leader step-down requested`, "ok");
@@ -73,11 +76,14 @@ export function StreamDetail({
     }
   }
   async function consumerStepdown(consumerName: string, leader: string | undefined) {
-    if (!(await confirm.ask(
-      "Step down consumer leader",
-      `Force ${streamName}/${consumerName}'s raft leader (${leader ?? "?"}) to step down?`,
-      "primary",
-    ))) return;
+    if (
+      !(await confirm.ask(
+        "Step down consumer leader",
+        `Force ${streamName}/${consumerName}'s raft leader (${leader ?? "?"}) to step down?`,
+        "primary",
+      ))
+    )
+      return;
     try {
       await api.consumerStepdown(cluster, streamName, consumerName);
       toast.push(`${consumerName}: leader step-down requested`, "ok");

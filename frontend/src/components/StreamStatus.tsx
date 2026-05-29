@@ -16,11 +16,7 @@ interface Props {
 //   closed    — server closed the stream; we're polling
 export function StreamStatus({ status, lastUpdate, lastError }: Props) {
   const dot =
-    status === "live"
-      ? "good"
-      : status === "stale" || status === "connecting"
-        ? "warn"
-        : "bad";
+    status === "live" ? "good" : status === "stale" || status === "connecting" ? "warn" : "bad";
   const label =
     status === "live"
       ? "live"

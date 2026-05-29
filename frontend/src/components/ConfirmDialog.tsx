@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 interface ConfirmRequest {
   title: string;
@@ -45,7 +52,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      <dialog ref={dlgRef} onCancel={(e) => { e.preventDefault(); close(false); }}>
+      <dialog
+        ref={dlgRef}
+        onCancel={(e) => {
+          e.preventDefault();
+          close(false);
+        }}
+      >
         <h3 style={{ marginTop: 0 }}>{req?.title ?? "Confirm"}</h3>
         <p>{req?.body}</p>
         <menu>

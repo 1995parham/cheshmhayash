@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
-import { LogOut, RefreshCw, Server, Users, Database, Network } from "lucide-react";
-import { api, ApiError } from "./api";
-import { ServersView } from "./components/ServersView";
+import { Database, LogOut, Network, RefreshCw, Server, Users } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { type ApiError, api } from "./api";
 import { AccountsView } from "./components/AccountsView";
-import { JetStreamView } from "./components/JetStreamView";
-import { TopologyView } from "./components/TopologyView";
-import { LoginScreen } from "./components/LoginScreen";
-import { ToastProvider, useToast } from "./state/toast";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { Footer } from "./components/Footer";
-import { useAuth, displayName, canWrite } from "./hooks/useAuth";
+import { JetStreamView } from "./components/JetStreamView";
+import { LoginScreen } from "./components/LoginScreen";
+import { ServersView } from "./components/ServersView";
+import { TopologyView } from "./components/TopologyView";
+import { canWrite, displayName, useAuth } from "./hooks/useAuth";
 import { CanWriteProvider } from "./state/access";
+import { ToastProvider, useToast } from "./state/toast";
 
 type Tab = "servers" | "accounts" | "jetstream" | "topology";
 
@@ -70,8 +70,7 @@ function Shell() {
   }
 
   const writable = canWrite(status);
-  const readOnly =
-    status.state === "authenticated" && status.identity.role === "readonly";
+  const readOnly = status.state === "authenticated" && status.identity.role === "readonly";
 
   return (
     <CanWriteProvider value={writable}>
@@ -84,10 +83,7 @@ function Shell() {
 
       <header className="topbar">
         <nav className="tabs">
-          <button
-            className={clsx(tab === "servers" && "active")}
-            onClick={() => setTab("servers")}
-          >
+          <button className={clsx(tab === "servers" && "active")} onClick={() => setTab("servers")}>
             <Server size={14} /> Servers
           </button>
           <button
@@ -136,14 +132,14 @@ function Shell() {
           {status.state === "authenticated" ? (
             <div className="user-menu">
               {readOnly ? (
-                <span className="role-badge" title="You have read-only access; write actions are hidden.">
+                <span
+                  className="role-badge"
+                  title="You have read-only access; write actions are hidden."
+                >
                   read-only
                 </span>
               ) : null}
-              <span
-                className="who"
-                title={status.identity.email ?? status.identity.sub ?? ""}
-              >
+              <span className="who" title={status.identity.email ?? status.identity.sub ?? ""}>
                 {displayName(status.identity)}
               </span>
               <button

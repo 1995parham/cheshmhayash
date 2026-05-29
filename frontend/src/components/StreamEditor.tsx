@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
+import CodeMirror from "@uiw/react-codemirror";
 import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { useToast } from "../state/toast";
 import type { StreamConfig } from "../types";
 import { useConfirm } from "./ConfirmDialog";
-import { useToast } from "../state/toast";
 
 interface Props {
   cluster: string;
@@ -67,7 +67,10 @@ export function StreamEditor({ cluster, stream, initialConfig, onClose, onSaved 
       return;
     }
     if (value === originalRef.current) {
-      if (!(await confirm.ask("No changes", "The config is unchanged. Send PUT anyway?", "primary"))) return;
+      if (
+        !(await confirm.ask("No changes", "The config is unchanged. Send PUT anyway?", "primary"))
+      )
+        return;
     }
     if (
       !(await confirm.ask(
@@ -80,7 +83,9 @@ export function StreamEditor({ cluster, stream, initialConfig, onClose, onSaved 
     }
     setSaving(true);
     try {
-      const r = (await api.updateStream(cluster, stream, cfg)) as { error?: { code: number; err_code: number; description?: string } };
+      const r = (await api.updateStream(cluster, stream, cfg)) as {
+        error?: { code: number; err_code: number; description?: string };
+      };
       if (r?.error) {
         setErr(`NATS rejected: ${r.error.code} (${r.error.err_code}) ${r.error.description ?? ""}`);
         return;
@@ -118,8 +123,9 @@ export function StreamEditor({ cluster, stream, initialConfig, onClose, onSaved 
       </header>
       <div className="edit-body">
         <p className="muted edit-hint">
-          NATS accepts a full <code>StreamConfig</code>. Some fields cannot change without recreating the
-          stream (e.g. <code>storage</code>, <code>retention</code>). Make sure <code>name</code> matches.
+          NATS accepts a full <code>StreamConfig</code>. Some fields cannot change without
+          recreating the stream (e.g. <code>storage</code>, <code>retention</code>). Make sure{" "}
+          <code>name</code> matches.
         </p>
         <div className="editor">
           <CodeMirror

@@ -1,5 +1,5 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // Vite serves the SPA in dev and produces the static bundle Go serves in
 // prod. The dev server proxies API calls to the running Go backend so the
