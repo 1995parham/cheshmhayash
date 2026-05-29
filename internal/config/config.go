@@ -32,6 +32,8 @@ const (
 	configFile              = "settings.toml"
 )
 
+// Settings is the fully-resolved runtime configuration (defaults → TOML →
+// env), returned by Load and consumed by main.
 type Settings struct {
 	Server Server   `json:"server"           koanf:"server"`
 	NATS   []NATS   `json:"nats"             koanf:"nats"`
@@ -50,6 +52,7 @@ type Auth struct {
 	MCPKeys []MCPKey    `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
 }
 
+// AuthOIDC holds the OpenID Connect provider coordinates for the login flow.
 type AuthOIDC struct {
 	Issuer       string   `json:"issuer"       koanf:"issuer"`
 	ClientID     string   `json:"client_id"    koanf:"client_id"`
@@ -91,6 +94,7 @@ func (r AccessRule) IsEmpty() bool {
 	return len(r.AllowedEmails) == 0 && len(r.AllowedDomains) == 0 && len(r.AllowedGroups) == 0
 }
 
+// AuthSession configures the HMAC-signed cookie that carries the session.
 type AuthSession struct {
 	Secret     string `json:"-"           koanf:"secret"`
 	TTLSeconds int    `json:"ttl_seconds" koanf:"ttl_seconds"`
@@ -114,11 +118,13 @@ type Notify struct {
 	Username string `json:"username,omitempty" koanf:"username"`
 }
 
+// Server is the HTTP listener's bind address.
 type Server struct {
 	Host string `json:"host" koanf:"host"`
 	Port int    `json:"port" koanf:"port"`
 }
 
+// NATS describes one configured cluster connection.
 type NATS struct {
 	Name      string `json:"name"                 koanf:"name"`
 	URL       string `json:"url"                  koanf:"url"`
@@ -126,11 +132,12 @@ type NATS struct {
 	User      string `json:"user,omitempty"       koanf:"user"`
 	// Password is redacted on the startup log; the JSON tag matters only
 	// for that single pretty-print.
-	Password           string `json:"-"                                  koanf:"password"`
-	RequestTimeoutMS   int    `json:"request_timeout_ms,omitempty"       koanf:"request_timeout_ms"`
-	DiscoveryTimeoutMS int    `json:"discovery_timeout_ms,omitempty"     koanf:"discovery_timeout_ms"`
+	Password           string `json:"-"                              koanf:"password"`
+	RequestTimeoutMS   int    `json:"request_timeout_ms,omitempty"   koanf:"request_timeout_ms"`
+	DiscoveryTimeoutMS int    `json:"discovery_timeout_ms,omitempty" koanf:"discovery_timeout_ms"`
 }
 
+// RequestTimeout is the per-request NATS deadline, defaulted when unset.
 func (n NATS) RequestTimeout() time.Duration {
 	if n.RequestTimeoutMS <= 0 {
 		return defaultRequestTimeout
@@ -138,6 +145,8 @@ func (n NATS) RequestTimeout() time.Duration {
 	return time.Duration(n.RequestTimeoutMS) * time.Millisecond
 }
 
+// DiscoveryTimeout is the deadline for multi-responder discovery requests
+// (e.g. SERVER.PING), defaulted when unset.
 func (n NATS) DiscoveryTimeout() time.Duration {
 	if n.DiscoveryTimeoutMS <= 0 {
 		return defaultDiscoveryTimeout
@@ -145,6 +154,7 @@ func (n NATS) DiscoveryTimeout() time.Duration {
 	return time.Duration(n.DiscoveryTimeoutMS) * time.Millisecond
 }
 
+// Addr is the host:port the HTTP server binds to.
 func (s Server) Addr() string { return fmt.Sprintf("%s:%d", s.Host, s.Port) }
 
 // TTL is the cookie lifetime as a duration. Falls back to 12 h when unset.
@@ -271,7 +281,7 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 	switch strings.ToLower(parts[0]) {
 	case "server":
 		if len(parts) != 2 {
-			return fmt.Errorf("expected server.<key>")
+			return errors.New("expected server.<key>")
 		}
 		switch strings.ToLower(parts[1]) {
 		case "host":
@@ -287,11 +297,11 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 		}
 	case "nats":
 		if len(parts) < 3 {
-			return fmt.Errorf("expected nats.<index>.<key>")
+			return errors.New("expected nats.<index>.<key>")
 		}
 		idx, err := strconv.Atoi(parts[1])
 		if err != nil {
-			return fmt.Errorf("nats index must be numeric")
+			return errors.New("nats index must be numeric")
 		}
 		for len(s.NATS) <= idx {
 			s.NATS = append(s.NATS, NATS{})
@@ -299,11 +309,11 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 		return setNATSField(&s.NATS[idx], strings.ToLower(parts[2]), val)
 	case "notify":
 		if len(parts) < 3 {
-			return fmt.Errorf("expected notify.<index>.<key>")
+			return errors.New("expected notify.<index>.<key>")
 		}
 		idx, err := strconv.Atoi(parts[1])
 		if err != nil {
-			return fmt.Errorf("notify index must be numeric")
+			return errors.New("notify index must be numeric")
 		}
 		for len(s.Notify) <= idx {
 			s.Notify = append(s.Notify, Notify{})
@@ -325,7 +335,7 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 //	mcp_keys.<idx>.{name,value}
 func applyAuthEnv(a *Auth, parts []string, val string) error {
 	if len(parts) == 0 {
-		return fmt.Errorf("expected auth.<key>")
+		return errors.New("expected auth.<key>")
 	}
 	switch strings.ToLower(parts[0]) {
 	case "enabled":
@@ -336,7 +346,7 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		a.Enabled = b
 	case "oidc":
 		if len(parts) != 2 {
-			return fmt.Errorf("expected auth.oidc.<key>")
+			return errors.New("expected auth.oidc.<key>")
 		}
 		switch strings.ToLower(parts[1]) {
 		case "issuer":
@@ -356,7 +366,7 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		return applyAccessEnv(&a.Access, parts[1:], val)
 	case "session":
 		if len(parts) != 2 {
-			return fmt.Errorf("expected auth.session.<key>")
+			return errors.New("expected auth.session.<key>")
 		}
 		switch strings.ToLower(parts[1]) {
 		case "secret":
@@ -380,11 +390,11 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		}
 	case "mcp_keys":
 		if len(parts) < 3 {
-			return fmt.Errorf("expected auth.mcp_keys.<index>.<key>")
+			return errors.New("expected auth.mcp_keys.<index>.<key>")
 		}
 		idx, err := strconv.Atoi(parts[1])
 		if err != nil {
-			return fmt.Errorf("mcp_keys index must be numeric")
+			return errors.New("mcp_keys index must be numeric")
 		}
 		for len(a.MCPKeys) <= idx {
 			a.MCPKeys = append(a.MCPKeys, MCPKey{})
@@ -408,7 +418,7 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 // groups}). Slice values are comma-separated.
 func applyAccessEnv(acc *AuthAccess, parts []string, val string) error {
 	if len(parts) == 0 {
-		return fmt.Errorf("expected auth.access.<key>")
+		return errors.New("expected auth.access.<key>")
 	}
 	switch strings.ToLower(parts[0]) {
 	case "allowed_emails":
@@ -421,7 +431,7 @@ func applyAccessEnv(acc *AuthAccess, parts []string, val string) error {
 		acc.GroupsClaim = val
 	case "admin":
 		if len(parts) != 2 {
-			return fmt.Errorf("expected auth.access.admin.<key>")
+			return errors.New("expected auth.access.admin.<key>")
 		}
 		switch strings.ToLower(parts[1]) {
 		case "allowed_emails":
@@ -470,7 +480,7 @@ func setNotifyField(n *Notify, key, val string) error {
 func setNATSField(n *NATS, key, val string) error {
 	rv := reflect.ValueOf(n).Elem()
 	rt := rv.Type()
-	for i := 0; i < rt.NumField(); i++ {
+	for i := range rt.NumField() {
 		tag := rt.Field(i).Tag.Get("koanf")
 		if tag != key {
 			continue

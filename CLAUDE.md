@@ -203,9 +203,12 @@ Destructive verbs require `?confirm=true`; without it the server returns
 ## Conventions
 
 - **Lint on every change** before staging:
-  `gofmt -l`, `go vet ./...`, `golangci-lint run`, `go test ./...`,
-  `npx tsc -b`, `npx vite build`. Zero warnings, zero issues — the CI
-  workflow runs the same set.
+  `golangci-lint run` (the single source of truth for Go — it also
+  reports gofmt/goimports formatting and runs `go vet`; config in
+  `.golangci.yml` enables ~all linters minus documented dogma), `go test
+  ./...`, `npx tsc -b`, `npx vite build`. Zero warnings, zero issues —
+  the CI workflow runs the same set. Use `golangci-lint fmt` to auto-fix
+  formatting.
 - Backend handlers pass NATS replies through as `json.RawMessage` —
   don't unmarshal + re-marshal, it loses field ordering and number
   precision.

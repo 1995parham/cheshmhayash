@@ -1,0 +1,81 @@
+# golangci-lint is the single source of truth for Go linting + formatting.
+# It runs `go vet` (govet), gofmt/goimports, and a broad linter set, so the
+# CI workflow no longer runs `go vet` / `gofmt` separately.
+#
+# Policy: enable everything (`default: all`), then disable only the linters
+# that fight this codebase's deliberate conventions or are pure style dogma.
+# Each disable carries a one-line reason so the list stays honest over time.
+version: "2"
+
+linters:
+  default: all
+  disable:
+    # --- whitespace / layout dogma ---------------------------------------
+    - wsl          # enforces blank-line placement; cosmetic, high-churn
+    - wsl_v5       # newer wsl, same objection
+    - nlreturn     # demands a blank line before every return
+    # --- naming / short-identifier dogma ---------------------------------
+    - varnamelen   # flags idiomatic short names (i, r, w, c, ok)
+    - tagliatelle  # would fight our snake_case koanf struct tags
+    # --- error-handling dogma --------------------------------------------
+    - err113       # bans dynamic errors.New/fmt.Errorf at call sites
+    - wrapcheck    # demands every external error be wrapped
+    - noinlineerr  # bans the idiomatic `if err := f(); err != nil` form
+    # --- struct / interface dogma ----------------------------------------
+    - exhaustruct  # requires every struct field to be set explicitly
+    - ireturn      # bans returning interfaces
+    - nonamedreturns
+    - nilnil       # `return nil, nil` is intentional (e.g. extractGroups)
+    # --- dependency / global policy --------------------------------------
+    - depguard         # needs a bespoke import allowlist we don't want
+    - gomodguard       # ditto for modules (deprecated alias) — no policy
+    - gomodguard_v2    # ditto — no module blocklist policy
+    - gochecknoglobals # version.Version, natsx.Logger are intentional
+    # --- complexity (large config switch statements are deliberate) ------
+    - cyclop
+    - funlen
+    - gocognit
+    - gocyclo
+    - nestif
+    - maintidx
+    # --- magic numbers / misc noise --------------------------------------
+    - mnd          # flags timeouts/sizes that are clearer inline
+    - lll          # line-length; we wrap by judgement, not a hard column
+    - godox        # allow TODO/FIXME markers
+    - dupl         # false positives across the parallel HTTP handlers
+    - forcetypeassert # a few asserts are guarded by intent, not by ok
+    # --- test-style dogma ------------------------------------------------
+    - paralleltest # not every test benefits from t.Parallel
+    - testpackage  # tests need package-internal access (sessionData, …)
+    # --- ordering / repetition (high churn, low signal here) -------------
+    - funcorder    # would reorder methods away from their call-flow order
+    - goconst      # flags JSON-RPC field names + test fixtures, not real dups
+    - prealloc     # flags an intentional literal + conditional-append slice
+
+  settings:
+    gosec:
+      excludes:
+        # Secure on cookies is operator-configurable (false for local HTTP
+        # dev, true behind TLS) — flagged at the SetCookie call sites.
+        - G124
+        # API responses stream raw JSON straight from NATS with a JSON
+        # content-type; the XSS taint heuristic is a false positive here.
+        - G705
+    exhaustive:
+      # A switch with a default that returns an error is exhaustive enough;
+      # don't demand every reflect.Kind be enumerated.
+      default-signifies-exhaustive: true
+
+  exclusions:
+    # frontend/node_modules ships a vendored Go helper (flatted) that isn't
+    # ours and isn't in the build — never lint it.
+    paths:
+      - frontend/node_modules
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    paths:
+      - frontend/node_modules

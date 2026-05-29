@@ -94,7 +94,7 @@ func (j *jsm) overview(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRawArray(w, http.StatusOK, out)
+	writeRawArray(w, out)
 }
 
 // overviewStream is an SSE endpoint that pushes a fresh overview on
@@ -169,7 +169,7 @@ func (j *jsm) listStreams(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) streamInfo(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +182,7 @@ func (j *jsm) streamInfo(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) updateStream(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +213,9 @@ func (j *jsm) updateStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		body["name"], _ = json.Marshal(stream)
+		// stream is a plain identifier; a quoted string is valid JSON, so we
+		// skip json.Marshal (which can't fail here anyway).
+		body["name"] = json.RawMessage(strconv.Quote(stream))
 	}
 
 	payload, err := json.Marshal(body)
@@ -226,7 +228,7 @@ func (j *jsm) updateStream(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) purgeStream(w http.ResponseWriter, r *http.Request) {
@@ -242,7 +244,7 @@ func (j *jsm) purgeStream(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) deleteStream(w http.ResponseWriter, r *http.Request) {
@@ -258,7 +260,7 @@ func (j *jsm) deleteStream(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) listConsumers(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +273,7 @@ func (j *jsm) listConsumers(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) consumerInfo(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +286,7 @@ func (j *jsm) consumerInfo(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) metaStepdown(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +302,7 @@ func (j *jsm) metaStepdown(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) streamStepdown(w http.ResponseWriter, r *http.Request) {
@@ -316,7 +318,7 @@ func (j *jsm) streamStepdown(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) consumerStepdown(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +334,7 @@ func (j *jsm) consumerStepdown(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }
 
 func (j *jsm) deleteConsumer(w http.ResponseWriter, r *http.Request) {
@@ -348,5 +350,5 @@ func (j *jsm) deleteConsumer(w http.ResponseWriter, r *http.Request) {
 		upstreamError(w, j.log, err)
 		return
 	}
-	writeRaw(w, http.StatusOK, out)
+	writeRaw(w, out)
 }

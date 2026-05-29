@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/1995parham/cheshmhayash/internal/natsx"
@@ -654,7 +655,9 @@ func toolStreamUpdate(_ context.Context, s *Server, args json.RawMessage) (strin
 			return "", fmt.Errorf("config.name %q does not match stream %q", n, a.Stream)
 		}
 	} else {
-		a.Config["name"], _ = json.Marshal(a.Stream)
+		// Stream is a plain identifier; a quoted string is valid JSON, so we
+		// skip json.Marshal (which can't fail here anyway).
+		a.Config["name"] = json.RawMessage(strconv.Quote(a.Stream))
 	}
 	payload, err := json.Marshal(a.Config)
 	if err != nil {

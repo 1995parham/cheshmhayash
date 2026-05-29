@@ -26,9 +26,16 @@ type Cluster struct {
 	discoveryTimeout time.Duration
 }
 
-func (c *Cluster) Name() string                    { return c.name }
-func (c *Cluster) Conn() *nats.Conn                { return c.nc }
-func (c *Cluster) RequestTimeout() time.Duration   { return c.requestTimeout }
+// Name is the configured cluster name.
+func (c *Cluster) Name() string { return c.name }
+
+// Conn is the live NATS connection for this cluster.
+func (c *Cluster) Conn() *nats.Conn { return c.nc }
+
+// RequestTimeout is the per-request deadline for this cluster.
+func (c *Cluster) RequestTimeout() time.Duration { return c.requestTimeout }
+
+// DiscoveryTimeout is the multi-responder discovery deadline for this cluster.
 func (c *Cluster) DiscoveryTimeout() time.Duration { return c.discoveryTimeout }
 
 // Connect dials a NATS server using the supplied config.
@@ -80,6 +87,8 @@ type Manager struct {
 	clusters map[string]*Cluster
 }
 
+// NewManager dials every configured cluster and returns a Manager keyed by
+// cluster name. It fails if any connection can't be established.
 func NewManager(ctx context.Context, cfgs []config.NATS) (*Manager, error) {
 	m := &Manager{clusters: make(map[string]*Cluster, len(cfgs))}
 	for _, cfg := range cfgs {

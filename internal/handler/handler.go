@@ -110,15 +110,16 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 // writeRaw streams an already-JSON payload back to the client without a
 // second encode pass. Used for everything that comes straight from NATS.
-func writeRaw(w http.ResponseWriter, status int, body json.RawMessage) {
+// Success-only (200) — error paths go through writeJSON/upstreamError.
+func writeRaw(w http.ResponseWriter, body json.RawMessage) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
 }
 
-func writeRawArray(w http.ResponseWriter, status int, items []json.RawMessage) {
+func writeRawArray(w http.ResponseWriter, items []json.RawMessage) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	if len(items) == 0 {
 		_, _ = w.Write([]byte("[]"))
 		return
@@ -179,6 +180,7 @@ func requestLog(log *slog.Logger, next http.Handler) http.Handler {
 
 type statusRecorder struct {
 	http.ResponseWriter
+
 	status int
 }
 
