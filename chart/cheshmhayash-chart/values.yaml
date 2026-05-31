@@ -328,6 +328,24 @@ auth:
   #     name: cheshmhayash-mcp
   #     key: ops-bot
 
+  # OAuth 2.0 / OIDC auth for the /mcp HTTP transport (MCP authorization
+  # spec). When enabled, /mcp accepts access-token JWTs from the SAME issuer
+  # as `oidc` above (validated + audience-checked, then run through the same
+  # `access` allowlist), and advertises Protected Resource Metadata so MCP
+  # clients self-discover the IdP. Requires `auth.enabled`. Static `mcpKeys`
+  # keep working alongside it. Nothing here is secret, so it rides in the
+  # ConfigMap, not the Secret.
+  mcpOauth:
+    enabled: false
+    # Canonical URI of this MCP endpoint (RFC 8707) — also the accepted token
+    # audience. Keycloak must mint access tokens whose `aud` includes it
+    # (add an audience mapper / client scope), or every token is rejected.
+    resource: ""
+    # Optional — defaults to [oidc.issuer].
+    authorizationServers: []
+    # Optional — accepted `aud` values, defaults to [resource].
+    audiences: []
+
 # Extra environment variables to inject into the container.
 extraEnv: []
 # - name: LOG_LEVEL

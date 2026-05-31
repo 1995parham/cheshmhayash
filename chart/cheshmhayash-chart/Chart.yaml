@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.3.0
+version: 1.4.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -42,4 +42,4 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
-      description: "Role-based dashboard access: the new `[auth.access.admin]` allowlist (`access.admin.allowed{Emails,Domains,Groups}` in values) splits write (admin) from read-only. Signed-in users not on the admin list get read-only access; the server rejects their mutating requests with 403 and the SPA hides destructive controls. Leave the admin list empty for the legacy all-access behaviour."
+      description: "OIDC/OAuth2 auth for the /mcp transport: the new `auth.mcpOauth` block (enabled/resource/authorizationServers/audiences) lets MCP clients authenticate against the same OIDC issuer as the dashboard. The server validates same-issuer access-token JWTs (audience-checked) and advertises Protected Resource Metadata for client discovery. Requires `auth.enabled`; static `auth.mcpKeys` keep working alongside it. Off by default."

@@ -207,6 +207,18 @@ allowed_groups = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end 
 ttl_seconds = {{ .Values.auth.session.ttlSeconds }}
 cookie_name = "{{ .Values.auth.session.cookieName }}"
 secure = {{ .Values.auth.session.secure }}
+{{- if .Values.auth.mcpOauth.enabled }}
+
+[auth.mcp_oauth]
+enabled = true
+resource = "{{ .Values.auth.mcpOauth.resource }}"
+{{- with .Values.auth.mcpOauth.authorizationServers }}
+authorization_servers = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- with .Values.auth.mcpOauth.audiences }}
+audiences = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
+{{- end }}
 {{- end }}
 {{- range $i, $k := .Values.auth.mcpKeys }}
 
