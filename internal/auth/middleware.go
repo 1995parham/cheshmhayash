@@ -96,12 +96,17 @@ func (a *Authenticator) isPublic(path string) bool {
 	return true
 }
 
-// MCPMiddleware checks the Authorization header against the configured
-// bearer-token list. When the list is empty the endpoint stays open — the
-// operator opts in by listing keys, so MCP auth is independent of the
-// dashboard auth flag.
-func MCPMiddleware(keys []KeyMatcher, next http.Handler) http.Handler {
-	if len(keys) == 0 {
+// MCPMiddleware gates the /mcp HTTP transport. A bearer token is accepted if
+// it matches a configured static key (constant-time) or — when
+// auth.mcp_oauth is enabled — validates as an OIDC access token from the same
+// issuer as the dashboard. With no static keys and OIDC off the endpoint
+// stays open, preserving the pre-auth default.
+//
+// A nil receiver counts as "auth disabled", so callers can pass the
+// authenticator unconditionally.
+func (a *Authenticator) MCPMiddleware(keys []KeyMatcher, next http.Handler) http.Handler {
+	oauth := a.MCPOAuthEnabled()
+	if len(keys) == 0 && !oauth {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,16 +114,28 @@ func MCPMiddleware(keys []KeyMatcher, next http.Handler) http.Handler {
 		token := strings.TrimSpace(strings.TrimPrefix(hdr, "Bearer "))
 		if hdr == "" || token == hdr {
 			// Either no header at all, or a non-Bearer scheme.
-			unauthorizedMCP(w)
+			a.unauthorizedMCP(w)
 			return
 		}
+		// Static keys first — a cheap constant-time compare, and the path
+		// that keeps existing CI/bot keys working alongside OIDC.
 		for _, k := range keys {
 			if subtle.ConstantTimeCompare([]byte(token), []byte(k.Value)) == 1 {
 				next.ServeHTTP(w, r)
 				return
 			}
 		}
-		unauthorizedMCP(w)
+		if oauth {
+			sess, role, err := a.verifyMCPToken(r.Context(), token)
+			if err == nil {
+				// Attach the resolved identity so MCP tooling can read it
+				// later (write-tool gating by role is a future step).
+				next.ServeHTTP(w, withSession(r, sess, role))
+				return
+			}
+			a.log.Warn("mcp: oidc bearer rejected", "err", err)
+		}
+		a.unauthorizedMCP(w)
 	})
 }
 
@@ -130,7 +147,14 @@ type KeyMatcher struct {
 	Value string
 }
 
-func unauthorizedMCP(w http.ResponseWriter) {
-	w.Header().Set("WWW-Authenticate", `Bearer realm="cheshmhayash"`)
+// unauthorizedMCP returns a 401. When MCP OAuth is on it carries the RFC 9728
+// resource_metadata hint so a spec-compliant client can discover the
+// authorization server and obtain a token.
+func (a *Authenticator) unauthorizedMCP(w http.ResponseWriter) {
+	challenge := `Bearer realm="cheshmhayash"`
+	if a.MCPOAuthEnabled() {
+		challenge += `, resource_metadata="` + a.resourceMetadataURL() + `"`
+	}
+	w.Header().Set("WWW-Authenticate", challenge)
 	writeJSON(w, http.StatusUnauthorized, map[string]any{"message": "bearer token required"})
 }

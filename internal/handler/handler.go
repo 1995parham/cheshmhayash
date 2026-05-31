@@ -59,7 +59,11 @@ func Mux(
 	}
 
 	if mcpHandler != nil {
-		mux.Handle("/mcp", auth.MCPMiddleware(mcpKeys, mcpHandler))
+		mux.Handle("/mcp", authn.MCPMiddleware(mcpKeys, mcpHandler))
+		// Advertise OAuth 2.0 Protected Resource Metadata (RFC 9728) so MCP
+		// clients can discover the OIDC authorization server. No-op unless
+		// auth.mcp_oauth is enabled.
+		authn.RegisterMCPMetadata(mux)
 	}
 
 	spa(mux, staticDir)

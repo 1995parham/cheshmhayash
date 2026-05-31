@@ -45,11 +45,34 @@ type Settings struct {
 // open (backward-compatible default). MCP HTTP is gated by MCPKeys
 // independently: leave the slice empty to keep /mcp open like before.
 type Auth struct {
-	Enabled bool        `json:"enabled"            koanf:"enabled"`
-	OIDC    AuthOIDC    `json:"oidc"               koanf:"oidc"`
-	Access  AuthAccess  `json:"access"             koanf:"access"`
-	Session AuthSession `json:"session"            koanf:"session"`
-	MCPKeys []MCPKey    `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
+	Enabled  bool         `json:"enabled"            koanf:"enabled"`
+	OIDC     AuthOIDC     `json:"oidc"               koanf:"oidc"`
+	Access   AuthAccess   `json:"access"             koanf:"access"`
+	Session  AuthSession  `json:"session"            koanf:"session"`
+	MCPKeys  []MCPKey     `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
+	MCPOAuth AuthMCPOAuth `json:"mcp_oauth,omitzero" koanf:"mcp_oauth"`
+}
+
+// AuthMCPOAuth turns the /mcp HTTP transport into an OAuth 2.0 resource
+// server per the MCP authorization spec (2025-06-18): the server advertises
+// Protected Resource Metadata (RFC 9728) pointing at the same OIDC issuer as
+// the dashboard, and validates Keycloak-issued access-token JWTs presented as
+// `Authorization: Bearer`. Requires auth.enabled (it reuses the OIDC provider
+// and the auth.access allowlists). Static auth.mcp_keys keep working as a
+// fallback alongside it. Off by default — backward-compatible.
+type AuthMCPOAuth struct {
+	Enabled bool `json:"enabled" koanf:"enabled"`
+	// Resource is the canonical URI of this MCP server (RFC 8707), e.g.
+	// "https://cheshmhayash.example.com/mcp". Advertised in the metadata
+	// document and used as the default accepted token audience.
+	Resource string `json:"resource" koanf:"resource"`
+	// AuthorizationServers overrides the metadata's authorization_servers
+	// list. Defaults to [auth.oidc.issuer] when empty.
+	AuthorizationServers []string `json:"authorization_servers,omitempty" koanf:"authorization_servers"`
+	// Audiences is the set of `aud` values accepted on inbound access
+	// tokens. Defaults to [Resource] when empty. Keycloak must be configured
+	// (audience mapper / client scope) to mint tokens carrying one of these.
+	Audiences []string `json:"audiences,omitempty" koanf:"audiences"`
 }
 
 // AuthOIDC holds the OpenID Connect provider coordinates for the login flow.
@@ -220,6 +243,10 @@ func validate(s *Settings) error {
 		if err := validateAuth(&s.Auth); err != nil {
 			return err
 		}
+	} else if s.Auth.MCPOAuth.Enabled {
+		// MCP OAuth reuses the OIDC provider + allowlists, so it can't run
+		// without the dashboard auth being on.
+		return errors.New("auth.mcp_oauth requires auth.enabled = true")
 	}
 	for i, k := range s.Auth.MCPKeys {
 		if k.Value == "" {
@@ -253,6 +280,9 @@ func validateAuth(a *Auth) error {
 		return errors.New(
 			"auth.access requires at least one of allowed_emails, allowed_domains, or allowed_groups",
 		)
+	}
+	if a.MCPOAuth.Enabled && a.MCPOAuth.Resource == "" {
+		return errors.New("auth.mcp_oauth.resource is required when auth.mcp_oauth is enabled")
 	}
 	return nil
 }
@@ -333,6 +363,7 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 //	access.admin.{allowed_emails,allowed_domains,allowed_groups}          write-access allowlist
 //	session.{secret,ttl_seconds,cookie_name,secure}
 //	mcp_keys.<idx>.{name,value}
+//	mcp_oauth.{enabled,resource,authorization_servers,audiences}   slices comma-separated
 func applyAuthEnv(a *Auth, parts []string, val string) error {
 	if len(parts) == 0 {
 		return errors.New("expected auth.<key>")
@@ -407,8 +438,39 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		default:
 			return fmt.Errorf("unknown auth.mcp_keys field %q", parts[2])
 		}
+	case "mcp_oauth":
+		return applyMCPOAuthEnv(&a.MCPOAuth, parts[1:], val)
 	default:
 		return fmt.Errorf("unknown auth field %q", parts[0])
+	}
+	return nil
+}
+
+// applyMCPOAuthEnv handles CHESHMHAYASH__AUTH__MCP_OAUTH__* env keys:
+//
+//	enabled
+//	resource
+//	authorization_servers   comma-separated
+//	audiences               comma-separated
+func applyMCPOAuthEnv(m *AuthMCPOAuth, parts []string, val string) error {
+	if len(parts) != 1 {
+		return errors.New("expected auth.mcp_oauth.<key>")
+	}
+	switch strings.ToLower(parts[0]) {
+	case "enabled":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("auth.mcp_oauth.enabled: %w", err)
+		}
+		m.Enabled = b
+	case "resource":
+		m.Resource = val
+	case "authorization_servers":
+		m.AuthorizationServers = splitCSV(val)
+	case "audiences":
+		m.Audiences = splitCSV(val)
+	default:
+		return fmt.Errorf("unknown auth.mcp_oauth field %q", parts[0])
 	}
 	return nil
 }

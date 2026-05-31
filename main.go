@@ -164,6 +164,12 @@ func run(log *slog.Logger) error {
 	if len(mcpKeys) > 0 {
 		log.Info("mcp http bearer auth enabled", "keys", len(mcpKeys))
 	}
+	if settings.Auth.MCPOAuth.Enabled {
+		log.Info("mcp http oidc auth enabled",
+			"issuer", settings.Auth.OIDC.Issuer,
+			"resource", settings.Auth.MCPOAuth.Resource,
+		)
+	}
 
 	// Background JSZ overview cache. /api/jsm/.../overview reads from
 	// here, /api/jsm/.../overview/stream subscribes to refresh ticks.

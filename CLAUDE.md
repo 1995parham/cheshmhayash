@@ -122,6 +122,9 @@ Env knobs:
 - `CHESHMHAYASH__AUTH__ENABLED=true` — turn OIDC on (see settings.toml
   for the rest of the keys; slices are comma-separated, MCP keys use
   the `…__MCP_KEYS__0__VALUE` indexed form)
+- `CHESHMHAYASH__AUTH__MCP_OAUTH__ENABLED=true` +
+  `…__MCP_OAUTH__RESOURCE=https://host/mcp` — accept same-issuer OIDC
+  access tokens at `/mcp` (requires `AUTH__ENABLED=true`)
 
 `$SYS.REQ.*` only flows when the connection is bound to the system
 account. Without sys creds, server-discovery endpoints time out and the
@@ -149,6 +152,7 @@ whole cluster.
 | `POST`      | `…/streams/{s}/consumers/{con}/actions/stepdown?confirm=true` | force consumer raft re-election |
 | `GET\|DELETE` | `…/streams/{s}/consumers/{con}` | info / delete |
 | `POST\|GET` | `/mcp` | MCP Streamable HTTP transport (POST = JSON-RPC; GET = SSE keep-alive) |
+| `GET`       | `/.well-known/oauth-protected-resource[/mcp]` | RFC 9728 metadata — points MCP clients at the IdP (when `auth.mcp_oauth` on) |
 | `GET`       | `/api/auth/login` | redirect to OIDC IdP (auth on) |
 | `GET`       | `/api/auth/callback` | OIDC redirect target |
 | `POST`      | `/api/auth/logout` | clear session cookie |
@@ -183,9 +187,19 @@ Destructive verbs require `?confirm=true`; without it the server returns
   it by HTTP method — any `POST/PUT/PATCH/DELETE` under `/api/` needs the
   `admin` role (403 otherwise), so write gating is automatic for new
   routes. The role rides in `/api/auth/me` (`"role"`); the SPA hides
-  destructive controls for `readonly`. `MCPMiddleware` checks
-  `Authorization: Bearer …` against the static keys in `auth.mcp_keys`
-  for `/mcp`; stdio MCP stays open. Auth is fully off when
+  destructive controls for `readonly`. `MCPMiddleware` gates `/mcp`: it
+  accepts a static bearer key from `auth.mcp_keys` (constant-time) and,
+  when `auth.mcp_oauth.enabled`, also an OIDC **access-token JWT** from the
+  same issuer as the UI — validated by `mcpVerifier` + an audience check
+  (`mcp_oauth.go`), then the same `authorize()` allowlist. With OIDC-MCP on
+  the server advertises OAuth 2.0 Protected Resource Metadata (RFC 9728) at
+  `/.well-known/oauth-protected-resource[/mcp]` and sends
+  `WWW-Authenticate: Bearer resource_metadata=…` on 401 so spec-compliant
+  MCP clients self-discover the IdP; token audience is validated (RFC 8707)
+  against `auth.mcp_oauth.resource` to block confused-deputy replay, so
+  Keycloak must mint access tokens whose `aud` includes it. MCP **write**
+  tools stay gated by `CHESHMHAYASH_MCP_WRITE` (startup env), not by
+  identity — a follow-up. stdio MCP stays open. Auth is fully off when
   `auth.enabled = false` (the default).
 
 ## Tech / versions

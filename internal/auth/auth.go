@@ -31,6 +31,14 @@ type Authenticator struct {
 	verifier *oidc.IDTokenVerifier
 	oauth    *oauth2.Config
 	signer   signer
+
+	// mcpVerifier validates access-token JWTs presented at /mcp when
+	// auth.mcp_oauth is enabled. It's distinct from verifier: the UI
+	// verifier pins aud == client_id (correct for ID tokens), whereas an
+	// access token's audience is the MCP resource, checked separately
+	// against mcpAudiences. Nil when MCP OAuth is off.
+	mcpVerifier  *oidc.IDTokenVerifier
+	mcpAudiences []string
 }
 
 // New builds the authenticator. The OIDC discovery call may block on
@@ -56,14 +64,32 @@ func New(ctx context.Context, cfg config.Auth, log *slog.Logger) (*Authenticator
 		Endpoint:     provider.Endpoint(),
 		Scopes:       scopes,
 	}
-	return &Authenticator{
+	a := &Authenticator{
 		cfg:      cfg,
 		log:      log,
 		provider: provider,
 		verifier: provider.Verifier(&oidc.Config{ClientID: cfg.OIDC.ClientID}),
 		oauth:    oauthCfg,
 		signer:   newSigner([]byte(cfg.Session.Secret)),
-	}, nil
+	}
+	if cfg.MCPOAuth.Enabled {
+		// SkipClientIDCheck because we validate the audience ourselves
+		// against mcpAudiences — an access token's aud is the MCP resource,
+		// not the dashboard client_id. Signature, issuer and expiry are still
+		// enforced by Verify.
+		a.mcpVerifier = provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
+		a.mcpAudiences = cfg.MCPOAuth.Audiences
+		if len(a.mcpAudiences) == 0 {
+			a.mcpAudiences = []string{cfg.MCPOAuth.Resource}
+		}
+	}
+	return a, nil
+}
+
+// MCPOAuthEnabled reports whether the /mcp transport should accept OIDC
+// access tokens (in addition to any static keys). Nil-safe.
+func (a *Authenticator) MCPOAuthEnabled() bool {
+	return a != nil && a.cfg.Enabled && a.cfg.MCPOAuth.Enabled && a.mcpVerifier != nil
 }
 
 // Enabled reports whether the authenticator should be applied. A nil
