@@ -295,15 +295,16 @@ func validate(s *Settings) error {
 			return fmt.Errorf("nats[%d] (%s): url is required", i, n.Name)
 		}
 	}
-	if s.Auth.Enabled {
+	switch {
+	case s.Auth.Enabled:
 		if err := validateAuth(&s.Auth); err != nil {
 			return err
 		}
-	} else if s.Auth.MCPOAuth.Enabled {
+	case s.Auth.MCPOAuth.Enabled:
 		// MCP OAuth reuses the OIDC provider + allowlists, so it can't run
 		// without the dashboard auth being on.
 		return errors.New("auth.mcp_oauth requires auth.enabled = true")
-	} else if s.Auth.MCPJWT.Enabled {
+	case s.Auth.MCPJWT.Enabled:
 		// MCP JWT resolves roles through the auth.access allowlists, which
 		// only exist (and are only validated) when auth is on.
 		return errors.New("auth.mcp_jwt requires auth.enabled = true")
