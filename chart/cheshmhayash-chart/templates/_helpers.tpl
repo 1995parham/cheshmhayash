@@ -228,6 +228,11 @@ audiences = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
 skip_audience_check = true
 {{- end }}
 {{- end }}
+{{- if .Values.auth.mcpJwt.enabled }}
+
+[auth.mcp_jwt]
+enabled = true
+{{- end }}
 {{- end }}
 {{- range $i, $k := .Values.auth.mcpKeys }}
 

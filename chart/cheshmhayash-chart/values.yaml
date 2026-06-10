@@ -371,6 +371,15 @@ auth:
     # audiences (e.g. a Keycloak client without an audience mapper).
     skipAudienceCheck: false
 
+  # Third /mcp auth path (besides mcpKeys and mcpOauth): accept a bearer JWT
+  # and read its identity claims WITHOUT verifying the token — no signature,
+  # issuer, audience, or expiry check. Claims still pass through the `access`
+  # allowlists to resolve a role, but anyone reaching /mcp directly can forge
+  # them. Only enable behind a trusted gateway that already validated the
+  # token. Requires `auth.enabled`.
+  mcpJwt:
+    enabled: false
+
 # Extra environment variables to inject into the container.
 extraEnv: []
 # - name: LOG_LEVEL

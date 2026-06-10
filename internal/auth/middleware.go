@@ -103,16 +103,18 @@ func (a *Authenticator) isPublic(path string) bool {
 }
 
 // MCPMiddleware gates the /mcp HTTP transport. A bearer token is accepted if
-// it matches a configured static key (constant-time) or — when
+// it matches a configured static key (constant-time), or — when
 // auth.mcp_oauth is enabled — validates as an OIDC access token from the same
-// issuer as the dashboard. With no static keys and OIDC off the endpoint
-// stays open, preserving the pre-auth default.
+// issuer as the dashboard, or — when auth.mcp_jwt is enabled — decodes as a
+// JWT whose (unverified) claims pass the allowlist. With all three off the
+// endpoint stays open, preserving the pre-auth default.
 //
 // A nil receiver counts as "auth disabled", so callers can pass the
 // authenticator unconditionally.
 func (a *Authenticator) MCPMiddleware(keys []KeyMatcher, next http.Handler) http.Handler {
 	oauth := a.MCPOAuthEnabled()
-	if len(keys) == 0 && !oauth {
+	unverified := a.MCPJWTEnabled()
+	if len(keys) == 0 && !oauth && !unverified {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +142,16 @@ func (a *Authenticator) MCPMiddleware(keys []KeyMatcher, next http.Handler) http
 				return
 			}
 			a.log.Warn("mcp: oidc bearer rejected", "err", err)
+		}
+		// Last resort: trust-the-gateway mode. The token's claims are read
+		// without verification and only the allowlist gates access.
+		if unverified {
+			sess, role, err := a.mcpJWTSession(token)
+			if err == nil {
+				next.ServeHTTP(w, withSession(r, sess, role))
+				return
+			}
+			a.log.Warn("mcp: unverified jwt rejected", "err", err)
 		}
 		a.unauthorizedMCP(w)
 	})

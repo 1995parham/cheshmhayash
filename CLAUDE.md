@@ -134,6 +134,10 @@ Env knobs:
   `…__MCP_OAUTH__SKIP_AUDIENCE_CHECK=true` drops the RFC 8707 `aud` pin
   for IdPs that can't mint resource audiences (sig/iss/exp + allowlist
   still enforced)
+- `CHESHMHAYASH__AUTH__MCP_JWT__ENABLED=true` — third `/mcp` path: decode
+  a bearer JWT's claims WITHOUT any verification (no sig/iss/aud/exp) and
+  run them through the allowlist. Trust-the-gateway only — claims are
+  forgeable by anyone who can reach `/mcp` directly
 
 `$SYS.REQ.*` only flows when the connection is bound to the system
 account. Without sys creds, server-discovery endpoints time out and the
@@ -218,7 +222,10 @@ Destructive verbs require `?confirm=true`; without it the server returns
   Keycloak must mint access tokens whose `aud` includes it —
   `auth.mcp_oauth.skip_audience_check = true` opts out of the `aud` pin
   (sig/iss/exp + allowlist still enforced) for IdPs without an audience
-  mapper. MCP **write**
+  mapper. A third path, `auth.mcp_jwt` (`mcp_jwt.go`), decodes a bearer
+  JWT's claims with NO verification at all and runs them through the same
+  allowlist — trust-the-gateway mode, tried last after static keys and
+  OIDC verify. MCP **write**
   tools stay gated by `CHESHMHAYASH_MCP_WRITE` (startup env), not by
   identity — a follow-up. stdio MCP stays open. Auth is fully off when
   `auth.enabled = false` (the default).

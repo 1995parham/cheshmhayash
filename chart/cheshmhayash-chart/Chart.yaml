@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.6.0
+version: 1.7.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -42,4 +42,4 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
-      description: "`auth.mcpOauth.skipAudienceCheck`: accept any same-issuer access-token JWT on /mcp regardless of `aud` (signature, issuer, expiry and the access allowlist still apply). An explicit opt-out of the RFC 8707 audience pin for IdPs that can't mint resource audiences, e.g. a Keycloak client without an audience mapper. Off by default."
+      description: "`auth.mcpJwt.enabled`: third /mcp auth path — accept a bearer JWT and read its identity claims WITHOUT verifying the token (no signature/issuer/audience/expiry check). Claims still resolve a role through the `auth.access` allowlists. For deployments where a trusted gateway already validated the token; anyone reaching /mcp directly can forge claims, so keep the endpoint gateway-only. Off by default; static `mcpKeys` and `mcpOauth` keep working alongside."

@@ -62,6 +62,18 @@ type Auth struct {
 	JWT      AuthJWT      `json:"jwt,omitzero"       koanf:"jwt"`
 	MCPKeys  []MCPKey     `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
 	MCPOAuth AuthMCPOAuth `json:"mcp_oauth,omitzero" koanf:"mcp_oauth"`
+	MCPJWT   AuthMCPJWT   `json:"mcp_jwt,omitzero"   koanf:"mcp_jwt"`
+}
+
+// AuthMCPJWT is the third /mcp auth path (besides static mcp_keys and the
+// OIDC-verified mcp_oauth): accept a bearer JWT and read its identity claims
+// WITHOUT verifying the token at all — no signature, issuer, audience, or
+// expiry check. The claims still run through the auth.access allowlists to
+// resolve a role, but anyone who can reach /mcp can forge them, so only
+// enable this when a trusted gateway in front of cheshmhayash has already
+// validated the token and untrusted clients can't hit the endpoint directly.
+type AuthMCPJWT struct {
+	Enabled bool `json:"enabled" koanf:"enabled"`
 }
 
 // Auth mode identifiers (auth.mode).
@@ -291,6 +303,10 @@ func validate(s *Settings) error {
 		// MCP OAuth reuses the OIDC provider + allowlists, so it can't run
 		// without the dashboard auth being on.
 		return errors.New("auth.mcp_oauth requires auth.enabled = true")
+	} else if s.Auth.MCPJWT.Enabled {
+		// MCP JWT resolves roles through the auth.access allowlists, which
+		// only exist (and are only validated) when auth is on.
+		return errors.New("auth.mcp_jwt requires auth.enabled = true")
 	}
 	for i, k := range s.Auth.MCPKeys {
 		if k.Value == "" {
@@ -431,7 +447,8 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 //	session.{secret,ttl_seconds,cookie_name,secure}
 //	jwt.audiences                                                 comma-separated
 //	mcp_keys.<idx>.{name,value}
-//	mcp_oauth.{enabled,resource,authorization_servers,audiences}   slices comma-separated
+//	mcp_oauth.{enabled,resource,authorization_servers,audiences,skip_audience_check}   slices comma-separated
+//	mcp_jwt.enabled
 func applyAuthEnv(a *Auth, parts []string, val string) error {
 	if len(parts) == 0 {
 		return errors.New("expected auth.<key>")
@@ -512,6 +529,15 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		}
 	case "mcp_oauth":
 		return applyMCPOAuthEnv(&a.MCPOAuth, parts[1:], val)
+	case "mcp_jwt":
+		if len(parts) != 2 || strings.ToLower(parts[1]) != "enabled" {
+			return errors.New("expected auth.mcp_jwt.enabled")
+		}
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("auth.mcp_jwt.enabled: %w", err)
+		}
+		a.MCPJWT.Enabled = b
 	default:
 		return fmt.Errorf("unknown auth field %q", parts[0])
 	}

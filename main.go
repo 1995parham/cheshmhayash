@@ -171,6 +171,10 @@ func run(log *slog.Logger) error {
 			"resource", settings.Auth.MCPOAuth.Resource,
 		)
 	}
+	if settings.Auth.MCPJWT.Enabled {
+		// Deliberately loud: claims on /mcp are trusted without verification.
+		log.Warn("mcp http unverified-jwt auth enabled — token claims are NOT verified; a gateway must validate tokens upstream")
+	}
 
 	// Background JSZ overview cache. /api/jsm/.../overview reads from
 	// here, /api/jsm/.../overview/stream subscribes to refresh ticks.
