@@ -104,7 +104,11 @@ spec:
                   key: {{ $n.urlSecret.key | default "url" }}
             {{- end }}
             {{- end }}
-            {{- if .Values.auth.enabled }}
+            {{- /* The OIDC client secret and session-signing secret only
+            exist in "oidc" mode; "jwt" mode has no login flow, so skip them
+            (otherwise the container references Secret keys that aren't
+            created and fails to start). */}}
+            {{- if and .Values.auth.enabled (ne (.Values.auth.mode | default "oidc") "jwt") }}
             - name: CHESHMHAYASH__AUTH__OIDC__CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

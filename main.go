@@ -148,6 +148,7 @@ func run(log *slog.Logger) error {
 		}
 		admin := settings.Auth.Access.Admin
 		log.Info("auth enabled",
+			"mode", settings.Auth.ModeOrDefault(),
 			"issuer", settings.Auth.OIDC.Issuer,
 			"allowed_emails", len(settings.Auth.Access.AllowedEmails),
 			"allowed_domains", len(settings.Auth.Access.AllowedDomains),

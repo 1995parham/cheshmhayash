@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.4.0
+version: 1.5.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -42,4 +42,4 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
-      description: "OIDC/OAuth2 auth for the /mcp transport: the new `auth.mcpOauth` block (enabled/resource/authorizationServers/audiences) lets MCP clients authenticate against the same OIDC issuer as the dashboard. The server validates same-issuer access-token JWTs (audience-checked) and advertises Protected Resource Metadata for client discovery. Requires `auth.enabled`; static `auth.mcpKeys` keep working alongside it. Off by default."
+      description: "JWT auth mode for the dashboard: the new `auth.mode` (oidc | jwt) lets cheshmhayash sit behind a builtin-oauth gateway. In `jwt` mode it runs no login flow and validates the `Authorization: Bearer` access-token JWT on every request against `auth.oidc.issuer` (JWKS), driving the same access/admin allowlists. Optional `auth.jwt.audiences` restricts accepted `aud` values. The `oidc` cookie login flow remains the default; jwt mode needs only the issuer + allowlist (no client credentials or session secret)."

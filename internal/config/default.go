@@ -17,6 +17,7 @@ func Default() Settings {
 		// endpoint behave exactly as before this feature landed.
 		Auth: Auth{
 			Enabled: false,
+			Mode:    AuthModeOIDC,
 			OIDC: AuthOIDC{
 				Scopes: []string{"openid", "profile", "email"},
 			},

@@ -2,8 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 
 export type Role = "admin" | "readonly";
 
+// AuthMode mirrors the server's auth.mode. "oidc" runs the login flow here;
+// "jwt" means an upstream gateway issues the token and there's nothing to sign
+// in to (or out of) from the SPA.
+export type AuthMode = "oidc" | "jwt";
+
 export interface AuthIdentity {
   authenticated: boolean;
+  mode?: AuthMode;
   sub?: string;
   email?: string;
   name?: string;
@@ -39,8 +45,20 @@ export function displayName(id: AuthIdentity): string {
 export type AuthStatus =
   | { state: "loading" }
   | { state: "disabled" }
-  | { state: "anonymous" }
+  | { state: "anonymous"; mode?: AuthMode }
   | { state: "authenticated"; identity: AuthIdentity };
+
+// readMode best-effort-extracts the auth mode from a JSON /api/auth/me
+// response. Returns null when the body isn't JSON or carries no mode (e.g. the
+// cookie middleware's plain 401), which the caller treats as "oidc".
+async function readMode(r: Response): Promise<AuthMode | null> {
+  try {
+    const body = (await r.json()) as { mode?: AuthMode };
+    return body.mode ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // useAuth probes /api/auth/me on mount.
 //
@@ -63,8 +81,12 @@ export function useAuth(): {
           setStatus({ state: "disabled" });
           return;
         }
-        if (r.status === 401) {
-          setStatus({ state: "anonymous" });
+        // 401 (signed out / no gateway token) and 403 (token valid but not on
+        // the allowlist) both render the sign-in screen. The body may carry
+        // the auth mode so the screen knows whether a login link applies.
+        if (r.status === 401 || r.status === 403) {
+          const mode = (await readMode(r)) ?? undefined;
+          setStatus({ state: "anonymous", mode });
           return;
         }
         if (!r.ok) {
@@ -75,7 +97,7 @@ export function useAuth(): {
         if (body.authenticated) {
           setStatus({ state: "authenticated", identity: body });
         } else {
-          setStatus({ state: "anonymous" });
+          setStatus({ state: "anonymous", mode: body.mode });
         }
       })
       .catch(() => setStatus({ state: "disabled" }));

@@ -22,8 +22,15 @@ const (
 
 // Register attaches /api/auth/{login,callback,logout,me} to mux. Public —
 // the middleware lets these through.
+//
+// In jwt mode there is no login flow, so only the identity probe
+// (/api/auth/me) is registered; it resolves from the request's bearer token.
 func (a *Authenticator) Register(mux *http.ServeMux) {
 	if !a.Enabled() {
+		return
+	}
+	if a.JWTMode() {
+		mux.HandleFunc("GET /api/auth/me", a.handleMeJWT)
 		return
 	}
 	mux.HandleFunc("GET /api/auth/login", a.handleLogin)
@@ -165,6 +172,7 @@ func (a *Authenticator) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"authenticated": true,
+		"mode":          "oidc",
 		"sub":           s.Sub,
 		"email":         s.Email,
 		"name":          s.Name,

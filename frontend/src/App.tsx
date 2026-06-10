@@ -66,11 +66,14 @@ function Shell() {
     return null;
   }
   if (status.state === "anonymous") {
-    return <LoginScreen />;
+    return <LoginScreen mode={status.mode} />;
   }
 
   const writable = canWrite(status);
   const readOnly = status.state === "authenticated" && status.identity.role === "readonly";
+  // In jwt mode the gateway owns the session — there's no server-side logout
+  // to call, so hide the sign-out control.
+  const canSignOut = status.state === "authenticated" && status.identity.mode !== "jwt";
 
   return (
     <CanWriteProvider value={writable}>
@@ -142,17 +145,19 @@ function Shell() {
               <span className="who" title={status.identity.email ?? status.identity.sub ?? ""}>
                 {displayName(status.identity)}
               </span>
-              <button
-                className="icon-btn"
-                title="Sign out"
-                onClick={() => {
-                  void logout().then(() => {
-                    window.location.href = "/";
-                  });
-                }}
-              >
-                <LogOut size={14} />
-              </button>
+              {canSignOut ? (
+                <button
+                  className="icon-btn"
+                  title="Sign out"
+                  onClick={() => {
+                    void logout().then(() => {
+                      window.location.href = "/";
+                    });
+                  }}
+                >
+                  <LogOut size={14} />
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>

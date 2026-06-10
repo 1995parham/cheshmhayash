@@ -167,6 +167,7 @@ username = "{{ $n.username }}"
 
 [auth]
 enabled = true
+mode = "{{ .Values.auth.mode | default "oidc" }}"
 
 [auth.oidc]
 issuer = "{{ .Values.auth.oidc.issuer }}"
@@ -207,6 +208,11 @@ allowed_groups = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end 
 ttl_seconds = {{ .Values.auth.session.ttlSeconds }}
 cookie_name = "{{ .Values.auth.session.cookieName }}"
 secure = {{ .Values.auth.session.secure }}
+{{- with .Values.auth.jwt.audiences }}
+
+[auth.jwt]
+audiences = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
+{{- end }}
 {{- if .Values.auth.mcpOauth.enabled }}
 
 [auth.mcp_oauth]

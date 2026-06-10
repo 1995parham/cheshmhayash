@@ -122,6 +122,12 @@ Env knobs:
 - `CHESHMHAYASH__AUTH__ENABLED=true` — turn OIDC on (see settings.toml
   for the rest of the keys; slices are comma-separated, MCP keys use
   the `…__MCP_KEYS__0__VALUE` indexed form)
+- `CHESHMHAYASH__AUTH__MODE=jwt` — switch auth from the cookie login flow
+  (`oidc`, default) to per-request bearer-JWT validation: cheshmhayash runs
+  no login, just verifies the `Authorization: Bearer` access token a
+  "builtin oauth" gateway forwards (against `auth.oidc.issuer`) and reads
+  its claims for the same allowlists. Only issuer + an allowlist required;
+  optional `…__AUTH__JWT__AUDIENCES=a,b` restricts accepted `aud` values
 - `CHESHMHAYASH__AUTH__MCP_OAUTH__ENABLED=true` +
   `…__MCP_OAUTH__RESOURCE=https://host/mcp` — accept same-issuer OIDC
   access tokens at `/mcp` (requires `AUTH__ENABLED=true`)
@@ -187,7 +193,16 @@ Destructive verbs require `?confirm=true`; without it the server returns
   it by HTTP method — any `POST/PUT/PATCH/DELETE` under `/api/` needs the
   `admin` role (403 otherwise), so write gating is automatic for new
   routes. The role rides in `/api/auth/me` (`"role"`); the SPA hides
-  destructive controls for `readonly`. `MCPMiddleware` gates `/mcp`: it
+  destructive controls for `readonly`. **Auth mode** (`auth.mode`) selects
+  how that identity is obtained: `oidc` (default) runs the login flow above;
+  `jwt` (`bearer.go`) skips login entirely and validates an
+  `Authorization: Bearer` access-token JWT on every request — the same
+  verify → `sessionFromIDToken` → `authorize()` path as MCP OAuth, reusing
+  `auth.oidc.issuer` for JWKS — for deployments fronted by a "builtin oauth"
+  gateway. In jwt mode only `/api/auth/me` is registered (it resolves from
+  the token and reports `"mode":"jwt"` so the SPA drops the login/logout
+  affordances); there are no `/login`, `/callback`, `/logout`, or cookies.
+  `MCPMiddleware` gates `/mcp`: it
   accepts a static bearer key from `auth.mcp_keys` (constant-time) and,
   when `auth.mcp_oauth.enabled`, also an OIDC **access-token JWT** from the
   same issuer as the UI — validated by `mcpVerifier` + an audience check

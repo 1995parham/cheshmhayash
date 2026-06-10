@@ -9,11 +9,17 @@ import (
 // Middleware gates routes behind a valid session cookie. /api/auth/*
 // stays public so the SPA can check status and redirect to login.
 //
+// In jwt mode it delegates to jwtMiddleware, which validates an
+// upstream-issued bearer token per request instead of a cookie.
+//
 // Returns next unchanged when the authenticator is disabled — keeps the
 // caller cheap for the common "auth-off" case.
 func (a *Authenticator) Middleware(next http.Handler) http.Handler {
 	if !a.Enabled() {
 		return next
+	}
+	if a.JWTMode() {
+		return a.jwtMiddleware(next)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.isPublic(r.URL.Path) {

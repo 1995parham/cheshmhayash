@@ -39,6 +39,15 @@ type Authenticator struct {
 	// against mcpAudiences. Nil when MCP OAuth is off.
 	mcpVerifier  *oidc.IDTokenVerifier
 	mcpAudiences []string
+
+	// jwtVerifier validates the access-token JWT presented on every request
+	// in "jwt" auth mode (auth.mode = "jwt"). Like mcpVerifier it skips the
+	// client_id audience check — the gateway's access token's aud is its own
+	// resource, not the dashboard client_id — and audience is enforced
+	// separately against jwtAudiences when that's non-empty. Nil outside jwt
+	// mode.
+	jwtVerifier  *oidc.IDTokenVerifier
+	jwtAudiences []string
 }
 
 // New builds the authenticator. The OIDC discovery call may block on
@@ -83,7 +92,21 @@ func New(ctx context.Context, cfg config.Auth, log *slog.Logger) (*Authenticator
 			a.mcpAudiences = []string{cfg.MCPOAuth.Resource}
 		}
 	}
+	if cfg.ModeOrDefault() == config.AuthModeJWT {
+		// jwt mode validates the bearer token on every request. Same reasoning
+		// as mcpVerifier: skip the client_id check and audience-check ourselves
+		// (only when jwtAudiences is configured); signature/issuer/expiry are
+		// still enforced by Verify.
+		a.jwtVerifier = provider.Verifier(&oidc.Config{SkipClientIDCheck: true})
+		a.jwtAudiences = cfg.JWT.Audiences
+	}
 	return a, nil
+}
+
+// JWTMode reports whether the API is gated by per-request bearer-JWT
+// validation (auth.mode = "jwt") rather than the cookie login flow. Nil-safe.
+func (a *Authenticator) JWTMode() bool {
+	return a.Enabled() && a.cfg.ModeOrDefault() == config.AuthModeJWT
 }
 
 // MCPOAuthEnabled reports whether the /mcp transport should accept OIDC

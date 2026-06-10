@@ -275,6 +275,18 @@ notify: []
 # as the cluster auth block above.
 auth:
   enabled: false
+  # How requests are authenticated when `enabled`:
+  #   "oidc" (default) — cheshmhayash runs the login flow and issues a
+  #                      signed session cookie. Needs oidc.clientId,
+  #                      oidc.redirectUrl, oidc.clientSecret and session.secret.
+  #   "jwt"            — no login flow. A "builtin oauth" gateway in front of
+  #                      cheshmhayash issues the access token; the app verifies
+  #                      the `Authorization: Bearer <jwt>` on every request
+  #                      against oidc.issuer (JWKS) and reads its claims for the
+  #                      same access/admin allowlists. Only oidc.issuer + the
+  #                      access allowlist are required; client credentials,
+  #                      redirectUrl and session secret are unused.
+  mode: oidc
   oidc:
     issuer: ""
     clientId: ""
@@ -327,6 +339,14 @@ auth:
   #   existingSecret:
   #     name: cheshmhayash-mcp
   #     key: ops-bot
+
+  # Options for `mode: jwt`. Nothing here is secret, so it rides in the
+  # ConfigMap, not the Secret.
+  jwt:
+    # Optional — accepted `aud` values (RFC 8707). Empty accepts any token the
+    # issuer signed, which is fine when the gateway is the sole ingress and
+    # strips a client-supplied Authorization header.
+    audiences: []
 
   # OAuth 2.0 / OIDC auth for the /mcp HTTP transport (MCP authorization
   # spec). When enabled, /mcp accepts access-token JWTs from the SAME issuer

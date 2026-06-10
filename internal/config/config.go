@@ -45,12 +45,49 @@ type Settings struct {
 // open (backward-compatible default). MCP HTTP is gated by MCPKeys
 // independently: leave the slice empty to keep /mcp open like before.
 type Auth struct {
-	Enabled  bool         `json:"enabled"            koanf:"enabled"`
+	Enabled bool `json:"enabled" koanf:"enabled"`
+	// Mode selects how a request is authenticated when Enabled:
+	//   "oidc" (default) — cheshmhayash runs the OIDC login flow itself and
+	//                       issues an HMAC-signed session cookie.
+	//   "jwt"            — no login flow. Every request must carry an
+	//                       `Authorization: Bearer <jwt>` access token minted
+	//                       by auth.oidc.issuer (a "builtin oauth" gateway in
+	//                       front of cheshmhayash). The token's signature /
+	//                       issuer / expiry are verified and its claims drive
+	//                       the same allowlist + admin/readonly roles.
+	Mode     string       `json:"mode,omitempty"     koanf:"mode"`
 	OIDC     AuthOIDC     `json:"oidc"               koanf:"oidc"`
 	Access   AuthAccess   `json:"access"             koanf:"access"`
 	Session  AuthSession  `json:"session"            koanf:"session"`
+	JWT      AuthJWT      `json:"jwt,omitzero"       koanf:"jwt"`
 	MCPKeys  []MCPKey     `json:"mcp_keys,omitempty" koanf:"mcp_keys"`
 	MCPOAuth AuthMCPOAuth `json:"mcp_oauth,omitzero" koanf:"mcp_oauth"`
+}
+
+// Auth mode identifiers (auth.mode).
+const (
+	AuthModeOIDC = "oidc"
+	AuthModeJWT  = "jwt"
+)
+
+// ModeOrDefault returns the configured auth mode lower-cased, defaulting to
+// "oidc" when unset so existing configs keep their cookie-login behaviour.
+func (a Auth) ModeOrDefault() string {
+	if a.Mode == "" {
+		return AuthModeOIDC
+	}
+	return strings.ToLower(a.Mode)
+}
+
+// AuthJWT tunes the "jwt" auth mode (auth.mode = "jwt"), where cheshmhayash
+// validates an access-token JWT presented on every request instead of running
+// its own login flow. The token is verified against auth.oidc.issuer.
+type AuthJWT struct {
+	// Audiences, when non-empty, restricts accepted tokens to those whose
+	// `aud` carries one of these values (RFC 8707). Empty accepts any token
+	// the issuer signed — fine when the gateway is the sole ingress and
+	// strips a client-supplied Authorization header.
+	Audiences []string `json:"audiences,omitempty" koanf:"audiences"`
 }
 
 // AuthMCPOAuth turns the /mcp HTTP transport into an OAuth 2.0 resource
@@ -257,23 +294,13 @@ func validate(s *Settings) error {
 }
 
 func validateAuth(a *Auth) error {
+	// The issuer is needed in every mode: oidc mode redirects to it, jwt mode
+	// fetches its JWKS to verify inbound tokens.
 	if a.OIDC.Issuer == "" {
 		return errors.New("auth.oidc.issuer is required when auth is enabled")
 	}
-	if a.OIDC.ClientID == "" {
-		return errors.New("auth.oidc.client_id is required when auth is enabled")
-	}
-	if a.OIDC.RedirectURL == "" {
-		return errors.New("auth.oidc.redirect_url is required when auth is enabled")
-	}
-	if a.Session.Secret == "" {
-		return errors.New("auth.session.secret is required when auth is enabled")
-	}
-	if len(a.Session.Secret) < 16 {
-		return errors.New("auth.session.secret must be at least 16 characters")
-	}
 	// Force an explicit allowlist so a typo in the IdP config can't grant
-	// access to every account in the directory.
+	// access to every account in the directory. Shared by both modes.
 	if len(a.Access.AllowedEmails) == 0 &&
 		len(a.Access.AllowedDomains) == 0 &&
 		len(a.Access.AllowedGroups) == 0 {
@@ -281,8 +308,40 @@ func validateAuth(a *Auth) error {
 			"auth.access requires at least one of allowed_emails, allowed_domains, or allowed_groups",
 		)
 	}
+	switch a.ModeOrDefault() {
+	case AuthModeOIDC:
+		if err := validateAuthOIDC(a); err != nil {
+			return err
+		}
+	case AuthModeJWT:
+		// jwt mode needs only the issuer (for JWKS) + the allowlist above.
+		// There is no login flow, so no client credentials, redirect URL, or
+		// session secret are required.
+	default:
+		return fmt.Errorf(
+			"auth.mode %q is not recognised (want %q or %q)", a.Mode, AuthModeOIDC, AuthModeJWT,
+		)
+	}
 	if a.MCPOAuth.Enabled && a.MCPOAuth.Resource == "" {
 		return errors.New("auth.mcp_oauth.resource is required when auth.mcp_oauth is enabled")
+	}
+	return nil
+}
+
+// validateAuthOIDC enforces the extra inputs the cookie login flow needs:
+// client credentials, a redirect URL, and a session-signing secret.
+func validateAuthOIDC(a *Auth) error {
+	if a.OIDC.ClientID == "" {
+		return errors.New("auth.oidc.client_id is required when auth.mode = oidc")
+	}
+	if a.OIDC.RedirectURL == "" {
+		return errors.New("auth.oidc.redirect_url is required when auth.mode = oidc")
+	}
+	if a.Session.Secret == "" {
+		return errors.New("auth.session.secret is required when auth.mode = oidc")
+	}
+	if len(a.Session.Secret) < 16 {
+		return errors.New("auth.session.secret must be at least 16 characters")
 	}
 	return nil
 }
@@ -358,10 +417,12 @@ func applyEnvPath(s *Settings, parts []string, val string) error {
 // applyAuthEnv handles CHESHMHAYASH__AUTH__* env keys. Subsections:
 //
 //	enabled
+//	mode                                                          "oidc" | "jwt"
 //	oidc.{issuer,client_id,client_secret,redirect_url,scopes}     scopes is comma-separated
 //	access.{allowed_emails,allowed_domains,allowed_groups,groups_claim}   slices comma-separated
 //	access.admin.{allowed_emails,allowed_domains,allowed_groups}          write-access allowlist
 //	session.{secret,ttl_seconds,cookie_name,secure}
+//	jwt.audiences                                                 comma-separated
 //	mcp_keys.<idx>.{name,value}
 //	mcp_oauth.{enabled,resource,authorization_servers,audiences}   slices comma-separated
 func applyAuthEnv(a *Auth, parts []string, val string) error {
@@ -375,6 +436,10 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 			return fmt.Errorf("auth.enabled: %w", err)
 		}
 		a.Enabled = b
+	case "mode":
+		a.Mode = val
+	case "jwt":
+		return applyJWTEnv(&a.JWT, parts[1:], val)
 	case "oidc":
 		if len(parts) != 2 {
 			return errors.New("expected auth.oidc.<key>")
@@ -442,6 +507,22 @@ func applyAuthEnv(a *Auth, parts []string, val string) error {
 		return applyMCPOAuthEnv(&a.MCPOAuth, parts[1:], val)
 	default:
 		return fmt.Errorf("unknown auth field %q", parts[0])
+	}
+	return nil
+}
+
+// applyJWTEnv handles CHESHMHAYASH__AUTH__JWT__* env keys:
+//
+//	audiences   comma-separated
+func applyJWTEnv(j *AuthJWT, parts []string, val string) error {
+	if len(parts) != 1 {
+		return errors.New("expected auth.jwt.<key>")
+	}
+	switch strings.ToLower(parts[0]) {
+	case "audiences":
+		j.Audiences = splitCSV(val)
+	default:
+		return fmt.Errorf("unknown auth.jwt field %q", parts[0])
 	}
 	return nil
 }
