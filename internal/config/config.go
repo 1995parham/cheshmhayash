@@ -110,6 +110,13 @@ type AuthMCPOAuth struct {
 	// tokens. Defaults to [Resource] when empty. Keycloak must be configured
 	// (audience mapper / client scope) to mint tokens carrying one of these.
 	Audiences []string `json:"audiences,omitempty" koanf:"audiences"`
+	// SkipAudienceCheck accepts any token the issuer signed, regardless of
+	// `aud` (signature, issuer and expiry are still enforced, and the
+	// subject still has to pass the access allowlist). This drops the
+	// RFC 8707 confused-deputy protection — only set it when the IdP can't
+	// mint resource audiences (e.g. a Keycloak client without an audience
+	// mapper) and the issuer is trusted for this realm.
+	SkipAudienceCheck bool `json:"skip_audience_check,omitempty" koanf:"skip_audience_check"`
 }
 
 // AuthOIDC holds the OpenID Connect provider coordinates for the login flow.
@@ -533,6 +540,7 @@ func applyJWTEnv(j *AuthJWT, parts []string, val string) error {
 //	resource
 //	authorization_servers   comma-separated
 //	audiences               comma-separated
+//	skip_audience_check
 func applyMCPOAuthEnv(m *AuthMCPOAuth, parts []string, val string) error {
 	if len(parts) != 1 {
 		return errors.New("expected auth.mcp_oauth.<key>")
@@ -550,6 +558,12 @@ func applyMCPOAuthEnv(m *AuthMCPOAuth, parts []string, val string) error {
 		m.AuthorizationServers = splitCSV(val)
 	case "audiences":
 		m.Audiences = splitCSV(val)
+	case "skip_audience_check":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("auth.mcp_oauth.skip_audience_check: %w", err)
+		}
+		m.SkipAudienceCheck = b
 	default:
 		return fmt.Errorf("unknown auth.mcp_oauth field %q", parts[0])
 	}

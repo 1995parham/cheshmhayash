@@ -130,7 +130,10 @@ Env knobs:
   optional `…__AUTH__JWT__AUDIENCES=a,b` restricts accepted `aud` values
 - `CHESHMHAYASH__AUTH__MCP_OAUTH__ENABLED=true` +
   `…__MCP_OAUTH__RESOURCE=https://host/mcp` — accept same-issuer OIDC
-  access tokens at `/mcp` (requires `AUTH__ENABLED=true`)
+  access tokens at `/mcp` (requires `AUTH__ENABLED=true`);
+  `…__MCP_OAUTH__SKIP_AUDIENCE_CHECK=true` drops the RFC 8707 `aud` pin
+  for IdPs that can't mint resource audiences (sig/iss/exp + allowlist
+  still enforced)
 
 `$SYS.REQ.*` only flows when the connection is bound to the system
 account. Without sys creds, server-discovery endpoints time out and the
@@ -212,7 +215,10 @@ Destructive verbs require `?confirm=true`; without it the server returns
   `WWW-Authenticate: Bearer resource_metadata=…` on 401 so spec-compliant
   MCP clients self-discover the IdP; token audience is validated (RFC 8707)
   against `auth.mcp_oauth.resource` to block confused-deputy replay, so
-  Keycloak must mint access tokens whose `aud` includes it. MCP **write**
+  Keycloak must mint access tokens whose `aud` includes it —
+  `auth.mcp_oauth.skip_audience_check = true` opts out of the `aud` pin
+  (sig/iss/exp + allowlist still enforced) for IdPs without an audience
+  mapper. MCP **write**
   tools stay gated by `CHESHMHAYASH_MCP_WRITE` (startup env), not by
   identity — a follow-up. stdio MCP stays open. Auth is fully off when
   `auth.enabled = false` (the default).

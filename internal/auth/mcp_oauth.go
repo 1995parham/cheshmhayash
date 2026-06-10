@@ -19,13 +19,15 @@ const wellKnownPRMPath = "/.well-known/oauth-protected-resource"
 // The token must be signed by the configured OIDC issuer and carry one of the
 // accepted audiences (RFC 8707) — this is what stops a token minted for some
 // other service from being replayed here (the "confused deputy" problem the
-// MCP spec calls out).
+// MCP spec calls out). Operators whose IdP can't mint resource audiences can
+// opt out via auth.mcp_oauth.skip_audience_check; signature, issuer, expiry
+// and the allowlist still apply.
 func (a *Authenticator) verifyMCPToken(ctx context.Context, raw string) (sessionData, Role, error) {
 	tok, err := a.mcpVerifier.Verify(ctx, raw)
 	if err != nil {
 		return sessionData{}, "", err
 	}
-	if !audienceMatches(tok.Audience, a.mcpAudiences) {
+	if !a.cfg.MCPOAuth.SkipAudienceCheck && !audienceMatches(tok.Audience, a.mcpAudiences) {
 		return sessionData{}, "", errors.New("token audience not accepted for this MCP resource")
 	}
 	// sessionFromIDToken pulls the same standard + groups claims the UI uses;

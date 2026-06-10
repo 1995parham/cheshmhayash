@@ -224,6 +224,9 @@ authorization_servers = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"
 {{- with .Values.auth.mcpOauth.audiences }}
 audiences = [{{ range $i, $s := . }}{{ if $i }}, {{ end }}"{{ $s }}"{{ end }}]
 {{- end }}
+{{- if .Values.auth.mcpOauth.skipAudienceCheck }}
+skip_audience_check = true
+{{- end }}
 {{- end }}
 {{- end }}
 {{- range $i, $k := .Values.auth.mcpKeys }}

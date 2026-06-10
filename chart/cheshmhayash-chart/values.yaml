@@ -365,6 +365,11 @@ auth:
     authorizationServers: []
     # Optional — accepted `aud` values, defaults to [resource].
     audiences: []
+    # Accept any same-issuer token regardless of `aud` (signature, issuer,
+    # expiry and the access allowlist still apply). Drops the RFC 8707
+    # confused-deputy protection — only for IdPs that can't mint resource
+    # audiences (e.g. a Keycloak client without an audience mapper).
+    skipAudienceCheck: false
 
 # Extra environment variables to inject into the container.
 extraEnv: []

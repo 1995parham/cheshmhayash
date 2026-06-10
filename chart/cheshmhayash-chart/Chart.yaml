@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.5.0
+version: 1.6.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -42,4 +42,4 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
-      description: "JWT auth mode for the dashboard: the new `auth.mode` (oidc | jwt) lets cheshmhayash sit behind a builtin-oauth gateway. In `jwt` mode it runs no login flow and validates the `Authorization: Bearer` access-token JWT on every request against `auth.oidc.issuer` (JWKS), driving the same access/admin allowlists. Optional `auth.jwt.audiences` restricts accepted `aud` values. The `oidc` cookie login flow remains the default; jwt mode needs only the issuer + allowlist (no client credentials or session secret)."
+      description: "`auth.mcpOauth.skipAudienceCheck`: accept any same-issuer access-token JWT on /mcp regardless of `aud` (signature, issuer, expiry and the access allowlist still apply). An explicit opt-out of the RFC 8707 audience pin for IdPs that can't mint resource audiences, e.g. a Keycloak client without an audience mapper. Off by default."

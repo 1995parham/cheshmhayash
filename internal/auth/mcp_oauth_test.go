@@ -128,6 +128,42 @@ func TestVerifyMCPToken(t *testing.T) {
 	})
 }
 
+func TestVerifyMCPToken_SkipAudienceCheck(t *testing.T) {
+	mcp := config.AuthMCPOAuth{Enabled: true, Resource: "https://host/mcp", SkipAudienceCheck: true}
+	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	a, mint := mcpOAuthAuth(t, mcp, access)
+
+	t.Run("foreign audience accepted", func(t *testing.T) {
+		tok := mint(map[string]any{
+			"sub": "u1", "email": "ops@snapp.cab", "aud": "account",
+		})
+		if _, _, err := a.verifyMCPToken(context.Background(), tok); err != nil {
+			t.Fatalf("expected accept with skip_audience_check, got %v", err)
+		}
+	})
+	t.Run("no audience accepted", func(t *testing.T) {
+		tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab"})
+		if _, _, err := a.verifyMCPToken(context.Background(), tok); err != nil {
+			t.Fatalf("expected accept with skip_audience_check, got %v", err)
+		}
+	})
+	t.Run("allowlist still enforced", func(t *testing.T) {
+		tok := mint(map[string]any{"sub": "x", "email": "stranger@gmail.com", "aud": "account"})
+		if _, _, err := a.verifyMCPToken(context.Background(), tok); err == nil {
+			t.Fatal("off-allowlist subject must still be rejected")
+		}
+	})
+	t.Run("expired token still rejected", func(t *testing.T) {
+		tok := mint(map[string]any{
+			"sub": "u1", "email": "ops@snapp.cab",
+			"exp": time.Now().Add(-time.Hour).Unix(),
+		})
+		if _, _, err := a.verifyMCPToken(context.Background(), tok); err == nil {
+			t.Fatal("expired token must still be rejected")
+		}
+	})
+}
+
 func TestMCPMiddleware_Precedence(t *testing.T) {
 	mcp := config.AuthMCPOAuth{Enabled: true, Resource: "https://host/mcp"}
 	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
