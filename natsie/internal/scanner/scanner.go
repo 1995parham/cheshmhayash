@@ -13,6 +13,8 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/nats-io/jsm.go"
@@ -42,16 +44,22 @@ type Options struct {
 }
 
 type Row struct {
-	Cluster    string        `json:"cluster"`
-	Stream     string        `json:"stream"`
-	Consumer   string        `json:"consumer"`
-	Status     Status        `json:"status"`
-	NumPending int64         `json:"num_pending"`
-	NumWaiting int           `json:"num_waiting"`
-	PushBound  bool          `json:"push_bound"`
-	LastAck    time.Time     `json:"last_ack,omitzero"`
-	Idle       time.Duration `json:"idle"`
-	PeerStatus Status        `json:"peer_status,omitempty"`
+	Cluster       string        `json:"cluster"`
+	Stream        string        `json:"stream"`
+	Consumer      string        `json:"consumer"`
+	Status        Status        `json:"status"`
+	NumPending    int64         `json:"num_pending"`
+	NumWaiting    int           `json:"num_waiting"`
+	PushBound     bool          `json:"push_bound"`
+	LastAck       time.Time     `json:"last_ack,omitzero"`
+	Idle          time.Duration `json:"idle"`
+	PeerStatus    Status        `json:"peer_status,omitempty"`
+	FilterSubject string        `json:"filter_subject,omitempty"`
+	// RenamedTo names an ACTIVE consumer on the same stream that filters the
+	// same subject as this (STALE) consumer — i.e. this looks like the old
+	// name of a rename migration rather than an abandoned consumer. Empty
+	// when no such successor was found.
+	RenamedTo string `json:"renamed_to,omitempty"`
 }
 
 // Scan enumerates streams and consumers on nc, classifies them per opts, and
@@ -78,7 +86,7 @@ func Scan(ctx context.Context, nc, peer *natsctx.Conn, opts Options) ([]Row, err
 
 	now := time.Now()
 
-	var rows []Row
+	var all []Row
 
 	for _, sn := range streamNames {
 		if opts.Stream != "" && sn != opts.Stream {
@@ -86,38 +94,108 @@ func Scan(ctx context.Context, nc, peer *natsctx.Conn, opts Options) ([]Row, err
 		}
 
 		if ctx.Err() != nil {
-			return rows, ctx.Err()
+			return nil, ctx.Err()
 		}
 
 		stream, err := mgr.LoadStream(sn)
 		if err != nil {
-			rows = append(rows, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
+			all = append(all, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
 
 			continue
 		}
 
 		consumerNames, err := stream.ConsumerNames()
 		if err != nil {
-			rows = append(rows, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
+			all = append(all, Row{Cluster: nc.Name, Stream: sn, Status: StatusError})
 
 			continue
 		}
 
 		for _, cn := range consumerNames {
-			r := classify(mgr, sn, cn, nc.Name, now, opts)
-			if !meetsThresholds(r, opts) {
-				continue
-			}
-
-			if peerMgr != nil {
-				r.PeerStatus = peerStatus(peerMgr, sn, cn, now, opts)
-			}
-
-			rows = append(rows, r)
+			all = append(all, classify(mgr, sn, cn, nc.Name, now, opts))
 		}
 	}
 
+	// Rename detection runs over the full classified set — before the output
+	// thresholds — so a stale consumer can be matched to its active successor
+	// even when that successor wouldn't otherwise be reported.
+	detectRenames(all)
+
+	var rows []Row
+
+	for _, r := range all {
+		// Stream-level errors carry no consumer name and are always surfaced.
+		if r.Status == StatusError && r.Consumer == "" {
+			rows = append(rows, r)
+
+			continue
+		}
+
+		if !meetsThresholds(r, opts) {
+			continue
+		}
+
+		if peerMgr != nil {
+			r.PeerStatus = peerStatus(peerMgr, r.Stream, r.Consumer, now, opts)
+		}
+
+		rows = append(rows, r)
+	}
+
 	return rows, nil
+}
+
+// detectRenames annotates each STALE row that looks like the old name of a
+// rename migration: another consumer on the same stream filters the same
+// subject and is still ACTIVE. When several active consumers qualify, the
+// most recently active one wins.
+func detectRenames(rows []Row) {
+	type key struct{ stream, subject string }
+
+	active := map[key]Row{}
+
+	for _, r := range rows {
+		if r.Status != StatusActive || r.FilterSubject == "" {
+			continue
+		}
+
+		k := key{r.Stream, r.FilterSubject}
+		if cur, ok := active[k]; !ok || r.LastAck.After(cur.LastAck) {
+			active[k] = r
+		}
+	}
+
+	if len(active) == 0 {
+		return
+	}
+
+	for i := range rows {
+		if rows[i].Status != StatusStale || rows[i].FilterSubject == "" {
+			continue
+		}
+
+		if t, ok := active[key{rows[i].Stream, rows[i].FilterSubject}]; ok && t.Consumer != rows[i].Consumer {
+			rows[i].RenamedTo = t.Consumer
+		}
+	}
+}
+
+// filterSubject normalizes a consumer's subject filter into a single,
+// order-independent string so two consumers with the same filter set compare
+// equal regardless of how the slice was ordered.
+func filterSubject(cfg api.ConsumerConfig) string {
+	if cfg.FilterSubject != "" {
+		return cfg.FilterSubject
+	}
+
+	if len(cfg.FilterSubjects) == 0 {
+		return ""
+	}
+
+	subs := slices.Clone(cfg.FilterSubjects)
+	slices.Sort(subs)
+
+	return strings.Join(subs, ",")
 }
 
 func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time, opts Options) Row {
@@ -135,6 +213,7 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 
 	r.NumPending = int64(info.NumPending) //nolint:gosec // counts are bounded by stream depth, well under int64
 	r.NumWaiting = info.NumWaiting
+	r.FilterSubject = filterSubject(info.Config)
 
 	r.PushBound = info.PushBound
 	if info.AckFloor.Last != nil {

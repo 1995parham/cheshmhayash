@@ -21,7 +21,7 @@ func renderPretty(w io.Writer, rows []scanner.Row) {
 	t.Style().Color.Header = text.Colors{text.Bold}
 
 	t.AppendHeader(table.Row{
-		"stream", "consumer", "status", "pending", "idle", "peer",
+		"stream", "consumer", "status", "pending", "idle", "peer", "renamed_to",
 	})
 
 	for _, r := range rows {
@@ -32,6 +32,7 @@ func renderPretty(w io.Writer, rows []scanner.Row) {
 			r.NumPending,
 			r.Idle.Truncate(time.Second),
 			colorize(r.PeerStatus),
+			r.RenamedTo,
 		})
 	}
 

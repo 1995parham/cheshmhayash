@@ -133,13 +133,13 @@ func scanCommand() *cli.Command {
 				return enc.Encode(rows)
 			case "tsv":
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-				if _, err := fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status"); err != nil {
+				if _, err := fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status\trenamed_to"); err != nil {
 					return err
 				}
 
 				for _, r := range rows {
-					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\n",
-						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second), r.PeerStatus); err != nil {
+					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
+						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second), r.PeerStatus, r.RenamedTo); err != nil {
 						return err
 					}
 				}
@@ -175,7 +175,7 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 			continue
 		}
 
-		m.Entries = append(m.Entries, manifest.Entry{
+		entry := manifest.Entry{
 			Cluster:    r.Cluster,
 			Stream:     r.Stream,
 			Consumer:   r.Consumer,
@@ -184,7 +184,16 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 			NumPending: r.NumPending,
 			Idle:       r.Idle.Truncate(time.Second),
 			LastAck:    r.LastAck.UTC(),
-		})
+		}
+
+		// A detected rename explains the staleness — record it so the operator
+		// reviewing the manifest knows this is a superseded old name, not a
+		// silently abandoned consumer.
+		if r.RenamedTo != "" {
+			entry.Reason = fmt.Sprintf("likely renamed to %s (same filter subject)", r.RenamedTo)
+		}
+
+		m.Entries = append(m.Entries, entry)
 	}
 
 	return m
