@@ -10,6 +10,7 @@ func Command() *cli.Command {
 		Commands: []*cli.Command{
 			scanCommand(),
 			applyCommand(),
+			ownerCommand(),
 		},
 	}
 }

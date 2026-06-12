@@ -24,7 +24,7 @@ became active between scan and apply is preserved.
 ├── internal/
 │   ├── cmd/                        # urfave/cli v3 command tree
 │   │   ├── root.go                 # top-level app
-│   │   ├── consumer/               # `consumer scan` / `consumer apply`
+│   │   ├── consumer/               # `consumer scan` / `consumer apply` / `consumer owner`
 │   │   └── bot/                    # `bot serve`
 │   ├── infra/
 │   │   ├── config/                 # koanf loader (struct defaults → yaml → env)
@@ -67,7 +67,8 @@ go test -race ./...
 | Command | Status | Purpose |
 | --- | --- | --- |
 | `consumer scan` | working | Enumerate consumers; classify active/stale/abandoned; cross-cluster peer aware. Emits TSV, JSON, or a YAML cleanup manifest. |
-| `consumer apply` | working | Apply a manifest produced by `scan`. Re-verifies each consumer; preserves anything active since `generated_at`. Supports `--dry-run`. |
+| `consumer apply` | working | Apply a manifest produced by `scan`. Re-verifies each consumer; preserves anything active since `generated_at`. Supports `--dry-run` and `-` (manifest from stdin). |
+| `consumer owner` | working | Resolve which cluster/consumer owns a `filter_subject` across all configured contexts (active-first). Exact-match on the normalized filter subject. |
 | `peer check` | working | Aggregate every stream/consumer Raft group's membership; flag GHOST peers (offline in every group, leading none). Streams + consumers; phantom orphaned Raft groups (needs system-account access) not yet covered. |
 | `bot serve` | working | Long-running daemon: cron-scheduled scans, chat sinks, HTTP listener, slash-command handler, signed approval URLs, JSONL audit log. |
 | `stream report` | working | Per-stream retention/limits, replication, size, consumer count, replica placement; pretty mode adds per-server placement-skew. |

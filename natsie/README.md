@@ -30,7 +30,8 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 | Command | Status | Purpose |
 | --- | --- | --- |
 | `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON, optionally a YAML cleanup manifest. |
-| `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run`. |
+| `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run` and `-` (read manifest from stdin). |
+| `consumer owner` | **working** | Resolve which cluster/consumer currently owns a `filter_subject` across all configured contexts (active-first), to find where a stale consumer's work moved. TSV/JSON/pretty. |
 | `peer check` | **working** | Walk every stream/consumer Raft group and aggregate each server's standing; flag GHOST peers (offline in every group, leading none) from a `peer-remove` that never happened. TSV/JSON/pretty, `--ghosts-only`. |
 | `stream report` | **working** | Per-stream retention/limits, replication factor, size, consumer count, and replica placement; pretty mode adds a per-server placement-skew summary. TSV/JSON/pretty, `--stream` filter. |
 | `bot serve` | **working** | Long-running daemon: scheduled scans, chat notifications (Slack / Mattermost / stdout), HTTP listener with manifest viewer, slash-command handler, signed approval URLs, JSONL audit log. |
@@ -39,7 +40,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 1. **Never auto-deletes.** Destructive actions always require an explicit `apply <manifest>` step, and the manifest is human-readable.
 2. **Cross-cluster aware.** Many production deployments run NATS in pairs or N-way groups; "consumer X is stale here, but active on the peer" is a first-class signal.
-3. **Rename-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active, so a migration isn't mistaken for an abandoned consumer.
+3. **Rename- and move-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active; `consumer owner` chases the same `filter_subject` across every configured context to find where the work moved, so a migration isn't mistaken for an abandoned consumer.
 4. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Snapp-shaped opinions live in private config, not the binary.
 
 ## Install
