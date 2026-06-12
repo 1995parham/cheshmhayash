@@ -91,6 +91,21 @@ service:
   port: 8080
   annotations: {}
 
+# ---- metrics ---------------------------------------------------------------
+# The bot always serves Prometheus metrics at /metrics on the http port.
+# Enable serviceMonitor to have a Prometheus Operator (monitoring.coreos.com)
+# scrape them. Requires the ServiceMonitor CRD in the cluster.
+metrics:
+  serviceMonitor:
+    enabled: false
+    # Extra labels merged onto the ServiceMonitor — e.g. an ownership label
+    # your platform requires (app.snappcloud.io/name) or a Prometheus release
+    # selector (release: kube-prometheus-stack).
+    labels: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+
 # Two ingress mechanisms; don't enable both with the same hostname.
 ingress:
   enabled: false
