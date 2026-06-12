@@ -29,7 +29,7 @@ became active between scan and apply is preserved.
 │   ├── infra/
 │   │   ├── config/                 # koanf loader (struct defaults → yaml → env)
 │   │   └── natsctx/                # ~/.config/nats/context reader + dialer
-│   ├── scanner/                    # stream/consumer classification (active/stale/abandoned)
+│   ├── scanner/                    # consumer classification, rename detection, stream report, peer/ghost check
 │   ├── manifest/                   # YAML manifest read/write + schema
 │   ├── cleanup/                    # delete via $JS.API.CONSUMER.DELETE + re-verify
 │   ├── audit/                      # JSONL audit log append
@@ -70,7 +70,7 @@ go test -race ./...
 | `consumer apply` | working | Apply a manifest produced by `scan`. Re-verifies each consumer; preserves anything active since `generated_at`. Supports `--dry-run`. |
 | `peer check` | working | Aggregate every stream/consumer Raft group's membership; flag GHOST peers (offline in every group, leading none). Streams + consumers; phantom orphaned Raft groups (needs system-account access) not yet covered. |
 | `bot serve` | working | Long-running daemon: cron-scheduled scans, chat sinks, HTTP listener, slash-command handler, signed approval URLs, JSONL audit log. |
-| `stream report` | planned | Per-stream size, retention, replication, ownership. |
+| `stream report` | working | Per-stream retention/limits, replication, size, consumer count, replica placement; pretty mode adds per-server placement-skew. |
 
 ## Connection model
 

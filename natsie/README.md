@@ -23,7 +23,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 ## Status
 
-`consumer scan`, `consumer apply`, `peer check`, and `bot serve` are working. `stream report` is still planned.
+`consumer scan`, `consumer apply`, `peer check`, `stream report`, and `bot serve` are all working.
 
 ## Subcommands (current and planned)
 
@@ -32,7 +32,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 | `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON, optionally a YAML cleanup manifest. |
 | `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run`. |
 | `peer check` | **working** | Walk every stream/consumer Raft group and aggregate each server's standing; flag GHOST peers (offline in every group, leading none) from a `peer-remove` that never happened. TSV/JSON/pretty, `--ghosts-only`. |
-| `stream report` | planned | Per-stream size, retention, replication, and ownership signals. |
+| `stream report` | **working** | Per-stream retention/limits, replication factor, size, consumer count, and replica placement; pretty mode adds a per-server placement-skew summary. TSV/JSON/pretty, `--stream` filter. |
 | `bot serve` | **working** | Long-running daemon: scheduled scans, chat notifications (Slack / Mattermost / stdout), HTTP listener with manifest viewer, slash-command handler, signed approval URLs, JSONL audit log. |
 
 ## Design pillars
