@@ -68,9 +68,9 @@ go test -race ./...
 | --- | --- | --- |
 | `consumer scan` | working | Enumerate consumers; classify active/stale/abandoned; cross-cluster peer aware. Emits TSV, JSON, or a YAML cleanup manifest. |
 | `consumer apply` | working | Apply a manifest produced by `scan`. Re-verifies each consumer; preserves anything active since `generated_at`. Supports `--dry-run`. |
+| `peer check` | working | Aggregate every stream/consumer Raft group's membership; flag GHOST peers (offline in every group, leading none). Streams + consumers; phantom orphaned Raft groups (needs system-account access) not yet covered. |
 | `bot serve` | working | Long-running daemon: cron-scheduled scans, chat sinks, HTTP listener, slash-command handler, signed approval URLs, JSONL audit log. |
 | `stream report` | planned | Per-stream size, retention, replication, ownership. |
-| `peer check` | planned | Ghost peers / phantom Raft groups. |
 
 ## Connection model
 

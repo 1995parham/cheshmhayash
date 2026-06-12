@@ -10,6 +10,7 @@ import (
 
 	"github.com/1995parham/natsie/internal/cmd/bot"
 	"github.com/1995parham/natsie/internal/cmd/consumer"
+	"github.com/1995parham/natsie/internal/cmd/peer"
 	"github.com/1995parham/natsie/internal/version"
 )
 
@@ -31,6 +32,7 @@ func Execute() error {
 		},
 		Commands: []*cli.Command{
 			consumer.Command(),
+			peer.Command(),
 			bot.Command(),
 		},
 	}
