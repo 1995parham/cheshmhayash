@@ -34,6 +34,7 @@ func TestLogAppendsJSONLines(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+
 	defer func() { _ = f.Close() }()
 
 	var got []Event
@@ -118,6 +119,7 @@ func TestConcurrentLogs(t *testing.T) {
 	wg.Wait()
 
 	f, _ := os.Open(path) //nolint:gosec // path is test-controlled
+
 	defer func() { _ = f.Close() }()
 
 	count := 0

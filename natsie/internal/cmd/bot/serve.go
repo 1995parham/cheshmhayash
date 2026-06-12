@@ -88,6 +88,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("open audit log: %w", err)
 	}
+
 	defer func() { _ = auditLog.Close() }()
 
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
@@ -133,6 +134,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 			},
 			logger,
 		)
+
 		go func() {
 			logger.Printf("http listener: %s", cfg.Bot.HTTP.Listen)
 
