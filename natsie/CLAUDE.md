@@ -34,10 +34,9 @@ became active between scan and apply is preserved.
 │   ├── cleanup/                    # delete via $JS.API.CONSUMER.DELETE + re-verify
 │   ├── audit/                      # JSONL audit log append
 │   ├── chatops/                    # slash commands, approval tokens, render
-│   ├── owners/                     # stream-prefix → owner/channel mapping (planned)
+│   ├── owners/                     # stream-prefix → owner/channel routing (bot serve)
 │   └── version/                    # build info (carlmjohnson/versioninfo)
 ├── chart/                          # Helm chart for `bot serve`
-├── docs/ROADMAP.md
 ├── docker-compose.yml              # local NATS sidecar for dev
 ├── Dockerfile                      # multi-stage; distroless runtime
 ├── justfile                        # build / test / lint / tidy / dev
