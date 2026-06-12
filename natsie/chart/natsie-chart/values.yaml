@@ -195,9 +195,16 @@ contexts: {}
 
 bot:
   # Each entry becomes a [[schedules]] in config.yaml. `kind` selects the
-  # job: omit it (or "consumer-stale") for the stale-consumer cleanup scan;
-  # "stream-unlimited" for a notify-only report of streams with no retention
-  # limit (no manifest, no approval).
+  # job:
+  #   omit it (or "consumer-stale") — stale-consumer cleanup scan (manifest +
+  #     approval flow).
+  #   "stream-unlimited"  — notify-only report of streams with no retention limit.
+  #   "stream-report"     — notify-only report of under-replicated (R<2) streams
+  #     with a placement-skew summary (honours `stream` to scope to one stream).
+  #   "peer-check"        — notify-only report of ghost peers (offline in every
+  #     Raft group, leading none).
+  # The notify-only kinds produce no manifest and no approval URL — natsie never
+  # deletes a stream or evicts a peer.
   schedules: []
   # - name: daily
   #   cron: "0 3 * * *"
@@ -208,6 +215,14 @@ bot:
   # - name: unlimited-streams
   #   cron: "0 6 * * *"
   #   kind: stream-unlimited
+  #   context: snapp-js-main-teh1
+  # - name: under-replicated-streams
+  #   cron: "0 6 * * *"
+  #   kind: stream-report
+  #   context: snapp-js-main-teh1
+  # - name: ghost-peers
+  #   cron: "0 7 * * *"
+  #   kind: peer-check
   #   context: snapp-js-main-teh1
 
   # Notify URLs. URLs may contain secrets — if you don't want them in the

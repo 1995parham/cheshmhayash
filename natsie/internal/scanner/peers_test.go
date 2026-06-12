@@ -141,6 +141,27 @@ func TestDerefPeersSkipsNil(t *testing.T) {
 	}
 }
 
+func TestGhostPeers(t *testing.T) {
+	rows := []PeerRow{
+		{Peer: "n1", Health: PeerOK},
+		{Peer: "n2", Health: PeerGhost},
+		{Peer: "n3", Health: PeerLagging},
+		{Peer: "n4", Health: PeerGhost},
+	}
+
+	got := GhostPeers(rows)
+
+	if len(got) != 2 {
+		t.Fatalf("got %d, want 2: %+v", len(got), got)
+	}
+
+	for _, r := range got {
+		if r.Health != PeerGhost {
+			t.Errorf("non-ghost survived: %+v", r)
+		}
+	}
+}
+
 // TestCheckPeersAgainstSingleServer proves the I/O walk runs cleanly against a
 // real (single-node) JetStream server. A non-clustered server has no Raft
 // groups, so no ghost peers can be reported — the point is that it returns

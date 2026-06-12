@@ -43,6 +43,27 @@ func TestPlacementSkewEmpty(t *testing.T) {
 	}
 }
 
+func TestUnderReplicated(t *testing.T) {
+	rows := []StreamReportRow{
+		{Stream: "a", Replicas: 3},
+		{Stream: "b", Replicas: 1},
+		{Stream: "c", Replicas: 2},
+		{Stream: "d", Replicas: 0},
+	}
+
+	got := UnderReplicated(rows)
+
+	if len(got) != 2 {
+		t.Fatalf("got %d, want 2 (b=1, d=0): %+v", len(got), got)
+	}
+
+	for _, r := range got {
+		if r.Replicas >= 2 {
+			t.Errorf("well-replicated stream survived: %+v", r)
+		}
+	}
+}
+
 func TestReportStreams(t *testing.T) {
 	conn := startJetStream(t)
 

@@ -100,6 +100,13 @@ const (
 	// KindStreamUnlimited reports streams with no retention limit. It is a
 	// notify-only report — no manifest, no approval, nothing is deleted.
 	KindStreamUnlimited = "stream-unlimited"
+	// KindPeerCheck reports ghost peers (offline in every Raft group, leading
+	// none). Notify-only — natsie never evicts a peer itself.
+	KindPeerCheck = "peer-check"
+	// KindStreamReport reports under-replicated (R<2) streams with a
+	// placement-skew summary. Notify-only — fixing replication is a human
+	// stream edit, not a natsie action.
+	KindStreamReport = "stream-report"
 )
 
 // Schedule is one recurring scan. Cron uses standard 5-field syntax

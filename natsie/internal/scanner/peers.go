@@ -193,6 +193,19 @@ func aggregatePeers(cluster string, groups []raftGroup) []PeerRow {
 	return rows
 }
 
+// GhostPeers returns, in a fresh slice, only the rows classified GHOST.
+func GhostPeers(rows []PeerRow) []PeerRow {
+	var out []PeerRow
+
+	for _, r := range rows {
+		if r.Health == PeerGhost {
+			out = append(out, r)
+		}
+	}
+
+	return out
+}
+
 func classifyPeer(groups, offline, current, leads int) PeerHealth {
 	switch {
 	case current > 0 || leads > 0:

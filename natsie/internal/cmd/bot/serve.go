@@ -100,9 +100,15 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	for _, s := range cfg.Bot.Schedules {
 		var job scheduler.Job
-		if s.Kind == config.KindStreamUnlimited {
+
+		switch s.Kind {
+		case config.KindStreamUnlimited:
 			job = buildStreamCheckJob(s, dispatch, auditLog, met, logger)
-		} else {
+		case config.KindPeerCheck:
+			job = buildPeerCheckJob(s, dispatch, auditLog, met, logger)
+		case config.KindStreamReport:
+			job = buildStreamReportJob(s, dispatch, auditLog, met, logger)
+		default: // "" or consumer-stale
 			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, met, logger)
 		}
 
@@ -235,7 +241,7 @@ func validateBotConfig(b *config.Bot) error {
 		}
 
 		switch s.Kind {
-		case "", config.KindConsumerStale, config.KindStreamUnlimited:
+		case "", config.KindConsumerStale, config.KindStreamUnlimited, config.KindPeerCheck, config.KindStreamReport:
 		default:
 			return fmt.Errorf("bot.schedules[%d]: unknown kind %q", i, s.Kind)
 		}
@@ -351,6 +357,110 @@ func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher
 	}
 
 	return len(rows), nil
+}
+
+// buildPeerCheckJob captures a peer-check schedule. Notify-only: it reports
+// ghost peers but never evicts one (peer-remove is a deliberate human action).
+func buildPeerCheckJob(s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, met *metrics.Metrics, logger *log.Logger) scheduler.Job {
+	return scheduler.Job{
+		Name: s.Name,
+		Spec: s.Cron,
+		Run: func(ctx context.Context) error {
+			start := time.Now()
+			candidates, err := runPeerCheck(ctx, s, dispatch, auditLog, logger)
+			met.ObserveScan(s.Name, config.KindPeerCheck, candidates, time.Since(start), err)
+
+			return err
+		},
+	}
+}
+
+func runPeerCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) (int, error) {
+	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
+	defer cancel()
+
+	nc, err := natsctx.Connect(s.Context)
+	if err != nil {
+		return 0, fmt.Errorf("connect %s: %w", s.Context, err)
+	}
+	defer nc.Close()
+
+	rows, err := scanner.CheckPeers(scanCtx, nc)
+	if err != nil {
+		return 0, fmt.Errorf("peer check: %w", err)
+	}
+
+	ghosts := scanner.GhostPeers(rows)
+
+	logger.Printf("schedule=%s ghost-peers=%d", s.Name, len(ghosts))
+
+	_ = auditLog.Log(audit.Event{Kind: "peer-check", Schedule: s.Name, Entries: len(ghosts)})
+
+	if len(ghosts) == 0 {
+		// No ghosts; stay quiet rather than posting an all-clear.
+		return 0, nil
+	}
+
+	msg := buildPeerCheckMessage(s, ghosts)
+	for _, n := range dispatch.global {
+		if err := n.Post(ctx, msg); err != nil {
+			logger.Printf("notify global sink=%s: %v", n.Name(), err)
+		}
+	}
+
+	return len(ghosts), nil
+}
+
+// buildStreamReportJob captures a stream-report schedule. Notify-only: it flags
+// under-replicated streams (raising replication is a human stream edit).
+func buildStreamReportJob(s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, met *metrics.Metrics, logger *log.Logger) scheduler.Job {
+	return scheduler.Job{
+		Name: s.Name,
+		Spec: s.Cron,
+		Run: func(ctx context.Context) error {
+			start := time.Now()
+			candidates, err := runStreamReport(ctx, s, dispatch, auditLog, logger)
+			met.ObserveScan(s.Name, config.KindStreamReport, candidates, time.Since(start), err)
+
+			return err
+		},
+	}
+}
+
+func runStreamReport(ctx context.Context, s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) (int, error) {
+	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
+	defer cancel()
+
+	nc, err := natsctx.Connect(s.Context)
+	if err != nil {
+		return 0, fmt.Errorf("connect %s: %w", s.Context, err)
+	}
+	defer nc.Close()
+
+	rows, err := scanner.ReportStreams(scanCtx, nc, s.Stream)
+	if err != nil {
+		return 0, fmt.Errorf("stream report: %w", err)
+	}
+
+	under := scanner.UnderReplicated(rows)
+
+	logger.Printf("schedule=%s under-replicated-streams=%d", s.Name, len(under))
+
+	_ = auditLog.Log(audit.Event{Kind: "stream-report", Schedule: s.Name, Entries: len(under)})
+
+	if len(under) == 0 {
+		// Every stream has redundancy; stay quiet.
+		return 0, nil
+	}
+
+	msg := buildStreamReportMessage(s, under, scanner.PlacementSkew(rows))
+	for _, n := range dispatch.global {
+		if err := n.Post(ctx, msg); err != nil {
+			logger.Printf("notify global sink=%s: %v", n.Name(), err)
+		}
+	}
+
+	return len(under), nil
 }
 
 func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) (int, error) {
@@ -537,6 +647,87 @@ func buildStreamCheckMessage(s config.Schedule, rows []scanner.StreamRow) notify
 
 	return notify.Message{
 		Title: fmt.Sprintf("natsie unlimited streams (%s)", s.Name),
+		Body:  body.String(),
+	}
+}
+
+// buildPeerCheckMessage renders the ghost-peer report. No approve URL: the fix
+// (peer-remove) is a deliberate operator action, not a natsie deletion.
+func buildPeerCheckMessage(s config.Schedule, ghosts []scanner.PeerRow) notify.Message {
+	const maxList = 20
+
+	var body strings.Builder
+	fmt.Fprintf(&body, "Schedule **%s** found %d ghost peer", s.Name, len(ghosts))
+
+	if len(ghosts) != 1 {
+		body.WriteString("s")
+	}
+
+	fmt.Fprintf(&body, " on `%s`:\n", s.Context)
+
+	for i, g := range ghosts {
+		if i >= maxList {
+			fmt.Fprintf(&body, "...and %d more\n", len(ghosts)-maxList)
+
+			break
+		}
+
+		fmt.Fprintf(&body, "- `%s` (offline in %d/%d Raft groups, e.g. %s)\n",
+			g.Peer, g.Offline, g.Groups, strings.Join(g.Sample, ", "))
+	}
+
+	body.WriteString("\n_Offline in every Raft group that lists them and leading none — likely a server removed without `peer-remove` and still pinned into replica sets._")
+
+	return notify.Message{
+		Title: fmt.Sprintf("natsie ghost peers (%s)", s.Name),
+		Body:  body.String(),
+	}
+}
+
+// buildStreamReportMessage renders the under-replicated stream report with a
+// short placement-skew summary. No approve URL: raising replication is a human
+// stream edit, not a natsie deletion.
+func buildStreamReportMessage(s config.Schedule, under []scanner.StreamReportRow, skew []scanner.ServerLoad) notify.Message {
+	const (
+		maxList = 20
+		maxSkew = 5
+	)
+
+	var body strings.Builder
+	fmt.Fprintf(&body, "Schedule **%s** found %d under-replicated stream", s.Name, len(under))
+
+	if len(under) != 1 {
+		body.WriteString("s")
+	}
+
+	fmt.Fprintf(&body, " on `%s`:\n", s.Context)
+
+	for i, r := range under {
+		if i >= maxList {
+			fmt.Fprintf(&body, "...and %d more\n", len(under)-maxList)
+
+			break
+		}
+
+		fmt.Fprintf(&body, "- `%s` (R=%d, msgs=%d)\n", r.Stream, r.Replicas, r.Messages)
+	}
+
+	if len(skew) > 0 {
+		body.WriteString("\nPlacement skew (top servers):\n")
+
+		for i, sv := range skew {
+			if i >= maxSkew {
+				break
+			}
+
+			fmt.Fprintf(&body, "- `%s` leads %d, hosts %d\n", sv.Server, sv.Leads, sv.Replicas)
+		}
+	}
+
+	body.WriteString("\n_R<2 means no redundancy — a single node loss takes the stream offline. Raise replicas with a stream edit._")
+
+	return notify.Message{
+		Title: fmt.Sprintf("natsie under-replicated streams (%s)", s.Name),
 		Body:  body.String(),
 	}
 }

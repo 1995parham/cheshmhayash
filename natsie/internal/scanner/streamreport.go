@@ -114,6 +114,24 @@ func placementPeers(ci api.ClusterInfo) []string {
 	return peers
 }
 
+// underReplicatedThreshold is the minimum replica count for a stream to have
+// any redundancy; below it, losing one node takes the stream offline.
+const underReplicatedThreshold = 2
+
+// UnderReplicated returns, in a fresh slice, the streams configured with fewer
+// than two replicas — no redundancy, a single-node failure risk.
+func UnderReplicated(rows []StreamReportRow) []StreamReportRow {
+	var out []StreamReportRow
+
+	for _, r := range rows {
+		if r.Replicas < underReplicatedThreshold {
+			out = append(out, r)
+		}
+	}
+
+	return out
+}
+
 // PlacementSkew folds the per-stream placement into one row per server, sorted
 // by leadership then replica count, so the most loaded pods lead the summary.
 func PlacementSkew(rows []StreamReportRow) []ServerLoad {

@@ -81,14 +81,7 @@ func checkCommand() *cli.Command {
 }
 
 func filterGhosts(rows []scanner.PeerRow) []scanner.PeerRow {
-	out := rows[:0]
-	for _, r := range rows {
-		if r.Health == scanner.PeerGhost {
-			out = append(out, r)
-		}
-	}
-
-	return out
+	return scanner.GhostPeers(rows)
 }
 
 func render(format string, rows []scanner.PeerRow) error {
