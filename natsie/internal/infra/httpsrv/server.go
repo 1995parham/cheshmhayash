@@ -15,6 +15,7 @@ import (
 
 	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/cleanup"
+	"github.com/1995parham/natsie/internal/infra/metrics"
 	"github.com/1995parham/natsie/internal/infra/store"
 )
 
@@ -31,6 +32,7 @@ type Server struct {
 	signingKey string
 	connect    cleanup.Connector
 	baseURL    string
+	metrics    *metrics.Metrics
 }
 
 // Options groups optional Server inputs that have grown beyond a sensible
@@ -45,6 +47,9 @@ type Options struct {
 	Connector  cleanup.Connector
 	Audit      *audit.Logger
 	BaseURL    string
+	// Metrics, when non-nil, enables the /metrics endpoint and records
+	// approval-apply outcomes and latency. May be nil.
+	Metrics *metrics.Metrics
 }
 
 // New constructs the Server. Routes are registered immediately so callers
@@ -62,6 +67,7 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 		signingKey: opts.SigningKey,
 		connect:    opts.Connector,
 		baseURL:    opts.BaseURL,
+		metrics:    opts.Metrics,
 	}
 	s.routes()
 
@@ -71,6 +77,10 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 func (s *Server) routes() {
 	s.e.GET("/healthz", s.health)
 	s.e.GET("/manifest/:id", s.getManifest)
+
+	if s.metrics != nil {
+		s.e.GET("/metrics", echo.WrapHandler(s.metrics.Handler()))
+	}
 
 	if s.signingKey != "" {
 		s.e.POST("/slash", s.handleSlash)

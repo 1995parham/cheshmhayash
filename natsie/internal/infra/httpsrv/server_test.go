@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"gopkg.in/yaml.v3"
 
+	"github.com/1995parham/natsie/internal/infra/metrics"
 	"github.com/1995parham/natsie/internal/infra/store"
 	"github.com/1995parham/natsie/internal/manifest"
 )
@@ -100,6 +101,34 @@ func TestGetManifestNotFound(t *testing.T) {
 	rec := doRequest(s, "/manifest/never-existed")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status=%d want 404", rec.Code)
+	}
+}
+
+func TestMetricsEndpointEnabled(t *testing.T) {
+	st, err := store.NewFile(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFile: %v", err)
+	}
+
+	logger := log.New(io.Discard, "", 0)
+	s := New(":0", st, Options{Metrics: metrics.New("test")}, logger)
+
+	rec := doRequest(s, "/metrics")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d want 200", rec.Code)
+	}
+
+	if !strings.Contains(rec.Body.String(), "natsie_build_info") {
+		t.Errorf("metrics output missing natsie_build_info:\n%s", rec.Body.String())
+	}
+}
+
+func TestMetricsEndpointDisabled(t *testing.T) {
+	s, _ := newTestServer(t) // Options{} → no metrics registered
+
+	rec := doRequest(s, "/metrics")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d want 404 (route absent without Metrics)", rec.Code)
 	}
 }
 

@@ -99,6 +99,7 @@ approve the one manifest it was issued for.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/healthz` | liveness/readiness |
+| `GET` | `/metrics` | Prometheus metrics (scan duration/candidates, apply outcomes, approval latency); only registered when metrics are enabled |
 | `GET` | `/manifest/{id}` | stored manifest as `application/yaml` |
 | `POST` | `/slash` | slash-command handler (`list`, `show <id>`, `help`); token-protected |
 | `GET` | `/approve/{id}?token=...` | plain-text preview |
@@ -142,6 +143,7 @@ it should listen on; being a webhook target is not enough.
 - `github.com/knadh/koanf/v2` (config)
 - `github.com/labstack/echo/v5` (HTTP listener in `bot serve`)
 - `github.com/robfig/cron/v3` (schedules)
+- `github.com/prometheus/client_golang` (metrics on `/metrics`)
 - `github.com/mattermost/mattermost/server/public` (pull-mode WebSocket client)
 - Runtime image: distroless
 - Chart published from `chart/`; image to `ghcr.io/1995parham/natsie`

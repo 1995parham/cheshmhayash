@@ -9,6 +9,7 @@ import (
 	"html"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v5"
 
@@ -113,6 +114,11 @@ func (s *Server) doApproval(c *echo.Context) error {
 	}
 
 	result, err := applyManifest(c.Request().Context(), m, s.connect)
+
+	// Record outcomes and how long the manifest waited for approval. Done for
+	// both the success and error paths — partial applies still delete things.
+	s.metrics.ObserveApply(result.Deleted, result.Preserved, result.Gone, result.Skipped, result.Failed, time.Since(m.GeneratedAt))
+
 	if err != nil {
 		_ = s.audit.Log(audit.Event{
 			Kind: "approve.apply", Manifest: id, Source: c.RealIP(),

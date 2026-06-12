@@ -159,6 +159,7 @@ bot:
 | Method | Path | Purpose |
 | ------ | ---- | ------- |
 | `GET`  | `/healthz` | JSON `{"status":"ok"}` for load-balancer probes. |
+| `GET`  | `/metrics` | Prometheus metrics: scan duration & candidate counts, apply outcomes, approval latency, build info. |
 | `GET`  | `/manifest/{id}` | Returns the stored manifest as `application/yaml`. |
 | `POST` | `/slash` | Slash-command handler (`list`, `show <id>`, `help`). Token-protected. |
 | `GET`  | `/approve/{id}?token=...` | Renders a plain-text preview of what would be deleted. |

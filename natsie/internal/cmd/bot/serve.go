@@ -17,6 +17,7 @@ import (
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/httpsrv"
 	"github.com/1995parham/natsie/internal/infra/mattermost"
+	"github.com/1995parham/natsie/internal/infra/metrics"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/infra/notify"
 	"github.com/1995parham/natsie/internal/infra/scheduler"
@@ -93,14 +94,16 @@ func serve(ctx context.Context, cfg *config.Config) error {
 
 	logger := log.New(os.Stderr, "natsie ", log.LstdFlags|log.Lmsgprefix)
 
+	met := metrics.New(version.Short())
+
 	sched := scheduler.New(logger)
 
 	for _, s := range cfg.Bot.Schedules {
 		var job scheduler.Job
 		if s.Kind == config.KindStreamUnlimited {
-			job = buildStreamCheckJob(s, dispatch, auditLog, logger)
+			job = buildStreamCheckJob(s, dispatch, auditLog, met, logger)
 		} else {
-			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, logger)
+			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, met, logger)
 		}
 
 		if err := sched.Add(job); err != nil { //nolint:contextcheck // job carries its own ctx via Job.Run
@@ -131,6 +134,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 				Connector:  botConnector,
 				Audit:      auditLog,
 				BaseURL:    cfg.Bot.HTTP.BaseURL,
+				Metrics:    met,
 			},
 			logger,
 		)
@@ -284,12 +288,16 @@ func buildDispatcher(b config.Bot) (*dispatcher, error) {
 
 // buildScanJob captures one schedule's settings and returns the function
 // the scheduler will fire on the cron clock.
-func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
+func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, met *metrics.Metrics, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
-			return runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, logger)
+			start := time.Now()
+			candidates, err := runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, logger)
+			met.ObserveScan(s.Name, config.KindConsumerStale, candidates, time.Since(start), err)
+
+			return err
 		},
 	}
 }
@@ -297,29 +305,33 @@ func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispat
 // buildStreamCheckJob captures a stream-unlimited schedule and returns the
 // function the scheduler fires. Unlike a scan job it produces no manifest and
 // no approve URL — it is a notify-only report (natsie never deletes a stream).
-func buildStreamCheckJob(s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) scheduler.Job {
+func buildStreamCheckJob(s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, met *metrics.Metrics, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
-			return runStreamCheck(ctx, s, dispatch, auditLog, logger)
+			start := time.Now()
+			candidates, err := runStreamCheck(ctx, s, dispatch, auditLog, logger)
+			met.ObserveScan(s.Name, config.KindStreamUnlimited, candidates, time.Since(start), err)
+
+			return err
 		},
 	}
 }
 
-func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) error {
+func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher, auditLog *audit.Logger, logger *log.Logger) (int, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
 	nc, err := natsctx.Connect(s.Context)
 	if err != nil {
-		return fmt.Errorf("connect %s: %w", s.Context, err)
+		return 0, fmt.Errorf("connect %s: %w", s.Context, err)
 	}
 	defer nc.Close()
 
 	rows, err := scanner.ScanUnlimitedStreams(scanCtx, nc)
 	if err != nil {
-		return fmt.Errorf("stream check: %w", err)
+		return 0, fmt.Errorf("stream check: %w", err)
 	}
 
 	logger.Printf("schedule=%s unlimited-streams=%d", s.Name, len(rows))
@@ -328,7 +340,7 @@ func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher
 
 	if len(rows) == 0 {
 		// Nothing unbounded; stay quiet rather than posting an all-clear.
-		return nil
+		return 0, nil
 	}
 
 	msg := buildStreamCheckMessage(s, rows)
@@ -338,16 +350,16 @@ func runStreamCheck(ctx context.Context, s config.Schedule, dispatch *dispatcher
 		}
 	}
 
-	return nil
+	return len(rows), nil
 }
 
-func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) error {
+func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) (int, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
 	nc, err := natsctx.Connect(s.Context)
 	if err != nil {
-		return fmt.Errorf("connect %s: %w", s.Context, err)
+		return 0, fmt.Errorf("connect %s: %w", s.Context, err)
 	}
 	defer nc.Close()
 
@@ -355,7 +367,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	if s.PeerContext != "" {
 		peer, err = natsctx.Connect(s.PeerContext)
 		if err != nil {
-			return fmt.Errorf("connect peer %s: %w", s.PeerContext, err)
+			return 0, fmt.Errorf("connect peer %s: %w", s.PeerContext, err)
 		}
 		defer peer.Close()
 	}
@@ -368,7 +380,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 
 	rows, err := scanner.Scan(scanCtx, nc, peer, opts)
 	if err != nil {
-		return fmt.Errorf("scan: %w", err)
+		return 0, fmt.Errorf("scan: %w", err)
 	}
 
 	m := buildManifest(s, rows)
@@ -377,19 +389,19 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	if len(m.Entries) == 0 {
 		_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Entries: 0})
 		// Nothing to do; don't generate noise. Future: optional "all clear" ping.
-		return nil
+		return 0, nil
 	}
 
 	id := fmt.Sprintf("%s-%s", s.Name, time.Now().UTC().Format("20060102T150405Z"))
 	if err := manifestStore.Put(ctx, id, m); err != nil {
-		return fmt.Errorf("store manifest %s: %w", id, err)
+		return 0, fmt.Errorf("store manifest %s: %w", id, err)
 	}
 
 	_ = auditLog.Log(audit.Event{Kind: "scan", Schedule: s.Name, Manifest: id, Entries: len(m.Entries)})
 
 	dispatch.post(ctx, s, m, id, baseURL, signingKey, logger)
 
-	return nil
+	return len(m.Entries), nil
 }
 
 // post fans the manifest out: per-owner subset messages to each owner's
