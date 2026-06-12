@@ -9,6 +9,7 @@ package manifest
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -60,13 +61,30 @@ func Read(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("read manifest %s: %w", path, err)
 	}
 
+	return parse(b, path)
+}
+
+// ReadFrom parses a YAML manifest from r, for piping a manifest straight into
+// apply (e.g. from a chat bot) without staging it on disk first.
+func ReadFrom(r io.Reader) (*Manifest, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read manifest from stdin: %w", err)
+	}
+
+	return parse(b, "stdin")
+}
+
+// parse unmarshals manifest bytes and validates the schema version. source is
+// used only to label errors (a path or "stdin").
+func parse(b []byte, source string) (*Manifest, error) {
 	var m Manifest
 	if err := yaml.Unmarshal(b, &m); err != nil {
-		return nil, fmt.Errorf("parse manifest %s: %w", path, err)
+		return nil, fmt.Errorf("parse manifest %s: %w", source, err)
 	}
 
 	if m.Version != Version {
-		return nil, fmt.Errorf("unsupported manifest version %q (want %q)", m.Version, Version)
+		return nil, fmt.Errorf("unsupported manifest version %q in %s (want %q)", m.Version, source, Version)
 	}
 
 	return &m, nil

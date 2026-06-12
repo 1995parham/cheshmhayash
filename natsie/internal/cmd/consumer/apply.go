@@ -18,11 +18,13 @@ func applyCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "apply",
 		Usage: "Apply a cleanup manifest, re-verifying each consumer before deletion",
-		UsageText: "natsie consumer apply <manifest.yaml> [--dry-run]\n\n" +
+		UsageText: "natsie consumer apply <manifest.yaml|-> [--dry-run]\n\n" +
 			"Reads the manifest produced by `natsie consumer scan --emit-manifest`,\n" +
 			"re-queries each consumer's current state, and deletes those that are\n" +
 			"still stale. Consumers that have been active since the manifest was\n" +
-			"generated are preserved without modification.",
+			"generated are preserved without modification.\n\n" +
+			"Pass `-` as the path to read the manifest from stdin (for piping a\n" +
+			"manifest straight from a chat bot or another process).",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "dry-run",
@@ -31,10 +33,22 @@ func applyCommand() *cli.Command {
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() != 1 {
-				return errors.New("usage: natsie consumer apply <manifest.yaml>")
+				return errors.New("usage: natsie consumer apply <manifest.yaml|->")
 			}
 
-			m, err := manifest.Read(cmd.Args().First())
+			path := cmd.Args().First()
+
+			var (
+				m   *manifest.Manifest
+				err error
+			)
+
+			if path == "-" {
+				m, err = manifest.ReadFrom(cmd.Reader)
+			} else {
+				m, err = manifest.Read(path)
+			}
+
 			if err != nil {
 				return err
 			}

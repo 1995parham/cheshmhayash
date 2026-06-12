@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -77,6 +78,40 @@ func TestWriteRefusesToOverwriteByDefault(t *testing.T) {
 
 	if err := m.Write(path, true); err != nil {
 		t.Fatalf("force should succeed: %v", err)
+	}
+}
+
+func TestReadFromParsesStdin(t *testing.T) {
+	doc := "version: " + Version + "\n" +
+		"generated_at: 2026-05-22T10:00:00Z\n" +
+		"scan:\n  context: snapp-js-main-teh1\n" +
+		"entries:\n" +
+		"  - cluster: snapp-js-main-teh1\n" +
+		"    stream: rides\n" +
+		"    consumer: stale-group\n" +
+		"    status: STALE\n" +
+		"    num_pending: 42\n"
+
+	m, err := ReadFrom(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("ReadFrom: %v", err)
+	}
+
+	if len(m.Entries) != 1 || m.Entries[0].Consumer != "stale-group" {
+		t.Fatalf("unexpected entries: %+v", m.Entries)
+	}
+}
+
+func TestReadFromRejectsUnknownVersion(t *testing.T) {
+	doc := "version: bogus/v9\ngenerated_at: 2026-05-22T00:00:00Z\nscan:\n  context: x\nentries: []\n"
+
+	_, err := ReadFrom(strings.NewReader(doc))
+	if err == nil {
+		t.Fatal("expected version error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "stdin") {
+		t.Errorf("error should name the source: %v", err)
 	}
 }
 
