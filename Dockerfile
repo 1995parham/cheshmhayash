@@ -28,15 +28,19 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 COPY . .
+# Two binaries: the dashboard (default ENTRYPOINT) and the MCP server
+# (cheshmhayash-mcp — stdio by default, `-http` for the Streamable HTTP
+# transport). Both ship in the image so one image can run either way.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go build -ldflags="-s -w -X github.com/1995parham/cheshmhayash/internal/version.Version=${VERSION}" -o /out/cheshmhayash .
+    go build -ldflags="-s -w -X github.com/1995parham/cheshmhayash/internal/version.Version=${VERSION}" -o /out/ ./cmd/...
 
 # ---------- runtime -------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=backend /out/cheshmhayash ./cheshmhayash
+COPY --from=backend /out/cheshmhayash-mcp ./cheshmhayash-mcp
 COPY --from=frontend /src/dist ./frontend/dist
 
 EXPOSE 1378
