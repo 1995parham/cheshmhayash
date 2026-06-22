@@ -22,7 +22,7 @@ jobs:
       - name: setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.3"
+          go-version-file: go.mod
           check-latest: true
 
       # golangci-lint is the single source of truth for Go linting: `run`
@@ -43,7 +43,7 @@ jobs:
       - name: setup Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.3"
+          go-version-file: go.mod
           check-latest: true
 
       - name: build
