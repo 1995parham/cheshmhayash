@@ -17,7 +17,7 @@ jobs:
     name: backend / lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup Go
         uses: actions/setup-go@v6
@@ -38,7 +38,7 @@ jobs:
     name: backend / build + test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup Go
         uses: actions/setup-go@v6
@@ -59,7 +59,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup Node
         uses: actions/setup-node@v6
@@ -97,7 +97,7 @@ jobs:
     # Skip on main pushes — release.yaml builds + pushes there.
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: download frontend bundle
         uses: actions/download-artifact@v8
@@ -121,7 +121,7 @@ jobs:
     name: helm / lint + template
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup helm
         uses: azure/setup-helm@v5

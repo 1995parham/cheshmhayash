@@ -13,8 +13,8 @@ on:
 
 permissions:
   contents: read
-  packages: write     # ghcr.io push
-  id-token: write     # cosign keyless signing via OIDC
+  packages: write # ghcr.io push
+  id-token: write # cosign keyless signing via OIDC
   attestations: write # in-toto attestations
 
 env:
@@ -30,7 +30,7 @@ jobs:
     name: build frontend bundle
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup Node
         uses: actions/setup-node@v6
@@ -61,7 +61,7 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
       tags: ${{ steps.meta.outputs.tags }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: download frontend bundle
         uses: actions/download-artifact@v8
@@ -171,7 +171,7 @@ jobs:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: setup helm
         uses: azure/setup-helm@v5
