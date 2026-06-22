@@ -124,6 +124,38 @@ service:
   # Use a specific nodePort/targetPort if you switch type: NodePort.
   annotations: {}
 
+# ---- MCP server ------------------------------------------------------------
+# The MCP server is a separate binary (cheshmhayash-mcp). The dashboard no
+# longer serves /mcp; enable this to run the Streamable HTTP transport as its
+# own Deployment + Service. It reuses the same image, settings.toml and NATS
+# auth; /mcp auth is configured under `auth.mcpKeys` / `auth.mcpOauth` /
+# `auth.mcpJwt` below (shared settings). Write tools are off unless
+# `mcp.write: true` (sets CHESHMHAYASH_MCP_WRITE=1).
+#
+# Pod security, serviceAccount, image, probes and update strategy are shared
+# with the dashboard; scheduling (nodeSelector/affinity/tolerations) and
+# resources fall back to the dashboard values when left empty.
+mcp:
+  enabled: false
+  replicaCount: 1
+  # Container + Service port for the HTTP transport (passed as `-addr :PORT`).
+  port: 8080
+  # Register the destructive MCP tools (purge/delete/kick/reload/stepdown).
+  write: false
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+  # Defaults to the top-level `resources` when empty.
+  resources: {}
+  podAnnotations: {}
+  podLabels: {}
+  extraEnv: []
+  # Default to the top-level scheduling values when empty.
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
 # --- ingress routing ------------------------------------------------------
 # The chart ships two ingress mechanisms; enable whichever fits your cluster.
 # Don't enable both with the same hostname — most controllers (including
@@ -268,6 +300,10 @@ notify: []
 # before this section was added. MCP keys work independently — list any
 # entry under `mcpKeys` to require a bearer token on /mcp, regardless of
 # whether OIDC is on.
+#
+# The `mcp*` keys below configure the /mcp endpoint, which is now served by
+# the separate MCP workload (`mcp.enabled` above), not the dashboard. They
+# have no effect unless `mcp.enabled: true`.
 #
 # Sensitive fields (`oidc.clientSecret`, `session.secret`, MCP key values)
 # are sourced from a Secret. The chart can either create + populate that

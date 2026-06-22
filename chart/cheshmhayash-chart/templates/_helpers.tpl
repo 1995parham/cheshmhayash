@@ -53,6 +53,115 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+MCP workload name — the dashboard fullname with a `-mcp` suffix.
+*/}}
+{{- define "cheshmhayash-chart.mcp.fullname" -}}
+{{- printf "%s-mcp" (include "cheshmhayash-chart.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
+Immutable selector subset for the MCP workload. Distinct from the dashboard
+selector so the two Deployments never adopt each other's pods.
+*/}}
+{{- define "cheshmhayash-chart.mcp.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "cheshmhayash-chart.name" . }}-mcp
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Recommended labels for the MCP workload (component: mcp).
+*/}}
+{{- define "cheshmhayash-chart.mcp.labels" -}}
+helm.sh/chart: {{ include "cheshmhayash-chart.chart" . }}
+{{ include "cheshmhayash-chart.mcp.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/component: mcp
+app.kubernetes.io/part-of: nats
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Per-cluster NATS auth env (CHESHMHAYASH__NATS__i__USER/PASSWORD). Shared by
+the dashboard and MCP Deployments — both open the same NATS connections.
+*/}}
+{{- define "cheshmhayash-chart.natsAuthEnv" -}}
+{{- range $i, $c := .Values.clusters }}
+{{- if and $c.auth $c.auth.existingSecret }}
+- name: CHESHMHAYASH__NATS__{{ $i }}__USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ $c.auth.existingSecret.name }}
+      key: {{ $c.auth.existingSecret.userKey | default "user" }}
+- name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ $c.auth.existingSecret.name }}
+      key: {{ $c.auth.existingSecret.passwordKey | default "password" }}
+{{- else if and $c.auth $c.auth.userPassword }}
+- name: CHESHMHAYASH__NATS__{{ $i }}__USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "cheshmhayash-chart.secretName" $ }}
+      key: {{ $c.name }}-user
+- name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "cheshmhayash-chart.secretName" $ }}
+      key: {{ $c.name }}-password
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+MCP static bearer-key env (CHESHMHAYASH__AUTH__MCP_KEYS__i__VALUE). Consumed
+by the MCP Deployment, which is the only workload that serves /mcp.
+*/}}
+{{- define "cheshmhayash-chart.mcpKeysEnv" -}}
+{{- range $i, $k := .Values.auth.mcpKeys }}
+- name: CHESHMHAYASH__AUTH__MCP_KEYS__{{ $i }}__VALUE
+  valueFrom:
+    secretKeyRef:
+      {{- if $k.existingSecret }}
+      name: {{ $k.existingSecret.name }}
+      key: {{ $k.existingSecret.key }}
+      {{- else }}
+      name: {{ include "cheshmhayash-chart.secretName" $ }}
+      key: mcp-key-{{ $i }}
+      {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+NATS creds-file volumeMounts (shared by dashboard + MCP).
+*/}}
+{{- define "cheshmhayash-chart.credsVolumeMounts" -}}
+{{- range $i, $c := .Values.clusters }}
+{{- if and $c.auth $c.auth.credsFileSecret }}
+- name: creds-{{ $c.name }}
+  mountPath: /etc/cheshmhayash/creds/{{ $c.name }}.creds
+  subPath: {{ $c.auth.credsFileSecret.key }}
+  readOnly: true
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+NATS creds-file volumes (shared by dashboard + MCP).
+*/}}
+{{- define "cheshmhayash-chart.credsVolumes" -}}
+{{- range $i, $c := .Values.clusters }}
+{{- if and $c.auth $c.auth.credsFileSecret }}
+- name: creds-{{ $c.name }}
+  secret:
+    secretName: {{ $c.auth.credsFileSecret.name }}
+    defaultMode: 0400
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 ServiceAccount name in use.
 */}}
 {{- define "cheshmhayash-chart.serviceAccountName" -}}

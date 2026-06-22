@@ -28,6 +28,18 @@ Reach the panel:
 Health check:
   kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "cheshmhayash-chart.fullname" . }} \
     -- wget -qO- http://127.0.0.1:{{ .Values.server.port }}/healthz && echo "ok"
+{{- if .Values.mcp.enabled }}
+
+MCP server (Streamable HTTP transport) is enabled as a separate workload:
+  Service: {{ include "cheshmhayash-chart.mcp.fullname" . }}:{{ .Values.mcp.service.port }} → /mcp
+  kubectl --namespace {{ .Release.Namespace }} port-forward \
+    svc/{{ include "cheshmhayash-chart.mcp.fullname" . }} {{ .Values.mcp.port }}:{{ .Values.mcp.service.port }}
+  Write tools: {{ if .Values.mcp.write }}ENABLED (CHESHMHAYASH_MCP_WRITE=1){{ else }}disabled (set mcp.write=true){{ end }}
+{{- else }}
+
+NOTE: the dashboard no longer serves /mcp. Set `mcp.enabled: true` to run
+the MCP HTTP server (cheshmhayash-mcp) as its own Deployment + Service.
+{{- end }}
 
 Helm tests:
   helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
