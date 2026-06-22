@@ -18,7 +18,9 @@ the NATS client port (`:4222`).
 
 ```
 .
-├── main.go                        # entrypoint — HTTP server, or `-mcp` stdio MCP
+├── cmd/
+│   ├── cheshmhayash/              # entrypoint — HTTP dashboard (API + SPA, no /mcp)
+│   └── cheshmhayash-mcp/          # entrypoint — MCP server: stdio (default) or `-http`
 ├── internal/
 │   ├── config/                    # koanf loader: struct defaults → settings.toml → env
 │   ├── natsx/                     # NATS client + admin/jsm subjects + overview cache
@@ -48,30 +50,39 @@ Local dev — the Vite dev server proxies `/api` + `/healthz` to the Go
 process on `:1378`:
 
 ```sh
-go run .                              # backend on :1378
+go run ./cmd/cheshmhayash             # backend on :1378
 cd frontend && npm run dev            # UI on :5173 with HMR
 ```
 
-Production (single binary serves API + built SPA from `frontend/dist`):
+Production (the dashboard binary serves API + built SPA from `frontend/dist`):
 
 ```sh
 cd frontend && npm run build
-go build -o ./bin/cheshmhayash .
+go build -o ./bin/cheshmhayash ./cmd/cheshmhayash
 ./bin/cheshmhayash                    # http://127.0.0.1:1378
 ```
 
 Docker — `docker build -t cheshmhayash .` and `docker run -p 1378:1378
--v "$PWD/settings.toml:/app/settings.toml:ro" cheshmhayash`.
+-v "$PWD/settings.toml:/app/settings.toml:ro" cheshmhayash`. The image
+ships both binaries; the default ENTRYPOINT is the dashboard. Run the MCP
+server with `docker run … cheshmhayash /app/cheshmhayash-mcp -http`.
 
-MCP mode (stdio) — same binary with `-mcp`:
+MCP server — its own binary (`cmd/cheshmhayash-mcp`). The dashboard no
+longer serves `/mcp`; build/run the MCP binary instead:
 
 ```sh
-./bin/cheshmhayash -mcp                            # read-only tool set
-CHESHMHAYASH_MCP_WRITE=1 ./bin/cheshmhayash -mcp   # enables purge/delete/kick/reload/stepdown
+go build -o ./bin/cheshmhayash-mcp ./cmd/cheshmhayash-mcp
+
+./bin/cheshmhayash-mcp                              # stdio, read-only tool set
+CHESHMHAYASH_MCP_WRITE=1 ./bin/cheshmhayash-mcp     # stdio + purge/delete/kick/reload/stepdown
+./bin/cheshmhayash-mcp -http                        # Streamable HTTP /mcp on server.host:port
+./bin/cheshmhayash-mcp -http -addr :8080            # …or an explicit listen address
 ```
 
-It reuses `settings.toml`; logs go to stderr because stdout is the
-JSON-RPC channel.
+It reuses `settings.toml`; in stdio mode logs go to stderr because stdout
+is the JSON-RPC channel. In `-http` mode it serves `/mcp`, `/healthz`, and
+the RFC 9728 OAuth metadata, gated by the same `auth.mcp_*` config the
+dashboard used to apply.
 
 ## Configuration
 
