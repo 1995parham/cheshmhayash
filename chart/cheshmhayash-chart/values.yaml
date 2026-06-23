@@ -155,6 +155,17 @@ mcp:
   nodeSelector: {}
   affinity: {}
   tolerations: []
+  # Spread MCP replicas across nodes/zones. Falls back to the top-level
+  # `topologySpreadConstraints` when empty; set to [] there too to disable.
+  topologySpreadConstraints: []
+  # Keep at least one MCP pod available during voluntary disruptions (node
+  # drains, rollouts). Only rendered when `mcp.replicaCount > 1` — a PDB with
+  # minAvailable: 1 on a single replica would block every drain.
+  podDisruptionBudget:
+    enabled: true
+    # Either minAvailable or maxUnavailable (mutually exclusive).
+    minAvailable: 1
+    # maxUnavailable: 1
 
 # --- ingress routing ------------------------------------------------------
 # The chart ships two ingress mechanisms; enable whichever fits your cluster.

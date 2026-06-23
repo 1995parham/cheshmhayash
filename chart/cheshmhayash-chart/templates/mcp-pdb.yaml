@@ -1,0 +1,24 @@
+{{- /*
+PodDisruptionBudget for the standalone MCP workload. Mirrors the dashboard
+pdb.yaml but selects the -mcp pods. The MCP Deployment has no HPA, so the
+effective replica count is simply mcp.replicaCount. Gated on > 1 because a
+minAvailable: 1 PDB on a single replica would block every voluntary eviction
+(node drains hang forever).
+*/}}
+{{- if and .Values.mcp.enabled .Values.mcp.podDisruptionBudget.enabled (gt (int .Values.mcp.replicaCount) 1) -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cheshmhayash-chart.mcp.fullname" . }}
+  labels:
+    {{- include "cheshmhayash-chart.mcp.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.mcp.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.mcp.podDisruptionBudget.minAvailable }}
+  {{- else if .Values.mcp.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.mcp.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cheshmhayash-chart.mcp.selectorLabels" . | nindent 6 }}
+{{- end }}

@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.8.0
+version: 1.9.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -41,5 +41,7 @@ annotations:
     - name: nats.io
       url: https://nats.io
   artifacthub.io/changes: |
+    - kind: added
+      description: "The MCP workload now gets its own PodDisruptionBudget (`mcp.podDisruptionBudget`, rendered only when `mcp.replicaCount > 1`) and honours topology spread (`mcp.topologySpreadConstraints`, falling back to the top-level value) — availability parity with the dashboard."
     - kind: changed
       description: "The MCP server is now a separate binary (`cheshmhayash-mcp`); the dashboard no longer serves `/mcp`. Set `mcp.enabled: true` to run the Streamable HTTP transport as its own Deployment + Service (reuses the same image, settings.toml and NATS auth; `auth.mcp*` keys configure /mcp auth as before). Write tools gate on `mcp.write`."
