@@ -67,34 +67,9 @@ spec:
             {{- end }}
           {{- end }}
           {{- $hasAppAuthEnv := and .Values.auth.enabled true }}
-          {{- $hasMCPKeyEnv := gt (len .Values.auth.mcpKeys) 0 }}
-          {{- if or $hasAuthEnv $hasNotifyEnv $hasAppAuthEnv $hasMCPKeyEnv .Values.extraEnv }}
+          {{- if or $hasAuthEnv $hasNotifyEnv $hasAppAuthEnv .Values.extraEnv }}
           env:
-            {{- range $i, $c := .Values.clusters }}
-            {{- if and $c.auth $c.auth.existingSecret }}
-            - name: CHESHMHAYASH__NATS__{{ $i }}__USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $c.auth.existingSecret.name }}
-                  key: {{ $c.auth.existingSecret.userKey | default "user" }}
-            - name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $c.auth.existingSecret.name }}
-                  key: {{ $c.auth.existingSecret.passwordKey | default "password" }}
-            {{- else if and $c.auth $c.auth.userPassword }}
-            - name: CHESHMHAYASH__NATS__{{ $i }}__USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cheshmhayash-chart.secretName" $ }}
-                  key: {{ $c.name }}-user
-            - name: CHESHMHAYASH__NATS__{{ $i }}__PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "cheshmhayash-chart.secretName" $ }}
-                  key: {{ $c.name }}-password
-            {{- end }}
-            {{- end }}
+            {{- include "cheshmhayash-chart.natsAuthEnv" . | nindent 12 }}
             {{- range $i, $n := .Values.notify }}
             {{- if $n.urlSecret }}
             - name: CHESHMHAYASH__NOTIFY__{{ $i }}__URL
@@ -128,18 +103,6 @@ spec:
                   {{- else }}
                   name: {{ include "cheshmhayash-chart.secretName" . }}
                   key: session-secret
-                  {{- end }}
-            {{- end }}
-            {{- range $i, $k := .Values.auth.mcpKeys }}
-            - name: CHESHMHAYASH__AUTH__MCP_KEYS__{{ $i }}__VALUE
-              valueFrom:
-                secretKeyRef:
-                  {{- if $k.existingSecret }}
-                  name: {{ $k.existingSecret.name }}
-                  key: {{ $k.existingSecret.key }}
-                  {{- else }}
-                  name: {{ include "cheshmhayash-chart.secretName" $ }}
-                  key: mcp-key-{{ $i }}
                   {{- end }}
             {{- end }}
             {{- with .Values.extraEnv }}
@@ -185,14 +148,7 @@ spec:
               mountPath: /app/settings.toml
               subPath: settings.toml
               readOnly: true
-            {{- range $i, $c := .Values.clusters }}
-            {{- if and $c.auth $c.auth.credsFileSecret }}
-            - name: creds-{{ $c.name }}
-              mountPath: /etc/cheshmhayash/creds/{{ $c.name }}.creds
-              subPath: {{ $c.auth.credsFileSecret.key }}
-              readOnly: true
-            {{- end }}
-            {{- end }}
+            {{- include "cheshmhayash-chart.credsVolumeMounts" . | nindent 12 }}
             # readOnlyRootFilesystem is true, so anything the binary writes
             # has to land on an emptyDir.
             - name: tmp
@@ -207,14 +163,7 @@ spec:
         - name: config
           configMap:
             name: {{ include "cheshmhayash-chart.configMapName" . }}
-        {{- range $i, $c := .Values.clusters }}
-        {{- if and $c.auth $c.auth.credsFileSecret }}
-        - name: creds-{{ $c.name }}
-          secret:
-            secretName: {{ $c.auth.credsFileSecret.name }}
-            defaultMode: 0400
-        {{- end }}
-        {{- end }}
+        {{- include "cheshmhayash-chart.credsVolumes" . | nindent 8 }}
         - name: tmp
           emptyDir:
             sizeLimit: 16Mi

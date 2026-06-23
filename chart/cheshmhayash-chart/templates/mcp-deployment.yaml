@@ -1,0 +1,140 @@
+{{- if .Values.mcp.enabled }}
+{{- /*
+Standalone MCP server. Runs the cheshmhayash-mcp binary in `-http` mode so
+the Streamable HTTP transport at /mcp is served by its own workload — the
+dashboard no longer serves /mcp. Reuses the same image, settings.toml
+ConfigMap and NATS auth as the dashboard; /mcp auth (static keys / OIDC /
+unverified JWT) is configured under `auth.mcp*` in the shared settings.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cheshmhayash-chart.mcp.fullname" . }}
+  labels:
+    {{- include "cheshmhayash-chart.mcp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.mcp.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "cheshmhayash-chart.mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cheshmhayash-chart.mcp.selectorLabels" . | nindent 8 }}
+        {{- with .Values.mcp.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if .Values.restartOnConfigChange }}
+        checksum/config: {{ include "cheshmhayash-chart.settingsToml" . | sha256sum }}
+        {{- end }}
+        {{- with .Values.mcp.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "cheshmhayash-chart.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-mcp
+          image: {{ include "cheshmhayash-chart.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          command: ["/app/cheshmhayash-mcp"]
+          args: ["-http", "-addr", ":{{ .Values.mcp.port }}"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+          {{- $hasNatsAuthEnv := false }}
+          {{- range $c := .Values.clusters }}
+            {{- if and $c.auth (or $c.auth.existingSecret $c.auth.userPassword) }}
+              {{- $hasNatsAuthEnv = true }}
+            {{- end }}
+          {{- end }}
+          {{- $hasMCPKeyEnv := gt (len .Values.auth.mcpKeys) 0 }}
+          {{- if or $hasNatsAuthEnv $hasMCPKeyEnv .Values.mcp.write .Values.mcp.extraEnv }}
+          env:
+            {{- if .Values.mcp.write }}
+            - name: CHESHMHAYASH_MCP_WRITE
+              value: "1"
+            {{- end }}
+            {{- include "cheshmhayash-chart.natsAuthEnv" . | nindent 12 }}
+            {{- include "cheshmhayash-chart.mcpKeysEnv" . | nindent 12 }}
+            {{- with .Values.mcp.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.probes.startup.enabled }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          resources:
+            {{- toYaml (.Values.mcp.resources | default .Values.resources) | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/settings.toml
+              subPath: settings.toml
+              readOnly: true
+            {{- include "cheshmhayash-chart.credsVolumeMounts" . | nindent 12 }}
+            # readOnlyRootFilesystem is true, so anything the binary writes
+            # has to land on an emptyDir.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "cheshmhayash-chart.configMapName" . }}
+        {{- include "cheshmhayash-chart.credsVolumes" . | nindent 8 }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+      {{- with .Values.mcp.nodeSelector | default .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mcp.affinity | default .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mcp.tolerations | default .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

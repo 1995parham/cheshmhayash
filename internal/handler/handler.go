@@ -17,24 +17,21 @@ import (
 )
 
 // Mux returns a fully wired ServeMux covering /api/admin, /api/jsm,
-// /healthz, an optional /mcp endpoint, and a static-file SPA fallback at /.
+// /healthz, and a static-file SPA fallback at /. The HTTP MCP transport
+// lives in its own binary (cheshmhayash-mcp -http); see MCPMux.
 //
-// mcpHandler is optional — pass nil to skip /mcp registration. Likewise
 // cache is optional; when nil, /api/jsm/.../overview falls back to a
 // live NATS call on every request and /overview/stream returns 503.
 //
 // authn is optional. When non-nil and Enabled, /api/auth/* endpoints are
 // registered and all /api/* routes are wrapped in the session-check
-// middleware. mcpKeys, when non-empty, gates /mcp with bearer-token auth
-// (independent of authn — MCP keys work even with OIDC disabled).
+// middleware.
 func Mux(
 	mgr *natsx.Manager,
 	cache *natsx.OverviewCache,
 	staticDir string,
 	logger *slog.Logger,
-	mcpHandler http.Handler,
 	authn *auth.Authenticator,
-	mcpKeys []auth.KeyMatcher,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -58,14 +55,6 @@ func Mux(
 		authn.Register(mux)
 	}
 
-	if mcpHandler != nil {
-		mux.Handle("/mcp", authn.MCPMiddleware(mcpKeys, mcpHandler))
-		// Advertise OAuth 2.0 Protected Resource Metadata (RFC 9728) so MCP
-		// clients can discover the OIDC authorization server. No-op unless
-		// auth.mcp_oauth is enabled.
-		authn.RegisterMCPMetadata(mux)
-	}
-
 	spa(mux, staticDir)
 
 	var inner http.Handler = mux
@@ -73,6 +62,36 @@ func Mux(
 		inner = authn.Middleware(mux)
 	}
 	return cors(requestLog(logger, inner))
+}
+
+// MCPMux builds the HTTP handler for the standalone MCP server
+// (cheshmhayash-mcp -http): a liveness probe at /healthz, the MCP
+// Streamable HTTP transport at /mcp, and the RFC 9728 OAuth metadata
+// endpoints. It shares the dashboard's CORS + request-logging wrappers.
+//
+// authn is optional (nil ⇒ no auth). mcpKeys, when non-empty, gates /mcp
+// with bearer-token auth independently of authn — MCP keys work even with
+// OIDC disabled. The well-known metadata is registered only when
+// auth.mcp_oauth is enabled.
+func MCPMux(
+	mcpHandler http.Handler,
+	authn *auth.Authenticator,
+	mcpKeys []auth.KeyMatcher,
+	logger *slog.Logger,
+) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mux.Handle("/mcp", authn.MCPMiddleware(mcpKeys, mcpHandler))
+	// Advertise OAuth 2.0 Protected Resource Metadata (RFC 9728) so MCP
+	// clients can discover the OIDC authorization server. No-op unless
+	// auth.mcp_oauth is enabled.
+	authn.RegisterMCPMetadata(mux)
+
+	return cors(requestLog(logger, mux))
 }
 
 // spa serves the built SPA from staticDir. Unknown paths fall back to

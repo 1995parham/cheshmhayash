@@ -28,8 +28,7 @@ linters:
     - nilnil       # `return nil, nil` is intentional (e.g. extractGroups)
     # --- dependency / global policy --------------------------------------
     - depguard         # needs a bespoke import allowlist we don't want
-    - gomodguard       # ditto for modules (deprecated alias) — no policy
-    - gomodguard_v2    # ditto — no module blocklist policy
+    - gomodguard       # ditto for modules — no module blocklist policy
     - gochecknoglobals # version.Version, natsx.Logger are intentional
     # --- complexity (large config switch statements are deliberate) ------
     - cyclop

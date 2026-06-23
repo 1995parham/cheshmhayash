@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.7.0
+version: 1.8.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -41,5 +41,5 @@ annotations:
     - name: nats.io
       url: https://nats.io
   artifacthub.io/changes: |
-    - kind: added
-      description: "`auth.mcpJwt.enabled`: third /mcp auth path — accept a bearer JWT and read its identity claims WITHOUT verifying the token (no signature/issuer/audience/expiry check). Claims still resolve a role through the `auth.access` allowlists. For deployments where a trusted gateway already validated the token; anyone reaching /mcp directly can forge claims, so keep the endpoint gateway-only. Off by default; static `mcpKeys` and `mcpOauth` keep working alongside."
+    - kind: changed
+      description: "The MCP server is now a separate binary (`cheshmhayash-mcp`); the dashboard no longer serves `/mcp`. Set `mcp.enabled: true` to run the Streamable HTTP transport as its own Deployment + Service (reuses the same image, settings.toml and NATS auth; `auth.mcp*` keys configure /mcp auth as before). Write tools gate on `mcp.write`."
