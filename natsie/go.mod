@@ -10,7 +10,7 @@ require (
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.5
 	github.com/labstack/echo/v5 v5.2.1
-	github.com/mattermost/mattermost/server/public v0.4.2
+	github.com/mattermost/mattermost/server/public v0.4.3
 	github.com/nats-io/jsm.go v0.4.1
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.52.0
@@ -75,7 +75,6 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/wiggin77/merror v1.0.5 // indirect
 	github.com/wiggin77/srslog v1.0.1 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
