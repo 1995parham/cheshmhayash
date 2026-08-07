@@ -6,7 +6,7 @@ require (
 	github.com/carlmjohnson/versioninfo v0.22.5
 	github.com/jedib0t/go-pretty/v6 v6.8.3
 	github.com/knadh/koanf/parsers/yaml v1.1.0
-	github.com/knadh/koanf/providers/env/v2 v2.0.0
+	github.com/knadh/koanf/providers/env/v2 v2.0.1
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/v2 v2.3.6
 	github.com/labstack/echo/v5 v5.3.1
