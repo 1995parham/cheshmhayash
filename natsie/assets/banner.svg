@@ -1,13 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="natsie — a Swiss-army knife for NATS operations">
+  <!--
+    Layout is split into two horizontal bands — wordmark/tagline on top,
+    stream diagram underneath — so that text growing wider under font
+    substitution has nothing to its right to collide with. GitHub renders
+    this with whatever font the viewer's browser resolves, and renderers
+    disagree about textLength (librsvg ignores it), so the geometry has to
+    tolerate a much wider face on its own. textLength below is a refinement
+    for renderers that honour it, not the thing keeping the layout apart.
+  -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0b1220"/>
       <stop offset="55%" stop-color="#101a2e"/>
       <stop offset="100%" stop-color="#16243d"/>
     </linearGradient>
-    <linearGradient id="wire" gradientUnits="userSpaceOnUse" x1="660" y1="0" x2="1130" y2="0">
-      <stop offset="0%" stop-color="#27e8a7" stop-opacity="0.15"/>
-      <stop offset="35%" stop-color="#27e8a7" stop-opacity="0.9"/>
+    <linearGradient id="wire" gradientUnits="userSpaceOnUse" x1="150" y1="0" x2="1050" y2="0">
+      <stop offset="0%" stop-color="#27e8a7" stop-opacity="0.12"/>
+      <stop offset="40%" stop-color="#27e8a7" stop-opacity="0.85"/>
       <stop offset="100%" stop-color="#27e8a7" stop-opacity="0.1"/>
     </linearGradient>
     <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
@@ -15,49 +24,49 @@
       <stop offset="100%" stop-color="#3aa0ff"/>
     </linearGradient>
     <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feGaussianBlur stdDeviation="5" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
   <rect width="1200" height="320" rx="18" fill="url(#bg)"/>
   <g opacity="0.35" stroke="#3aa0ff" stroke-width="1">
-    <path d="M0 80 H1200 M0 160 H1200 M0 240 H1200" stroke-opacity="0.06"/>
+    <path d="M0 96 H1200 M0 248 H1200" stroke-opacity="0.05"/>
   </g>
 
-  <!-- mark: a stream with three consumers, one of them a ghost -->
-  <g transform="translate(96 104)">
+  <!-- ── band 1: mark + wordmark + tagline ─────────────────────────── -->
+  <g transform="translate(96 58)">
     <rect x="0" y="34" width="96" height="44" rx="12" fill="none" stroke="url(#mark)" stroke-width="4"/>
     <circle cx="24" cy="56" r="5" fill="#27e8a7"/>
     <circle cx="48" cy="56" r="5" fill="#27e8a7" opacity="0.7"/>
     <circle cx="72" cy="56" r="5" fill="#27e8a7" opacity="0.4"/>
   </g>
 
-  <!-- wordmark -->
-  <text x="228" y="166" font-family="'DejaVu Sans','Helvetica Neue',Helvetica,Arial,sans-serif" font-size="86" font-weight="700" fill="#f4f8ff" letter-spacing="-2">natsie</text>
-  <text x="232" y="212" font-family="'DejaVu Sans Mono','SF Mono',Menlo,Consolas,monospace" font-size="21" fill="#8fa6c8">scan -&gt; review -&gt; apply.  never auto-deletes.</text>
+  <text x="228" y="136" textLength="222" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
+        font-size="78" font-weight="700" fill="#f4f8ff" letter-spacing="-2">natsie</text>
+  <text x="232" y="182" textLength="384" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans Mono','SF Mono',Menlo,Consolas,monospace"
+        font-size="19" fill="#8fa6c8">scan -&gt; review -&gt; apply. never auto-deletes.</text>
 
-  <!-- stream wire with consumers -->
-  <g transform="translate(660 0)">
-    <path d="M0 160 H470" stroke="url(#wire)" stroke-width="3" fill="none"/>
+  <!-- ── band 2: the stream, and what natsie finds on it ───────────── -->
+  <path d="M150 248 H1050" stroke="url(#wire)" stroke-width="3" fill="none"/>
 
-    <!-- active consumers -->
-    <g filter="url(#glow)">
-      <circle cx="70" cy="160" r="13" fill="#27e8a7"/>
-      <circle cx="200" cy="160" r="13" fill="#27e8a7"/>
-    </g>
-    <text x="70" y="200" text-anchor="middle" font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#27e8a7">active</text>
-    <text x="200" y="200" text-anchor="middle" font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#27e8a7">active</text>
-
-    <!-- stale consumer, flagged -->
-    <circle cx="330" cy="160" r="13" fill="#f5a524" opacity="0.85"/>
-    <circle cx="330" cy="160" r="24" fill="none" stroke="#f5a524" stroke-width="2" stroke-dasharray="5 5" opacity="0.8"/>
-    <text x="330" y="212" text-anchor="middle" font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#f5a524">stale</text>
-
-    <!-- ghost peer -->
-    <circle cx="450" cy="160" r="13" fill="none" stroke="#6d7f9c" stroke-width="2" stroke-dasharray="3 4"/>
-    <text x="450" y="200" text-anchor="middle" font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#6d7f9c">ghost</text>
+  <g filter="url(#glow)">
+    <circle cx="260" cy="248" r="12" fill="#27e8a7"/>
+    <circle cx="460" cy="248" r="12" fill="#27e8a7"/>
   </g>
+  <text x="260" y="292" text-anchor="middle" textLength="48" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#27e8a7">active</text>
+  <text x="460" y="292" text-anchor="middle" textLength="48" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#27e8a7">active</text>
 
-  <text x="96" y="272" font-family="'DejaVu Sans','Helvetica Neue',Helvetica,Arial,sans-serif" font-size="17" fill="#63799b">stale consumers · ghost peers · unbounded streams · signed approvals · audit trail</text>
+  <circle cx="680" cy="248" r="12" fill="#f5a524" opacity="0.9"/>
+  <circle cx="680" cy="248" r="20" fill="none" stroke="#f5a524" stroke-width="2" stroke-dasharray="5 5" opacity="0.8"/>
+  <text x="680" y="292" text-anchor="middle" textLength="40" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#f5a524">stale</text>
+
+  <circle cx="920" cy="248" r="12" fill="none" stroke="#6d7f9c" stroke-width="2" stroke-dasharray="3 4"/>
+  <text x="920" y="292" text-anchor="middle" textLength="42" lengthAdjust="spacingAndGlyphs"
+        font-family="'DejaVu Sans Mono',Menlo,Consolas,monospace" font-size="14" fill="#6d7f9c">ghost</text>
 </svg>
