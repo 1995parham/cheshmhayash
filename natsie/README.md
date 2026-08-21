@@ -72,6 +72,15 @@ natsie consumer scan --context prod-teh1 \
 
 # Emit JSON for piping to other tools
 natsie consumer scan --context prod-teh1 --format json
+
+# Where did this filter subject's work move to? (searches every context)
+natsie consumer owner "rides.trip.>"
+
+# Ghost peers: offline in every Raft group and leading none
+natsie peer check --context prod-teh1 --ghosts-only
+
+# Per-stream retention, replication, size, and replica placement
+natsie stream report --context prod-teh1 --format pretty
 ```
 
 `natsie` reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
