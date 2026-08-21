@@ -1,7 +1,9 @@
-<h1 align="center">natsie</h1>
+<p align="center">
+  <img src="assets/banner.svg" alt="natsie — scan, review, apply; never auto-deletes" width="880">
+</p>
 
 <p align="center">
-  <a href="https://github.com/1995parham/natsie/actions/workflows/test.yaml"><img src="https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci" alt="CI"></a>
+  <a href="https://github.com/1995parham/natsie/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci" alt="CI"></a>
   <a href="https://github.com/1995parham/natsie/tags"><img src="https://img.shields.io/github/v/tag/1995parham/natsie?sort=semver&style=for-the-badge&logo=github" alt="Release"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge" alt="License: GPL v3"></a>
   <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go" alt="Go Version"></a>
