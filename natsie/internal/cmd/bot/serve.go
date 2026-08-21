@@ -14,6 +14,7 @@ import (
 
 	"github.com/1995parham/natsie/internal/audit"
 	"github.com/1995parham/natsie/internal/chatops"
+	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/httpsrv"
 	"github.com/1995parham/natsie/internal/infra/mattermost"
@@ -24,6 +25,7 @@ import (
 	"github.com/1995parham/natsie/internal/infra/store"
 	"github.com/1995parham/natsie/internal/manifest"
 	"github.com/1995parham/natsie/internal/owners"
+	"github.com/1995parham/natsie/internal/protect"
 	"github.com/1995parham/natsie/internal/scanner"
 	"github.com/1995parham/natsie/internal/version"
 )
@@ -80,6 +82,13 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("dial store: %w", err)
 	}
 
+	// Built once at boot so a bad glob fails the process rather than
+	// silently failing to protect anything at 3am.
+	guard, err := protect.New(cfg.Protect)
+	if err != nil {
+		return fmt.Errorf("protect: %w", err)
+	}
+
 	dispatch, err := buildDispatcher(cfg.Bot)
 	if err != nil {
 		return err
@@ -109,7 +118,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 		case config.KindStreamReport:
 			job = buildStreamReportJob(s, dispatch, auditLog, met, logger)
 		default: // "" or consumer-stale
-			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, met, logger)
+			job = buildScanJob(s, manifestStore, dispatch, cfg.Bot.HTTP.BaseURL, cfg.Bot.SigningKey, auditLog, met, guard, logger)
 		}
 
 		if err := sched.Add(job); err != nil { //nolint:contextcheck // job carries its own ctx via Job.Run
@@ -141,6 +150,7 @@ func serve(ctx context.Context, cfg *config.Config) error {
 				Audit:      auditLog,
 				BaseURL:    cfg.Bot.HTTP.BaseURL,
 				Metrics:    met,
+				Protect:    guard,
 			},
 			logger,
 		)
@@ -245,6 +255,15 @@ func validateBotConfig(b *config.Bot) error {
 		default:
 			return fmt.Errorf("bot.schedules[%d]: unknown kind %q", i, s.Kind)
 		}
+
+		// Reject rather than ignore: the other kinds are notify-only reports,
+		// and someone setting auto_delete on a peer-check clearly expects
+		// natsie to act on it. Failing loudly at boot beats a flag that
+		// silently does nothing.
+		if s.AutoDelete && s.Kind != "" && s.Kind != config.KindConsumerStale {
+			return fmt.Errorf("bot.schedules[%d]: auto_delete is only valid for kind %q, not %q",
+				i, config.KindConsumerStale, s.Kind)
+		}
 	}
 
 	return nil
@@ -294,13 +313,13 @@ func buildDispatcher(b config.Bot) (*dispatcher, error) {
 
 // buildScanJob captures one schedule's settings and returns the function
 // the scheduler will fire on the cron clock.
-func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, met *metrics.Metrics, logger *log.Logger) scheduler.Job {
+func buildScanJob(s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, met *metrics.Metrics, guard *protect.Protector, logger *log.Logger) scheduler.Job {
 	return scheduler.Job{
 		Name: s.Name,
 		Spec: s.Cron,
 		Run: func(ctx context.Context) error {
 			start := time.Now()
-			candidates, err := runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, logger)
+			candidates, err := runScan(ctx, s, manifestStore, dispatch, baseURL, signingKey, auditLog, guard, logger)
 			met.ObserveScan(s.Name, config.KindConsumerStale, candidates, time.Since(start), err)
 
 			return err
@@ -463,7 +482,7 @@ func runStreamReport(ctx context.Context, s config.Schedule, dispatch *dispatche
 	return len(under), nil
 }
 
-func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, logger *log.Logger) (int, error) {
+func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, dispatch *dispatcher, baseURL, signingKey string, auditLog *audit.Logger, guard *protect.Protector, logger *log.Logger) (int, error) {
 	scanCtx, cancel := context.WithTimeout(ctx, scanTimeout)
 	defer cancel()
 
@@ -486,6 +505,7 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 		Stream:     s.Stream,
 		MinPending: s.MinPending,
 		MinIdle:    s.MinIdle,
+		Protect:    guard,
 	}
 
 	rows, err := scanner.Scan(scanCtx, nc, peer, opts)
@@ -502,6 +522,10 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 		return 0, nil
 	}
 
+	if s.AutoDelete {
+		return autoDelete(ctx, s, m, dispatch, auditLog, guard, logger)
+	}
+
 	id := fmt.Sprintf("%s-%s", s.Name, time.Now().UTC().Format("20060102T150405Z"))
 	if err := manifestStore.Put(ctx, id, m); err != nil {
 		return 0, fmt.Errorf("store manifest %s: %w", id, err)
@@ -512,6 +536,91 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 	dispatch.post(ctx, s, m, id, baseURL, signingKey, logger)
 
 	return len(m.Entries), nil
+}
+
+// autoDelete is the unattended deletion path: instead of storing the
+// manifest and announcing an approval link, apply it immediately.
+//
+// The approval gate is what this schedule gives up — deliberately, since the
+// operator asked for it. Everything else Apply does still runs: each consumer
+// is re-verified against live state microseconds before deletion, and any
+// consumer owned by an external controller is refused outright. The manifest
+// is still built (it is the input to Apply) and the outcome still lands in
+// the audit log, so an auto-delete run is as reconstructible after the fact
+// as an approved one.
+func autoDelete(ctx context.Context, s config.Schedule, m *manifest.Manifest, dispatch *dispatcher, auditLog *audit.Logger, guard *protect.Protector, logger *log.Logger) (int, error) {
+	result, err := cleanup.Apply(ctx, m, cleanup.Options{
+		Connect: botConnector,
+		Protect: guard,
+	})
+
+	logger.Printf("schedule=%s auto-delete: %s", s.Name, result.Summary())
+
+	_ = auditLog.Log(audit.Event{
+		Kind: "auto-delete", Schedule: s.Name, Entries: len(m.Entries),
+		Result: result.Summary(),
+		Error:  errText(err),
+	})
+
+	// Deletion that nobody is asked to approve still has to be visible, so
+	// the run is announced after the fact rather than before.
+	if result.Deleted > 0 || result.Failed > 0 {
+		msg := buildAutoDeleteMessage(s, result)
+		for _, n := range dispatch.global {
+			if postErr := n.Post(ctx, msg); postErr != nil {
+				logger.Printf("notify global sink=%s: %v", n.Name(), postErr)
+			}
+		}
+	}
+
+	return result.Deleted, err
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return err.Error()
+}
+
+// buildAutoDeleteMessage reports what an auto-delete schedule actually did.
+// Unlike buildMessage it carries no approve URL — there is nothing left to
+// approve.
+func buildAutoDeleteMessage(s config.Schedule, r *cleanup.Result) notify.Message {
+	var body strings.Builder
+
+	fmt.Fprintf(&body, "Schedule **%s** auto-deleted %d stale consumer", s.Name, r.Deleted)
+
+	if r.Deleted != 1 {
+		body.WriteString("s")
+	}
+
+	body.WriteString(".\n")
+	fmt.Fprintf(&body, "\n%s\n\n", r.Summary())
+
+	shown := 0
+
+	for _, ev := range r.Events {
+		if ev.Action != cleanup.ActionDeleted && ev.Action != cleanup.ActionFailed {
+			continue
+		}
+
+		if shown >= 10 {
+			fmt.Fprintf(&body, "...and more, see the audit log\n")
+
+			break
+		}
+
+		fmt.Fprintf(&body, "- `%s/%s` %s %s\n", ev.Stream, ev.Consumer, ev.Action, ev.Detail)
+
+		shown++
+	}
+
+	return notify.Message{
+		Title: fmt.Sprintf("natsie auto-delete (%s)", s.Name),
+		Body:  body.String(),
+	}
 }
 
 // post fans the manifest out: per-owner subset messages to each owner's
