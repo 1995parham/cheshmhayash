@@ -128,6 +128,8 @@ appends every action to a JSONL audit log.
 
 bot:
   schedules:
+    # kind defaults to consumer-stale — the only kind that produces a
+    # manifest and an approve URL. The others are notify-only reports.
     - name: daily
       cron: "0 3 * * *"
       context: prod-teh1
@@ -139,6 +141,18 @@ bot:
       context: edge-1
       min_pending: 5000
       min_idle: 6h
+    - name: ghost-peers
+      kind: peer-check           # peers offline in every Raft group
+      cron: "*/30 * * * *"
+      context: prod-teh1
+    - name: unbounded-streams
+      kind: stream-unlimited     # streams with no retention limit at all
+      cron: "0 6 * * *"
+      context: prod-teh1
+    - name: replication
+      kind: stream-report        # under-replicated streams
+      cron: "0 7 * * *"
+      context: prod-teh1
 
   notify:
     - mattermost://chat.example.com/hooks/abc-xyz?channel=nats-cleanup
@@ -154,6 +168,25 @@ bot:
     base_url: https://natsie.example.com   # public URL used in chat links
 
   signing_key: change-me-to-32-random-bytes
+
+  # Optional: route a subset of each manifest to the team that owns those
+  # streams. Owner sinks get visibility only — the approve URL always goes
+  # to the global notify list. First matching owner wins.
+  owners:
+    - name: rides
+      streams: [rides, rides-dlq]
+      consumer_prefix: [rides-]
+      notify:
+        - mattermost://chat.example.com/hooks/def-uvw?channel=rides-oncall
+
+  # Optional: pull-mode chat transport (see below). Omit for push-mode only.
+  mattermost:
+    enabled: false
+    server: https://chat.example.com
+    token_file: /etc/natsie/mattermost-token
+    team: platform
+    channel: nats-cleanup
+    trigger: "!natsie"
 ```
 
 `signing_key` does two jobs:
