@@ -138,7 +138,7 @@ it should listen on; being a webhook target is not enough.
 
 ## Versions
 
-- Go 1.26.x
+- Go 1.27.x
 - `github.com/nats-io/nats.go` + `github.com/nats-io/jsm.go`
 - `github.com/urfave/cli/v3` (command tree)
 - `github.com/knadh/koanf/v2` (config)

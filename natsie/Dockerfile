@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM golang:1.26-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 # Static binary, no CGO, smaller image.
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath
