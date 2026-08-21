@@ -4,6 +4,7 @@ linters:
   default: all
   disable:
     - gomodguard
+    - gomodguard_v2
     - wsl
     - depguard
     - tagliatelle
@@ -15,6 +16,7 @@ linters:
     - noinlineerr
     - paralleltest
     - exhaustruct
+    - exhaustruct_v5
     - goconst
     - err113
     - testpackage
