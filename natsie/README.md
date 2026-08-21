@@ -205,20 +205,57 @@ bot:
 | `GET`  | `/healthz` | JSON `{"status":"ok"}` for load-balancer probes. |
 | `GET`  | `/metrics` | Prometheus metrics: scan duration & candidate counts, apply outcomes, approval latency, build info. |
 | `GET`  | `/manifest/{id}` | Returns the stored manifest as `application/yaml`. |
-| `POST` | `/slash` | Slash-command handler (`list`, `show <id>`, `help`). Token-protected. |
+| `POST` | `/slash` | Slash-command handler (see [chat commands](#chat-commands)). Token-protected. |
 | `GET`  | `/approve/{id}?token=...` | Renders a plain-text preview of what would be deleted. |
 | `POST` | `/approve/{id}?token=...` | Re-verifies + applies. Returns JSON summary. |
 
-### Slash commands
+### Chat commands
 
-Configure `/natsie` in Mattermost or Slack to POST to `https://<your-host>/slash`
-with the configured token. From chat:
+Both chat transports (see below) share one dispatcher, so the vocabulary is
+identical whichever one you run:
 
 ```
-/natsie list          → list stored manifest IDs
-/natsie show m-...    → preview a manifest
-/natsie help          → usage
+list                      list stored manifest IDs
+show <id>                 preview a manifest
+clusters                  list NATS contexts this bot can dial
+streams [ctx]             list streams (one context, or all of them)
+stream <ctx> <name>       single-stream detail
+last <ctx> <stream> [sub] metadata for the last message on a subject
+consumers <ctx> <stream>  all consumers on a stream, unfiltered
+usage [ctx]               aggregate footprint + top streams by bytes
+cluster <ctx>             connected server, peers, account
+scan <ctx> [stream]       on-demand scan; replies with a signed approve URL
+help                      this list
 ```
+
+### Chat transports: push or pull
+
+Pick based on whether your chat server can reach the bot.
+
+**Push (slash command).** Chat POSTs `/slash` on the bot; needs an ingress
+the chat server can reach. Configure `/natsie` in Mattermost or Slack to
+POST to `https://<your-host>/slash` with `signing_key` as the token:
+
+```
+/natsie list
+/natsie scan prod-teh1
+```
+
+**Pull (WebSocket).** The bot opens an outbound WebSocket to Mattermost with
+a bot-account token, watches one channel for messages starting with
+`trigger`, and replies over REST. No inbound route needed — use this when
+natsie sits behind an ingress your chat server cannot reach. Enable the
+`bot.mattermost` block above, then from the channel:
+
+```
+!natsie list
+!natsie scan prod-teh1
+```
+
+The bot account must be a member of the team *and* the channel it should
+listen on; being a webhook target is not enough. A Mattermost outage is
+recoverable — the listener retries with backoff while the scheduler and
+HTTP listener keep running.
 
 ### Audit log
 
@@ -268,17 +305,35 @@ borrows whatever the operator already trusts.
 
 ```
 .
-├── cmd/natsie/         # binary entrypoint (main.go)
+├── cmd/natsie/             # binary entrypoint (main.go)
 ├── internal/
-│   ├── cmd/            # urfave/cli v3 command tree
-│   │   └── consumer/   # consumer subcommands (scan, ...)
-│   ├── infra/          # infrastructure adapters
-│   │   ├── config/     # koanf-based config loader
-│   │   └── natsctx/    # ~/.config/nats/context reader + dialer
-│   └── scanner/        # stream/consumer classification
-├── .github/workflows/  # lint, test, build, codeql
-├── justfile            # just recipes (build, test, lint, tidy, update)
-└── .golangci.yml       # linter config
+│   ├── cmd/                # urfave/cli v3 command tree
+│   │   ├── consumer/       # consumer scan / apply / owner
+│   │   ├── peer/           # peer check
+│   │   ├── stream/         # stream report
+│   │   └── bot/            # bot serve
+│   ├── infra/
+│   │   ├── config/         # koanf loader (defaults → yaml → env)
+│   │   ├── natsctx/        # ~/.config/nats/context reader + dialer
+│   │   ├── httpsrv/        # echo listener: manifests, slash, approvals
+│   │   ├── mattermost/     # pull-mode WebSocket listener
+│   │   ├── notify/         # mattermost / slack / webhook / stdout sinks
+│   │   ├── scheduler/      # cron wrapper
+│   │   ├── store/          # manifest store (file://)
+│   │   └── metrics/        # Prometheus collectors
+│   ├── scanner/            # classification, renames, peers, stream report
+│   ├── manifest/           # YAML manifest schema + read/write
+│   ├── cleanup/            # re-verify + delete
+│   ├── chatops/            # transport-agnostic chat commands
+│   ├── owners/             # stream/prefix → owner routing
+│   ├── audit/              # JSONL audit log
+│   └── version/            # build info
+├── chart/                  # Helm chart for `bot serve`
+├── assets/                 # README banner
+├── .github/workflows/      # ci, release, codeql
+├── Dockerfile              # multi-stage, distroless runtime
+├── justfile                # build, test, lint, tidy, dev, docker
+└── .golangci.yml           # linter config
 ```
 
 ## License
