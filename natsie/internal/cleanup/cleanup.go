@@ -14,6 +14,15 @@
 //  2. Per-entry deletes via the raw `$JS.API.CONSUMER.DELETE` subject,
 //     so consumer names starting with `-` (which the nats CLI rejects
 //     as flags) are handled the same way as any other name.
+//
+//  3. Protection: a consumer whose lifecycle belongs to something else — a
+//     NACK Consumer CR, Terraform, any GitOps pipeline — is never deleted,
+//     whatever the manifest says. The check lives here rather than at scan
+//     time on purpose: every deletion path (CLI apply, bot auto-delete, a
+//     signed approval click, a hand-edited manifest) funnels through Apply,
+//     so this is the one place the guarantee cannot be edited around. It
+//     reuses the CONSUMER.INFO response that re-verification already
+//     fetches, so it costs no extra round trip.
 package cleanup
 
 import (
@@ -26,6 +35,7 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 const (
@@ -49,6 +59,7 @@ const (
 	ActionGone     Action = "GONE"
 	ActionSkip     Action = "SKIP"
 	ActionActive   Action = "ACTIVE"
+	ActionProtect  Action = "PROTECTED"
 	ActionFailed   Action = "FAIL"
 	ActionConnFail Action = "CONN"
 )
@@ -67,6 +78,7 @@ type Result struct {
 	Deleted   int
 	Skipped   int
 	Preserved int
+	Protected int
 	Gone      int
 	Failed    int
 	Events    []Event
@@ -74,14 +86,25 @@ type Result struct {
 
 // Summary returns a one-line, log-friendly tally.
 func (r *Result) Summary() string {
-	return fmt.Sprintf("%d deleted, %d preserved (active), %d already gone, %d skipped, %d failed",
-		r.Deleted, r.Preserved, r.Gone, r.Skipped, r.Failed)
+	return fmt.Sprintf("%d deleted, %d preserved (active), %d protected, %d already gone, %d skipped, %d failed",
+		r.Deleted, r.Preserved, r.Protected, r.Gone, r.Skipped, r.Failed)
+}
+
+// Options configures one Apply run.
+type Options struct {
+	// Connect dials each cluster named in the manifest. Required.
+	Connect Connector
+	// DryRun reports the actions Apply would take without sending any
+	// delete request.
+	DryRun bool
+	// Protect, when non-nil, vetoes deletion of consumers owned by an
+	// external controller. A nil Protector protects nothing.
+	Protect *protect.Protector
 }
 
 // Apply groups the manifest entries by cluster, dials each cluster once
 // via the Connector, and runs the re-verification + deletion loop.
-// DryRun reports actions without sending delete requests.
-func Apply(ctx context.Context, m *manifest.Manifest, dryRun bool, connect Connector) (*Result, error) {
+func Apply(ctx context.Context, m *manifest.Manifest, opts Options) (*Result, error) {
 	byCluster := map[string][]manifest.Entry{}
 	for _, e := range m.Entries {
 		byCluster[e.Cluster] = append(byCluster[e.Cluster], e)
@@ -94,7 +117,7 @@ func Apply(ctx context.Context, m *manifest.Manifest, dryRun bool, connect Conne
 			return result, err
 		}
 
-		nc, closeFn, err := connect(cluster)
+		nc, closeFn, err := opts.Connect(cluster)
 		if err != nil {
 			// Connection failures cover *every* entry on that cluster;
 			// record one event per entry so the audit trail is complete.
@@ -112,14 +135,14 @@ func Apply(ctx context.Context, m *manifest.Manifest, dryRun bool, connect Conne
 			continue
 		}
 
-		applyOnCluster(nc, cluster, entries, m.GeneratedAt, dryRun, result)
+		applyOnCluster(nc, cluster, entries, m.GeneratedAt, opts, result)
 		closeFn()
 	}
 
 	return result, nil
 }
 
-func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, manifestTime time.Time, dryRun bool, r *Result) {
+func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, manifestTime time.Time, opts Options, r *Result) {
 	for _, e := range entries {
 		ev := Event{Cluster: cluster, Stream: e.Stream, Consumer: e.Consumer}
 
@@ -149,6 +172,17 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			continue
 		}
 
+		// Ownership beats liveness: a consumer managed elsewhere is never
+		// ours to delete, whether it looks active or not.
+		if reason := opts.Protect.Reason(e.Stream, e.Consumer, info.Config.Metadata); reason != "" {
+			ev.Action = ActionProtect
+			ev.Detail = reason
+			r.Events = append(r.Events, ev)
+			r.Protected++
+
+			continue
+		}
+
 		if reason := isActive(info, manifestTime); reason != "" {
 			ev.Action = ActionActive
 			ev.Detail = reason
@@ -158,7 +192,7 @@ func applyOnCluster(nc *nats.Conn, cluster string, entries []manifest.Entry, man
 			continue
 		}
 
-		if dryRun {
+		if opts.DryRun {
 			ev.Action = ActionWould
 			r.Events = append(r.Events, ev)
 			r.Deleted++
@@ -186,7 +220,12 @@ type consumerInfo struct {
 	Error      *jsAPIError `json:"error,omitempty"`
 	PushBound  bool        `json:"push_bound,omitempty"`
 	NumWaiting int         `json:"num_waiting"`
-	AckFloor   struct {
+	// Config.Metadata carries the JetStream consumer metadata map, which is
+	// how a declaring controller marks the consumer as its own.
+	Config struct {
+		Metadata map[string]string `json:"metadata,omitempty"`
+	} `json:"config"`
+	AckFloor struct {
 		LastActive *time.Time `json:"last_active,omitempty"`
 	} `json:"ack_floor"`
 }

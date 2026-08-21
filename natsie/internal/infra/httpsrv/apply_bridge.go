@@ -5,6 +5,7 @@ import (
 
 	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 // applyManifest is a tiny indirection so tests can stub out cleanup.Apply
@@ -12,6 +13,6 @@ import (
 // because tests rebind it; production never mutates it.
 //
 //nolint:gochecknoglobals // documented testing seam, not configuration
-var applyManifest = func(ctx context.Context, m *manifest.Manifest, c cleanup.Connector) (*cleanup.Result, error) {
-	return cleanup.Apply(ctx, m, false, c)
+var applyManifest = func(ctx context.Context, m *manifest.Manifest, c cleanup.Connector, p *protect.Protector) (*cleanup.Result, error) {
+	return cleanup.Apply(ctx, m, cleanup.Options{Connect: c, Protect: p})
 }

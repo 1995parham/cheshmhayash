@@ -15,6 +15,7 @@ import (
 	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/store"
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 // approvalSigningKey is the shared signing key used by every approval-test
@@ -148,7 +149,7 @@ func TestApprovalDoHappyPath(t *testing.T) {
 
 	t.Cleanup(func() { applyManifest = origApply })
 
-	applyManifest = func(_ context.Context, _ *manifest.Manifest, _ cleanup.Connector) (*cleanup.Result, error) {
+	applyManifest = func(_ context.Context, _ *manifest.Manifest, _ cleanup.Connector, _ *protect.Protector) (*cleanup.Result, error) {
 		return &cleanup.Result{Deleted: 1, Events: []cleanup.Event{{
 			Cluster: "c", Stream: "s", Consumer: "x", Action: cleanup.ActionDeleted,
 		}}}, nil

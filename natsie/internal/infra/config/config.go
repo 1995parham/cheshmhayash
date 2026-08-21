@@ -26,6 +26,8 @@ import (
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 const envPrefix = "NATSIE_"
@@ -33,7 +35,11 @@ const envPrefix = "NATSIE_"
 type Config struct {
 	Defaults Defaults                  `koanf:"defaults"`
 	Contexts map[string]ContextOptions `koanf:"contexts"`
-	Bot      Bot                       `koanf:"bot"`
+	// Protect lists consumers natsie must never delete because another
+	// system owns their lifecycle. It applies to every deletion path —
+	// CLI apply, bot auto-delete, and signed approvals alike.
+	Protect protect.Config `koanf:"protect"`
+	Bot     Bot            `koanf:"bot"`
 }
 
 type Defaults struct {
@@ -122,6 +128,12 @@ type Schedule struct {
 	Stream      string        `koanf:"stream"`
 	MinPending  int64         `koanf:"min_pending"`
 	MinIdle     time.Duration `koanf:"min_idle"`
+	// AutoDelete turns this schedule from propose-and-wait into
+	// scan-and-delete: stale consumers are deleted on the spot instead of
+	// being written to a manifest and announced with an approval link.
+	// Re-verification and protection still run at delete time. Only
+	// meaningful for KindConsumerStale.
+	AutoDelete bool `koanf:"auto_delete"`
 }
 
 // HTTP configures the bot's listener used for the manifest viewer,

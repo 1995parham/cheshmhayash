@@ -17,6 +17,7 @@ import (
 	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/metrics"
 	"github.com/1995parham/natsie/internal/infra/store"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 const defaultGracefulTimeout = 10 * time.Second
@@ -33,6 +34,7 @@ type Server struct {
 	connect    cleanup.Connector
 	baseURL    string
 	metrics    *metrics.Metrics
+	protect    *protect.Protector
 }
 
 // Options groups optional Server inputs that have grown beyond a sensible
@@ -50,6 +52,9 @@ type Options struct {
 	// Metrics, when non-nil, enables the /metrics endpoint and records
 	// approval-apply outcomes and latency. May be nil.
 	Metrics *metrics.Metrics
+	// Protect vetoes deletion of externally-managed consumers on the
+	// approval path. May be nil (protects nothing).
+	Protect *protect.Protector
 }
 
 // New constructs the Server. Routes are registered immediately so callers
@@ -68,6 +73,7 @@ func New(listen string, st store.Store, opts Options, logger *log.Logger) *Serve
 		connect:    opts.Connector,
 		baseURL:    opts.BaseURL,
 		metrics:    opts.Metrics,
+		protect:    opts.Protect,
 	}
 	s.routes()
 

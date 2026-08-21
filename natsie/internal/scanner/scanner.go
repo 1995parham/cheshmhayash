@@ -21,6 +21,7 @@ import (
 	"github.com/nats-io/jsm.go/api"
 
 	"github.com/1995parham/natsie/internal/infra/natsctx"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 type Status string
@@ -41,6 +42,10 @@ type Options struct {
 	Stream     string
 	MinPending int64
 	MinIdle    time.Duration
+	// Protect, when non-nil, annotates rows whose lifecycle belongs to an
+	// external controller. Such rows are still reported — seeing them is the
+	// point — but callers must keep them out of any cleanup manifest.
+	Protect *protect.Protector
 }
 
 type Row struct {
@@ -60,6 +65,11 @@ type Row struct {
 	// name of a rename migration rather than an abandoned consumer. Empty
 	// when no such successor was found.
 	RenamedTo string `json:"renamed_to,omitempty"`
+	// Managed is non-empty when something else owns this consumer's
+	// lifecycle (a NACK Consumer CR, Terraform, a GitOps pipeline). It
+	// holds the reason, and it means natsie will refuse to delete the
+	// consumer no matter how stale it looks.
+	Managed string `json:"managed,omitempty"`
 }
 
 // Scan enumerates streams and consumers on nc, classifies them per opts, and
@@ -214,6 +224,7 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 	r.NumPending = int64(info.NumPending) //nolint:gosec // counts are bounded by stream depth, well under int64
 	r.NumWaiting = info.NumWaiting
 	r.FilterSubject = filterSubject(info.Config)
+	r.Managed = opts.Protect.Reason(stream, consumer, info.Config.Metadata)
 
 	r.PushBound = info.PushBound
 	if info.AckFloor.Last != nil {

@@ -113,7 +113,7 @@ func (s *Server) doApproval(c *echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "manifest not found", "id": id})
 	}
 
-	result, err := applyManifest(c.Request().Context(), m, s.connect)
+	result, err := applyManifest(c.Request().Context(), m, s.connect, s.protect)
 
 	// Record outcomes and how long the manifest waited for approval. Done for
 	// both the success and error paths — partial applies still delete things.

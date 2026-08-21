@@ -44,10 +44,10 @@ func TestIsActive(t *testing.T) {
 }
 
 func TestResultSummary(t *testing.T) {
-	r := &Result{Deleted: 3, Preserved: 2, Gone: 1, Skipped: 0, Failed: 1}
+	r := &Result{Deleted: 3, Preserved: 2, Protected: 4, Gone: 1, Skipped: 0, Failed: 1}
 	got := r.Summary()
 
-	want := "3 deleted, 2 preserved (active), 1 already gone, 0 skipped, 1 failed"
+	want := "3 deleted, 2 preserved (active), 4 protected, 1 already gone, 0 skipped, 1 failed"
 	if got != want {
 		t.Errorf("Summary=%q want %q", got, want)
 	}
