@@ -159,7 +159,7 @@ persistence:
 #
 #   1. inline: chart-managed Secret built from the literal JSON content.
 #      natsContexts.inline:
-#        - name: snapp-js-main-teh1
+#        - name: prod-teh1
 #          content: |
 #            { "url": "nats://...", "user": "...", "password": "..." }
 #
@@ -174,7 +174,7 @@ persistence:
 #      natsContexts.fromEnv:
 #        enabled: true
 #        contexts:
-#          - name: snapp-js-main-teh1
+#          - name: prod-teh1
 #            url: nats://js-nats-production.nats-production.svc.cluster.local:4222
 #            secret:
 #              name: nats-system-account
@@ -201,12 +201,23 @@ defaults:
   minIdle: 24h
   format: tsv
 
+# Consumers natsie must never delete because something else owns their
+# lifecycle — a NACK Consumer CR, Terraform, a GitOps pipeline. Applies to
+# every deletion path. The metadata key `natsie.io/managed` is honoured
+# even with nothing configured here.
+protect: {}
+#   metadataKeys:
+#     - app.kubernetes.io/managed-by
+#   patterns:
+#     - { stream: rides, consumer: "svc-*" }
+#     - { consumer: "*-gitops" }
+
 contexts: {}
 # Pre-declare cluster topology so the bot doesn't need a --peer-context
 # flag on every invocation. Example:
 #   contexts:
-#     snapp-js-main-teh1:
-#       peer: snapp-js-main-teh2
+#     prod-teh1:
+#       peer: prod-teh2
 
 bot:
   # Each entry becomes a [[schedules]] in config.yaml. `kind` selects the
@@ -220,25 +231,36 @@ bot:
   #     Raft group, leading none).
   # The notify-only kinds produce no manifest and no approval URL — natsie never
   # deletes a stream or evicts a peer.
+  #
+  # `autoDelete: true` on a consumer-stale schedule deletes the stale consumers
+  # it finds instead of storing a manifest and sending an approval link. It is
+  # off unless you set it. Re-verification and the `protect` rules above still
+  # apply, and the run is announced to the notify sinks afterwards.
   schedules: []
   # - name: daily
   #   cron: "0 3 * * *"
-  #   context: snapp-js-main-teh1
-  #   peerContext: snapp-js-main-teh2
+  #   context: prod-teh1
+  #   peerContext: prod-teh2
   #   minPending: 10000
   #   minIdle: 24h
   # - name: unlimited-streams
   #   cron: "0 6 * * *"
   #   kind: stream-unlimited
-  #   context: snapp-js-main-teh1
+  #   context: prod-teh1
   # - name: under-replicated-streams
   #   cron: "0 6 * * *"
   #   kind: stream-report
-  #   context: snapp-js-main-teh1
+  #   context: prod-teh1
   # - name: ghost-peers
   #   cron: "0 7 * * *"
   #   kind: peer-check
-  #   context: snapp-js-main-teh1
+  #   context: prod-teh1
+  # - name: nightly-sweep          # unattended deletion, opt-in
+  #   cron: "0 4 * * *"
+  #   context: prod-teh1
+  #   minPending: 10000
+  #   minIdle: 168h
+  #   autoDelete: true
 
   # Notify URLs. URLs may contain secrets — if you don't want them in the
   # ConfigMap, set `bot.notifySecret` to a Secret whose `urls` key holds a
@@ -251,11 +273,11 @@ bot:
 
   # Owner routing — each entry becomes a [[bot.owners]] in config.yaml.
   owners: []
-  # - name: chronos
+  # - name: rides-team
   #   streams: [rides]
-  #   consumerPrefix: [chronos-]
+  #   consumerPrefix: [rides-team-]
   #   notify:
-  #     - mattermost://chat.example.com/hooks/team-chronos
+  #     - mattermost://chat.example.com/hooks/team-rides-team
 
   # Public URL used to build /manifest/<id> and /approve/<id> links in
   # chat messages. Leave empty when ingress.enabled = false.

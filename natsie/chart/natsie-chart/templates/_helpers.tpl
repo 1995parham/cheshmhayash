@@ -138,6 +138,25 @@ that reference Secrets) come in via env vars at runtime, so they don't
 appear in the rendered ConfigMap.
 */}}
 {{- define "natsie-chart.configYaml" -}}
+{{- with .Values.protect }}
+{{- if or .metadataKeys .patterns }}
+protect:
+{{- with .metadataKeys }}
+  metadata_keys:
+{{- range . }}
+    - {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- with .patterns }}
+  patterns:
+{{- range . }}
+    - {{ if .stream }}stream: {{ .stream | quote }}{{ end }}{{ if and .stream .consumer }}
+      {{ end }}{{ if .consumer }}consumer: {{ .consumer | quote }}{{ end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 defaults:
   min_pending: {{ .Values.defaults.minPending }}
   min_idle: {{ .Values.defaults.minIdle | quote }}
@@ -185,6 +204,9 @@ bot:
 {{- end }}
 {{- if .minIdle }}
       min_idle: {{ .minIdle | quote }}
+{{- end }}
+{{- if .autoDelete }}
+      auto_delete: true
 {{- end }}
 {{- end }}
 {{- end }}

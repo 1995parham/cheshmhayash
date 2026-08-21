@@ -165,3 +165,67 @@ func TestEnvOverridesFile(t *testing.T) {
 		t.Errorf("MinPending=%d want 9999 (env override failed)", cfg.Defaults.MinPending)
 	}
 }
+
+// The Helm chart renders this exact shape into the ConfigMap, so parsing it
+// is what proves the chart's new options actually reach the daemon rather
+// than being silently dropped by koanf.
+func TestLoadProtectAndAutoDelete(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	body := `
+protect:
+  metadata_keys:
+    - "app.kubernetes.io/managed-by"
+  patterns:
+    - stream: "rides"
+      consumer: "svc-*"
+    - consumer: "*-gitops"
+
+bot:
+  store: "file:///tmp/x"
+  notify:
+    - "stdout://"
+  schedules:
+    - name: "nightly-sweep"
+      cron: "0 4 * * *"
+      context: "prod-teh1"
+      auto_delete: true
+    - name: "proposal-only"
+      cron: "0 3 * * *"
+      context: "prod-teh2"
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if len(cfg.Protect.MetadataKeys) != 1 || cfg.Protect.MetadataKeys[0] != "app.kubernetes.io/managed-by" {
+		t.Errorf("MetadataKeys=%v", cfg.Protect.MetadataKeys)
+	}
+
+	if len(cfg.Protect.Patterns) != 2 {
+		t.Fatalf("Patterns=%v want 2", cfg.Protect.Patterns)
+	}
+
+	if cfg.Protect.Patterns[0].Stream != "rides" || cfg.Protect.Patterns[0].Consumer != "svc-*" {
+		t.Errorf("Patterns[0]=%+v", cfg.Protect.Patterns[0])
+	}
+
+	if cfg.Protect.Patterns[1].Stream != "" || cfg.Protect.Patterns[1].Consumer != "*-gitops" {
+		t.Errorf("Patterns[1]=%+v", cfg.Protect.Patterns[1])
+	}
+
+	// auto_delete must be opt-in: set where asked for, false everywhere else.
+	if !cfg.Bot.Schedules[0].AutoDelete {
+		t.Error("schedule 0: auto_delete should be true")
+	}
+
+	if cfg.Bot.Schedules[1].AutoDelete {
+		t.Error("schedule 1: auto_delete must default to false")
+	}
+}
