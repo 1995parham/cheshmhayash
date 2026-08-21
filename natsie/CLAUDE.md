@@ -11,11 +11,10 @@ YAML manifest, and apply deletions only after explicit human approval. The
 same binary also runs as a long-lived bot (`bot serve`) with scheduled scans,
 chat notifications, signed approval URLs, and a JSONL audit log.
 
-Core invariant: **deletes only when explicitly told to**. Detection and
-reporting run unattended. Deletion defaults to a `scan → edit → apply` flow
-and never happens unless someone opted in — either by approving a manifest,
-passing `consumer scan --delete`, or setting `auto_delete: true` on a bot
-schedule. Whichever path is taken, `apply` re-verifies every consumer
+Core invariant: **auto-delete is opt-in, never the default**. Detection and
+reporting run unattended. Deletion defaults to a `scan → edit → apply` flow;
+it happens automatically only where someone turned it on — by passing
+`consumer scan --delete` or setting `auto_delete: true` on a bot schedule. Whichever path is taken, `apply` re-verifies every consumer
 immediately before deleting it (anything that became active between scan and
 apply is preserved) and refuses outright to delete a consumer owned by an
 external controller.

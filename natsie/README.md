@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="natsie — scan, review, apply; deletes only when told" width="880">
+  <img src="assets/banner.svg" alt="natsie — scan, review, apply; auto-delete is opt-in" width="880">
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
 
 A Swiss-army knife for NATS operations: report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
 
-`natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. Deletion is **opt-in, never incidental**: the default flow requires an explicit manifest + apply step, and unattended deletion happens only on a schedule you marked `auto_delete: true`. Whichever path you choose, every consumer is re-verified against live state microseconds before it is removed, and consumers owned by an external controller are refused outright.
+`natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. **Auto-delete is supported and off by default.** Out of the box, cleanup goes through a manifest a human reviews. Turn on `--delete` or `auto_delete: true` and natsie will remove stale consumers on its own — with the same re-verification against live state microseconds before each deletion, and the same refusal to touch consumers owned by an external controller.
 
 ## Why another NATS tool
 
@@ -39,7 +39,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 ## Design pillars
 
-1. **Deletes only when told to.** Nothing is removed without an explicit opt-in: approving a manifest, `consumer scan --delete`, or `auto_delete: true` on a schedule. Every one of those paths runs the same re-verification immediately before deleting, so a consumer that woke up since the scan is preserved — including on the unattended path.
+1. **Auto-delete is opt-in.** The default flow proposes; it does not act. Deletion happens when you approve a manifest, pass `consumer scan --delete`, or set `auto_delete: true` on a schedule. Every one of those paths re-verifies immediately before deleting, so a consumer that woke up since the scan is preserved — including on the unattended path.
 2. **Cross-cluster aware.** Many production deployments run NATS in pairs or N-way groups; "consumer X is stale here, but active on the peer" is a first-class signal.
 3. **Rename- and move-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active; `consumer owner` chases the same `filter_subject` across every configured context to find where the work moved, so a migration isn't mistaken for an abandoned consumer.
 4. **Respects other owners.** A consumer declared by a Kubernetes operator (NACK), Terraform, or a GitOps pipeline is never natsie's to delete. Deleting one out of band either fights the reconciler forever or silently drifts the cluster from its declared state, so natsie refuses — see [Working alongside NACK](#working-alongside-nack-and-other-declarative-owners).
