@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="natsie — scan, review, apply; never auto-deletes" width="880">
+  <img src="assets/banner.svg" alt="natsie — scan, review, apply; deletes only when told" width="880">
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
 
 A Swiss-army knife for NATS operations: report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
 
-`natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. It is **never autonomous** — every destructive action requires an explicit manifest + apply step. Detection and reporting run unattended; deletion does not.
+`natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. Deletion is **opt-in, never incidental**: the default flow requires an explicit manifest + apply step, and unattended deletion happens only on a schedule you marked `auto_delete: true`. Whichever path you choose, every consumer is re-verified against live state microseconds before it is removed, and consumers owned by an external controller are refused outright.
 
 ## Why another NATS tool
 
@@ -30,7 +30,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 | Command | Status | Purpose |
 | --- | --- | --- |
-| `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON, optionally a YAML cleanup manifest. |
+| `consumer scan` | **working** | Enumerate consumers across one or more contexts; classify as active / stale / abandoned with cross-cluster peer awareness; emit TSV/JSON, optionally a YAML cleanup manifest. `--delete` removes the stale rows directly, skipping the manifest round-trip. |
 | `consumer apply` | **working** | Apply a delete-manifest produced by `scan`, re-verifying each consumer first. Supports `--dry-run` and `-` (read manifest from stdin). |
 | `consumer owner` | **working** | Resolve which cluster/consumer currently owns a `filter_subject` across all configured contexts (active-first), to find where a stale consumer's work moved. TSV/JSON/pretty. |
 | `peer check` | **working** | Walk every stream/consumer Raft group and aggregate each server's standing; flag GHOST peers (offline in every group, leading none) from a `peer-remove` that never happened. TSV/JSON/pretty, `--ghosts-only`. |
@@ -39,10 +39,11 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 ## Design pillars
 
-1. **Never auto-deletes.** Destructive actions always require an explicit `apply <manifest>` step, and the manifest is human-readable.
+1. **Deletes only when told to.** Nothing is removed without an explicit opt-in: approving a manifest, `consumer scan --delete`, or `auto_delete: true` on a schedule. Every one of those paths runs the same re-verification immediately before deleting, so a consumer that woke up since the scan is preserved — including on the unattended path.
 2. **Cross-cluster aware.** Many production deployments run NATS in pairs or N-way groups; "consumer X is stale here, but active on the peer" is a first-class signal.
 3. **Rename- and move-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active; `consumer owner` chases the same `filter_subject` across every configured context to find where the work moved, so a migration isn't mistaken for an abandoned consumer.
-4. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Operator-specific opinions live in config, not the binary.
+4. **Respects other owners.** A consumer declared by a Kubernetes operator (NACK), Terraform, or a GitOps pipeline is never natsie's to delete. Deleting one out of band either fights the reconciler forever or silently drifts the cluster from its declared state, so natsie refuses — see [Working alongside NACK](#working-alongside-nack-and-other-declarative-owners).
+5. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Operator-specific opinions live in config, not the binary.
 
 ## Install
 
@@ -114,6 +115,84 @@ preserved. The window is the safety property that lets the bot operate
 unattended later; deleting from a stale snapshot is the failure mode that
 makes other cleanup tools dangerous.
 
+## Deleting without the manifest round-trip
+
+The manifest flow exists so a human can review a proposal before it is acted
+on. When you are that human and you are already looking at the scan, the
+round-trip buys nothing:
+
+```bash
+# Preview: re-verifies every candidate, deletes nothing
+natsie consumer scan --context prod-teh1 --min-idle 24h --delete --dry-run
+
+# Delete for real
+natsie consumer scan --context prod-teh1 --min-idle 24h --delete
+```
+
+`--delete` gives up the approval gate and nothing else. Each consumer is
+still re-queried immediately before deletion and preserved if it has become
+active, externally-owned consumers are still refused, and the outcome is
+still summarised per row. The same is available unattended — see
+`auto_delete` below.
+
+## Working alongside NACK and other declarative owners
+
+If a consumer is declared by a [NACK](https://github.com/nats-io/nack)
+`Consumer` CR, by Terraform, or by any GitOps pipeline, then deleting it out
+of band is not a cleanup — it is a fight with the system that owns it:
+
+- with NACK's reconciler (`--control-loop`) enabled, the consumer is
+  recreated, your next scan finds it idle again, and natsie deletes it again;
+- with reconciliation off, the delete sticks and the cluster silently
+  diverges from the declared state until some unrelated future reconcile
+  brings it back — typically during an unrelated deploy, long after anyone
+  would connect the two events.
+
+So natsie refuses. Protected consumers still appear in scan output (with a
+`managed` reason), are never written into a manifest, and are vetoed inside
+`apply` itself — which means a hand-edited manifest or a signed approval
+click cannot delete one either.
+
+Mark them either way round:
+
+```yaml
+# ~/.config/natsie/config.yaml
+protect:
+  # Consumers carrying any of these metadata keys are off limits.
+  # `natsie.io/managed` is honoured even with no config at all.
+  metadata_keys:
+    - app.kubernetes.io/managed-by
+
+  # ...or match by name, for consumers whose metadata you cannot set.
+  patterns:
+    - { stream: rides, consumer: "svc-*" }
+    - { consumer: "*-gitops" }
+```
+
+The metadata route is the cheaper one, because NACK passes `spec.metadata`
+from the CR straight through to the consumer:
+
+```yaml
+apiVersion: jetstream.nats.io/v1beta2
+kind: Consumer
+metadata:
+  name: rides-worker
+spec:
+  streamName: rides
+  durableName: rides-worker
+  metadata:
+    natsie.io/managed: "true"     # natsie will never delete this consumer
+```
+
+Setting the value to `false`/`no`/`0`/`off` opts back out, so you can unmark
+one consumer without deleting the annotation everywhere.
+
+> natsie deliberately does **not** talk to the Kubernetes API to discover
+> this. Reading `consumers.jetstream.nats.io` would catch every NACK-managed
+> consumer with no annotation needed, but it would drag in client-go and RBAC
+> and turn natsie from "a NATS client you point at a context file" into a
+> cluster-aware component. The annotation costs one line in the CR.
+
 ## Running as a bot
 
 `natsie bot serve` is the long-lived daemon mode. It runs scheduled scans,
@@ -153,6 +232,16 @@ bot:
       kind: stream-report        # under-replicated streams
       cron: "0 7 * * *"
       context: prod-teh1
+    - name: nightly-sweep
+      cron: "0 4 * * *"
+      context: prod-teh1
+      min_pending: 10000
+      min_idle: 168h
+      # Delete instead of proposing. No manifest is stored and no approve
+      # link is sent; the run is announced to notify sinks afterwards and
+      # recorded in the audit log. Re-verification and protect rules still
+      # apply. Only valid on consumer-stale schedules.
+      auto_delete: true
 
   notify:
     - mattermost://chat.example.com/hooks/abc-xyz?channel=nats-cleanup
@@ -323,7 +412,8 @@ borrows whatever the operator already trusts.
 │   │   └── metrics/        # Prometheus collectors
 │   ├── scanner/            # classification, renames, peers, stream report
 │   ├── manifest/           # YAML manifest schema + read/write
-│   ├── cleanup/            # re-verify + delete
+│   ├── cleanup/            # re-verify + delete (the one deletion choke point)
+│   ├── protect/            # veto: consumers owned by NACK/Terraform/GitOps
 │   ├── chatops/            # transport-agnostic chat commands
 │   ├── owners/             # stream/prefix → owner routing
 │   ├── audit/              # JSONL audit log

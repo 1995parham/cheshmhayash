@@ -11,10 +11,14 @@ YAML manifest, and apply deletions only after explicit human approval. The
 same binary also runs as a long-lived bot (`bot serve`) with scheduled scans,
 chat notifications, signed approval URLs, and a JSONL audit log.
 
-Core invariant: **never auto-deletes**. Detection and reporting run
-unattended; deletion is gated on a `scan → edit → apply` flow, and `apply`
-re-verifies every consumer immediately before deleting it — anything that
-became active between scan and apply is preserved.
+Core invariant: **deletes only when explicitly told to**. Detection and
+reporting run unattended. Deletion defaults to a `scan → edit → apply` flow
+and never happens unless someone opted in — either by approving a manifest,
+passing `consumer scan --delete`, or setting `auto_delete: true` on a bot
+schedule. Whichever path is taken, `apply` re-verifies every consumer
+immediately before deleting it (anything that became active between scan and
+apply is preserved) and refuses outright to delete a consumer owned by an
+external controller.
 
 ## Layout
 
@@ -32,6 +36,7 @@ became active between scan and apply is preserved.
 │   ├── scanner/                    # consumer classification, rename detection, stream report, peer/ghost check
 │   ├── manifest/                   # YAML manifest read/write + schema
 │   ├── cleanup/                    # delete via $JS.API.CONSUMER.DELETE + re-verify
+│   ├── protect/                    # veto: consumers owned by NACK/Terraform/GitOps
 │   ├── audit/                      # JSONL audit log append
 │   ├── chatops/                    # slash commands, approval tokens, render
 │   ├── owners/                     # stream-prefix → owner/channel routing (bot serve)
@@ -66,7 +71,7 @@ go test -race ./...
 
 | Command | Status | Purpose |
 | --- | --- | --- |
-| `consumer scan` | working | Enumerate consumers; classify active/stale/abandoned; cross-cluster peer aware. Emits TSV, JSON, or a YAML cleanup manifest. |
+| `consumer scan` | working | Enumerate consumers; classify active/stale/abandoned; cross-cluster peer aware. Emits TSV, JSON, or a YAML cleanup manifest. `--delete` deletes the stale rows directly (re-verified, protection still applies); `--dry-run` previews. |
 | `consumer apply` | working | Apply a manifest produced by `scan`. Re-verifies each consumer; preserves anything active since `generated_at`. Supports `--dry-run` and `-` (manifest from stdin). |
 | `consumer owner` | working | Resolve which cluster/consumer owns a `filter_subject` across all configured contexts (active-first). Exact-match on the normalized filter subject. |
 | `peer check` | working | Aggregate every stream/consumer Raft group's membership; flag GHOST peers (offline in every group, leading none). Streams + consumers; phantom orphaned Raft groups (needs system-account access) not yet covered. |
@@ -129,6 +134,11 @@ it should listen on; being a webhook target is not enough.
   use the standard koanf env provider convention.
 - **NATS deletion** goes through the raw `$JS.API.CONSUMER.DELETE` subject,
   not the jsm.go helper — this lets leading-dash consumer names work.
+- **Every deletion path funnels through `cleanup.Apply`.** CLI apply,
+  `scan --delete`, bot `auto_delete`, and the signed-approval handler all
+  call it, which is why re-verification and the `internal/protect` veto are
+  enforced there rather than at scan time — there is no way to edit around
+  them.
 - **Lint clean before staging.** `just lint && just test`; CI runs the same set.
 - **Audit log is append-only.** The bot opens it in append mode and does
   not hold an exclusive lock; rotate with logrotate.

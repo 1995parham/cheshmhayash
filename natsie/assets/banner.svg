@@ -45,9 +45,9 @@
   <text x="228" y="136" textLength="222" lengthAdjust="spacingAndGlyphs"
         font-family="'DejaVu Sans','Helvetica Neue',Helvetica,Arial,sans-serif"
         font-size="78" font-weight="700" fill="#f4f8ff" letter-spacing="-2">natsie</text>
-  <text x="232" y="182" textLength="384" lengthAdjust="spacingAndGlyphs"
+  <text x="232" y="182" textLength="392" lengthAdjust="spacingAndGlyphs"
         font-family="'DejaVu Sans Mono','SF Mono',Menlo,Consolas,monospace"
-        font-size="19" fill="#8fa6c8">scan -&gt; review -&gt; apply. never auto-deletes.</text>
+        font-size="19" fill="#8fa6c8">scan -&gt; review -&gt; apply. deletes only when told.</text>
 
   <!-- ── band 2: the stream, and what natsie finds on it ───────────── -->
   <path d="M150 248 H1050" stroke="url(#wire)" stroke-width="3" fill="none"/>
