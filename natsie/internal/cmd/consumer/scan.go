@@ -10,9 +10,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/1995parham/natsie/internal/cleanup"
 	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/protect"
 	"github.com/1995parham/natsie/internal/scanner"
 	"github.com/1995parham/natsie/internal/version"
 )
@@ -55,9 +57,24 @@ func scanCommand() *cli.Command {
 				Name:  "force",
 				Usage: "Overwrite an existing manifest at --emit-manifest path",
 			},
+			&cli.BoolFlag{
+				Name: "delete",
+				Usage: "Delete the stale consumers this scan found, without the manifest round-trip. " +
+					"Each one is re-verified immediately before deletion and skipped if it became " +
+					"active or is externally managed. Combine with --dry-run to preview",
+			},
+			&cli.BoolFlag{
+				Name:  "dry-run",
+				Usage: "With --delete, report what would be deleted without deleting it",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			cfg, err := config.Load(cmd.Root().String("config"))
+			if err != nil {
+				return err
+			}
+
+			guard, err := protect.New(cfg.Protect)
 			if err != nil {
 				return err
 			}
@@ -66,6 +83,7 @@ func scanCommand() *cli.Command {
 				Stream:     cmd.String("stream"),
 				MinPending: cfg.Defaults.MinPending,
 				MinIdle:    cfg.Defaults.MinIdle,
+				Protect:    guard,
 			}
 			if cmd.IsSet("min-pending") {
 				opts.MinPending = int64(cmd.Int("min-pending"))
@@ -125,6 +143,12 @@ func scanCommand() *cli.Command {
 				fmt.Fprintf(os.Stderr, "wrote manifest %s (%d stale entries)\n", manifestPath, len(m.Entries))
 			}
 
+			if cmd.Bool("delete") {
+				if err := deleteStale(ctx, rows, ctxName, peerName, opts, guard, cmd.Bool("dry-run")); err != nil {
+					return err
+				}
+			}
+
 			switch format {
 			case "json":
 				enc := json.NewEncoder(os.Stdout)
@@ -133,13 +157,14 @@ func scanCommand() *cli.Command {
 				return enc.Encode(rows)
 			case "tsv":
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-				if _, err := fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status\trenamed_to"); err != nil {
+				if _, err := fmt.Fprintln(w, "stream\tconsumer\tstatus\tpending\tidle\tpeer_status\trenamed_to\tmanaged"); err != nil {
 					return err
 				}
 
 				for _, r := range rows {
-					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\t%s\n",
-						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second), r.PeerStatus, r.RenamedTo); err != nil {
+					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
+						r.Stream, r.Consumer, r.Status, r.NumPending, r.Idle.Truncate(time.Second),
+						r.PeerStatus, r.RenamedTo, r.Managed); err != nil {
 						return err
 					}
 				}
@@ -154,6 +179,37 @@ func scanCommand() *cli.Command {
 			}
 		},
 	}
+}
+
+// deleteStale runs the stale rows straight through cleanup.Apply, skipping
+// the manifest round-trip. This is `scan --delete`: the human is at the
+// keyboard, so the approval gate buys nothing, but every other safety
+// property still holds — re-verification against live state and the
+// external-ownership veto both run inside Apply, immediately before each
+// delete.
+func deleteStale(
+	ctx context.Context, rows []scanner.Row, ctxName, peerName string,
+	opts scanner.Options, guard *protect.Protector, dryRun bool,
+) error {
+	m := buildManifest(rows, ctxName, peerName, opts)
+	if len(m.Entries) == 0 {
+		fmt.Fprintln(os.Stderr, "nothing to delete")
+
+		return nil
+	}
+
+	result, err := cleanup.Apply(ctx, m, cleanup.Options{
+		Connect: cliConnector,
+		DryRun:  dryRun,
+		Protect: guard,
+	})
+	for _, ev := range result.Events {
+		logEvent(ev)
+	}
+
+	fmt.Fprintf(os.Stderr, "\nsummary: %s\n", result.Summary())
+
+	return err
 }
 
 func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Options) *manifest.Manifest {
@@ -172,6 +228,14 @@ func buildManifest(rows []scanner.Row, ctxName, peerName string, opts scanner.Op
 
 	for _, r := range rows {
 		if r.Status != scanner.StatusStale {
+			continue
+		}
+
+		// Something else owns this consumer's lifecycle. Keeping it out of the
+		// manifest means it is never even proposed for deletion; cleanup.Apply
+		// would refuse it anyway, but an operator should not have to read a
+		// deletion proposal that can never be honoured.
+		if r.Managed != "" {
 			continue
 		}
 

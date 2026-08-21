@@ -10,8 +10,10 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/natsie/internal/cleanup"
+	"github.com/1995parham/natsie/internal/infra/config"
 	"github.com/1995parham/natsie/internal/infra/natsctx"
 	"github.com/1995parham/natsie/internal/manifest"
+	"github.com/1995parham/natsie/internal/protect"
 )
 
 func applyCommand() *cli.Command {
@@ -53,7 +55,16 @@ func applyCommand() *cli.Command {
 				return err
 			}
 
-			result, err := cleanup.Apply(ctx, m, cmd.Bool("dry-run"), cliConnector)
+			guard, err := protectorFrom(cmd.Root().String("config"))
+			if err != nil {
+				return err
+			}
+
+			result, err := cleanup.Apply(ctx, m, cleanup.Options{
+				Connect: cliConnector,
+				DryRun:  cmd.Bool("dry-run"),
+				Protect: guard,
+			})
 			for _, ev := range result.Events {
 				logEvent(ev)
 			}
@@ -63,6 +74,18 @@ func applyCommand() *cli.Command {
 			return err
 		},
 	}
+}
+
+// protectorFrom loads the protect rules from config. Deletion paths build
+// this even when the operator configured nothing, so the default metadata
+// key is honoured out of the box.
+func protectorFrom(configPath string) (*protect.Protector, error) {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return protect.New(cfg.Protect)
 }
 
 func cliConnector(cluster string) (*nats.Conn, func(), error) {
