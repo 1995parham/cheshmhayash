@@ -42,7 +42,7 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 1. **Never auto-deletes.** Destructive actions always require an explicit `apply <manifest>` step, and the manifest is human-readable.
 2. **Cross-cluster aware.** Many production deployments run NATS in pairs or N-way groups; "consumer X is stale here, but active on the peer" is a first-class signal.
 3. **Rename- and move-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active; `consumer owner` chases the same `filter_subject` across every configured context to find where the work moved, so a migration isn't mistaken for an abandoned consumer.
-4. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Snapp-shaped opinions live in private config, not the binary.
+4. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Operator-specific opinions live in config, not the binary.
 
 ## Install
 
@@ -61,17 +61,17 @@ just build
 
 ```bash
 # Scan one cluster, emit TSV to stdout
-natsie consumer scan --context snapp-js-main-teh1
+natsie consumer scan --context prod-teh1
 
 # Scan with cross-cluster peer awareness
-natsie consumer scan --context snapp-js-main-teh1 --peer-context snapp-js-main-teh2
+natsie consumer scan --context prod-teh1 --peer-context prod-teh2
 
 # Only report consumers idle > 24h with > 10k pending
-natsie consumer scan --context snapp-js-main-teh1 \
+natsie consumer scan --context prod-teh1 \
   --min-idle 24h --min-pending 10000
 
 # Emit JSON for piping to other tools
-natsie consumer scan --context snapp-js-main-teh1 --format json
+natsie consumer scan --context prod-teh1 --format json
 ```
 
 `natsie` reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
@@ -82,8 +82,8 @@ Deletion is gated on a hand-editable manifest. The flow:
 
 ```bash
 # 1. Scan and emit a cleanup manifest of stale rows.
-natsie consumer scan --context snapp-js-main-teh1 \
-  --peer-context snapp-js-main-teh2 \
+natsie consumer scan --context prod-teh1 \
+  --peer-context prod-teh2 \
   --min-pending 10000 --min-idle 24h \
   --emit-manifest cleanup.yaml
 
@@ -121,13 +121,13 @@ bot:
   schedules:
     - name: daily
       cron: "0 3 * * *"
-      context: snapp-js-main-teh1
-      peer_context: snapp-js-main-teh2
+      context: prod-teh1
+      peer_context: prod-teh2
       min_pending: 10000
       min_idle: 24h
-    - name: hodhod-hourly
+    - name: edge-hourly
       cron: "0 * * * *"
-      context: snapp-js-hodhod
+      context: edge-1
       min_pending: 5000
       min_idle: 6h
 
