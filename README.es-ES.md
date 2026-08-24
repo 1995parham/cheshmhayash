@@ -158,7 +158,7 @@ cuenta que otorguen las credenciales; devolverán `JetStream not enabled` (err_c
 
 ## Stack Tecnológico
 
-- **Backend** — Go 1.26, stdlib `net/http` (sintaxis de patrones 1.22+),
+- **Backend** — Go 1.27, stdlib `net/http` (sintaxis de patrones 1.22+),
   `log/slog`, [`nats.go`](https://github.com/nats-io/nats.go) v1.52,
   `BurntSushi/toml` para configuración.
 - **Frontend** — React 19 + TypeScript 6 en Vite 8. El editor JSON usa

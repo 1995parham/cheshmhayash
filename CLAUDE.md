@@ -243,10 +243,10 @@ Destructive verbs require `?confirm=true`; without it the server returns
 
 ## Tech / versions
 
-- Go 1.26.x, stdlib `net/http` (1.22+ pattern syntax), `log/slog`
-- `github.com/nats-io/nats.go v1.52.x`
+- Go 1.27.x, stdlib `net/http` (1.22+ pattern syntax), `log/slog`
+- `github.com/nats-io/nats.go v1.53.x`
 - `github.com/knadh/koanf/v2` for config (struct defaults → toml → env)
-- React 19, TypeScript 6, Vite 8, CodeMirror 6 (`@uiw/react-codemirror`,
+- React 19, TypeScript 7, Vite 8, CodeMirror 6 (`@uiw/react-codemirror`,
   `@codemirror/lang-json`, `@codemirror/theme-one-dark`)
 - Biome 2.x is the frontend lint + formatter (`frontend/biome.jsonc`,
   replaces ESLint/Prettier); `tsc -b` still owns type checking

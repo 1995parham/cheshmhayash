@@ -161,7 +161,7 @@ credentials grant; they will return `JetStream not enabled` (err_code
 
 ## Tech stack
 
-- **Backend** — Go 1.26, stdlib `net/http` (1.22+ pattern syntax),
+- **Backend** — Go 1.27, stdlib `net/http` (1.22+ pattern syntax),
   `log/slog`, [`nats.go`](https://github.com/nats-io/nats.go) v1.52,
   `BurntSushi/toml` for config.
 - **Frontend** — React 19 + TypeScript 6 on Vite 8. JSON editor uses
