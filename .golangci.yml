@@ -23,6 +23,7 @@ linters:
     - noinlineerr  # bans the idiomatic `if err := f(); err != nil` form
     # --- struct / interface dogma ----------------------------------------
     - exhaustruct  # requires every struct field to be set explicitly
+    - exhaustruct_v5 # newer exhaustruct, same objection
     - ireturn      # bans returning interfaces
     - nonamedreturns
     - nilnil       # `return nil, nil` is intentional (e.g. extractGroups)
