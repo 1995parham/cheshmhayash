@@ -11,7 +11,7 @@ COPY frontend ./
 RUN npm run build
 
 # ---------- backend build -------------------------------------------------
-FROM golang:1.26-alpine AS backend
+FROM golang:1.27-alpine AS backend
 
 # Static binary, no CGO, smaller image.
 ENV CGO_ENABLED=0 GOFLAGS=-trimpath
