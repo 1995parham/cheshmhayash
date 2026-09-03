@@ -217,7 +217,7 @@ artifact to GHCR on every tagged release.
 # install from GHCR
 helm install panel \
   oci://ghcr.io/1995parham/cheshmhayash-chart \
-  --version 1.8.0 \
+  --version 1.9.0 \
   -f my-values.yaml
 
 # or from a local checkout

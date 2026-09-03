@@ -8,7 +8,7 @@ version: 1.9.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
-appVersion: "0.10.0"
+appVersion: "1.0.1"
 
 # Lower bound for the Kubernetes API. autoscaling/v2 is the strictest
 # requirement (GA in 1.23). The chart is tested against the in-support

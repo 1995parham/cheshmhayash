@@ -187,12 +187,21 @@ func cors(next http.Handler) http.Handler {
 	})
 }
 
-// requestLog emits one slog line per request.
+// requestLog emits one slog line per request. Probe hits on /healthz go
+// out at Debug rather than Info: at the chart's 5s probe period they add
+// up to tens of thousands of lines a day, and container logs count
+// against a pod's ephemeral-storage limit, which is enough to get a pod
+// evicted within a few weeks on a tight LimitRange. LOG_LEVEL=debug
+// brings them back.
 func requestLog(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
-		log.Info("http",
+		level := slog.LevelInfo
+		if r.URL.Path == "/healthz" {
+			level = slog.LevelDebug
+		}
+		log.Log(r.Context(), level, "http",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rw.status,
