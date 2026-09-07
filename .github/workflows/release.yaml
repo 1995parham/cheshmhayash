@@ -137,7 +137,7 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4
 
       - name: log in to ghcr.io
         uses: docker/login-action@v4
@@ -176,7 +176,7 @@ jobs:
       - name: setup helm
         uses: azure/setup-helm@v5
         with:
-          version: v4.1.4
+          version: v4.2.4
 
       - name: log in to ghcr.io (helm registry)
         run: |
