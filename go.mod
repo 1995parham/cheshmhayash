@@ -11,7 +11,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.6
 	github.com/nats-io/nats.go v1.53.1
 	github.com/tidwall/pretty v1.2.1
-	golang.org/x/oauth2 v0.36.0
+	golang.org/x/oauth2 v0.37.0
 )
 
 require (
