@@ -90,7 +90,7 @@ jobs:
         if: steps.chart.outputs.present == 'true'
         uses: azure/setup-helm@v5
         with:
-          version: v4.1.4
+          version: v4.3.0
 
       - name: helm lint
         if: steps.chart.outputs.present == 'true'
