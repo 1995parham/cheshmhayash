@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -ldflags="-s -w -X github.com/1995parham/cheshmhayash/internal/version.Version=${VERSION}" -o /out/ ./cmd/...
 
 # ---------- runtime -------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /app
 COPY --from=backend /out/cheshmhayash ./cheshmhayash
