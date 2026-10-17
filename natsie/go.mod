@@ -14,7 +14,7 @@ require (
 	github.com/nats-io/jsm.go v0.5.0
 	github.com/nats-io/nats-server/v2 v2.15.1
 	github.com/nats-io/nats.go v1.54.0
-	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_golang v1.25.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/urfave/cli/v3 v3.14.0
 	gopkg.in/yaml.v3 v3.0.1
