@@ -21,8 +21,12 @@ the NATS client port (`:4222`).
 .
 ├── cmd/cheshmhayash/               # thin main → internal/cmd.Execute()
 ├── internal/
-│   ├── cmd/                       # urfave/cli v3 tree: root.go, serve/, mcp/
+│   ├── cmd/                       # urfave/cli v3 tree: root.go, serve/, mcp/, sub/, pub/, schemacmd/
+│   ├── cliutil/                   # shared flags: --config, cluster/server, --schemas
 │   ├── httpserver/                # http.Server + graceful shutdown (serve, mcp)
+│   ├── schema/                    # protobuf registry: descriptor_set / proto_dir sources + subject router
+│   ├── codec/                     # decoder chain (protobuf → json → text → protowire → base64) + Encode
+│   ├── render/                    # pretty / json-lines / raw message printer
 │   ├── config/                    # koanf loader: struct defaults → settings.toml → env
 │   ├── natsx/                     # NATS client + admin/jsm subjects + overview cache
 │   ├── handler/                   # http.ServeMux routes (Go 1.22+ pattern syntax)
@@ -86,6 +90,14 @@ It reuses `settings.toml`; logs always go to stderr because stdout is the
 JSON-RPC channel in stdio mode. In `--http` mode it serves `/mcp`,
 `/healthz`, and the RFC 9728 OAuth metadata, gated by the `auth.mcp_*`
 config.
+
+Client commands — `sub`, `pub`, `schema` (see README "Protobuf-aware
+pub/sub"). They load settings quietly with `config.AllowNoClusters()` so
+`--server` works without a settings file, write to `cmd.Root().Writer`
+(tests capture it), and share flags via `internal/cliutil`. A new schema
+source type is one entry in `schema.Loaders`; a new payload format is one
+`codec.Decoder` in the chain. `internal/cmd/cmd_test.go` runs them
+end-to-end against an embedded nats-server.
 
 ## Configuration
 

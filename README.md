@@ -22,6 +22,10 @@ Because every endpoint is served through a single authenticated NATS
 connection, you do **not** need the server's HTTP monitoring port (`:8222`)
 open; only the client port (`:4222`, or wherever) is required.
 
+It is a Swiss Army knife for NATS in one binary: the dashboard (`serve`),
+an MCP server for LLM agents (`mcp`), and protobuf-aware `sub` / `pub`
+commands that decode payloads with schemas loaded at run time.
+
 ## Screenshots
 
 <table>
@@ -81,6 +85,71 @@ server responds with `428 Precondition Required`.
   bridge): subscribes to `$JS.EVENT.ADVISORY.>` and surfaces stream /
   consumer create / delete / update / leader-elected / quorum-lost as
   chat messages. Config under `[[notify]]`.
+
+## Protobuf-aware pub/sub
+
+`cheshmhayash sub` and `cheshmhayash pub` work like `nats sub` / `nats pub`,
+but they decode and encode protobuf with schemas that are loaded at run
+time, so private `.proto` files never have to be compiled into the binary.
+
+```sh
+# Decode with the subject rules; wildcards work
+cheshmhayash sub --schemas schemas.toml 'ride.>'
+
+# Force a type, show headers, emit JSON lines for jq
+cheshmhayash sub -t backend:ride.Accept -H -o json ride.accepted | jq .payload
+
+# JSON in, protobuf on the wire; --request prints the decoded reply
+cheshmhayash pub --schemas schemas.toml ride.accepted '{"ride_id":"42"}'
+
+# Inspect: sources, message names, fields, and what a subject decodes as
+cheshmhayash schema list
+cheshmhayash schema messages accept
+cheshmhayash schema show backend:ride.Accept
+cheshmhayash schema resolve ride.accepted
+cheshmhayash schema check          # non-zero exit on a broken rule (for CI)
+```
+
+A payload's type comes from `--type`, then the `Proto-Type` message header,
+then the first matching subject rule. A payload without a type is shown as
+JSON, text, a schemaless protobuf dump keyed by field number, or base64. A
+schema that does not fit still shows the payload, with a note; unknown
+fields are reported as schema drift. `sub` uses core NATS only and never
+creates a JetStream consumer, so it is safe on production streams.
+
+Schemas live in `[schemas]` of `settings.toml` or in standalone files passed
+with `--schemas` (repeatable, also `CHESHMHAYASH_SCHEMAS`) — a private
+repository can ship one next to its descriptor sets:
+
+```toml
+type_header = "Proto-Type"     # optional; "-" turns the header lookup off
+
+[[sources]]
+name = "backend"               # messages are referred to as backend:pkg.Message
+type = "descriptor_set"        # protoc --include_imports --descriptor_set_out / buf build -o
+path = "backend.binpb"         # relative to this file
+
+[[sources]]
+name = "map"
+type = "proto_dir"             # compile every .proto under path at start
+path = "../map-proto/pb"
+import_paths = ["third_party"] # more import roots, e.g. googleapis
+
+[[subjects]]
+match = "ride.>"               # NATS wildcards; the first match wins
+message = "backend:ride.Event"
+```
+
+Each source keeps its own registry, so two repositories that both declare
+`package ride;` can be loaded side by side. In a `proto_dir` source, a file
+that does not compile is skipped (and reported by `schema list -v`) instead
+of failing the whole source.
+
+`--cluster` picks a cluster from `settings.toml`; `--server`, `--user`,
+`--password` and `--creds` (or `NATS_URL`, …) connect without one. The Helm
+chart can mount a schemas folder from a ConfigMap or an image
+(`schemas.*` values), so `kubectl exec deploy/<release> -- /app/cheshmhayash
+sub …` decodes in the cluster.
 
 ## HTTP API
 
