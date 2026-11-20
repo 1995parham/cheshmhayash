@@ -77,26 +77,26 @@ func jwtAuth(t *testing.T, jwt config.AuthJWT, access config.AuthAccess) (*Authe
 
 func TestVerifyBearer(t *testing.T) {
 	access := config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
+		AllowedDomains: []string{"example.com"},
 		Admin:          config.AccessRule{AllowedGroups: []string{"nats-admin"}},
 	}
 	a, mint := jwtAuth(t, config.AuthJWT{}, access)
 
 	t.Run("admin group resolves to admin role", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "groups": []string{"nats-admin"},
+			"sub": "u1", "email": "ops@example.com", "groups": []string{"nats-admin"},
 		})
 		sess, role, err := a.verifyBearer(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if sess.Email != "ops@snapp.cab" || role != RoleAdmin {
-			t.Fatalf("got %q/%q, want ops@snapp.cab/admin", sess.Email, role)
+		if sess.Email != "ops@example.com" || role != RoleAdmin {
+			t.Fatalf("got %q/%q, want ops@example.com/admin", sess.Email, role)
 		}
 	})
 
 	t.Run("sign-in only resolves to readonly", func(t *testing.T) {
-		tok := mint(map[string]any{"sub": "u2", "email": "dev@snapp.cab"})
+		tok := mint(map[string]any{"sub": "u2", "email": "dev@example.com"})
 		_, role, err := a.verifyBearer(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -115,7 +115,7 @@ func TestVerifyBearer(t *testing.T) {
 
 	t.Run("expired token rejected", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab",
+			"sub": "u1", "email": "ops@example.com",
 			"exp": time.Now().Add(-time.Hour).Unix(),
 		})
 		if _, _, err := a.verifyBearer(context.Background(), tok); err == nil {
@@ -125,17 +125,17 @@ func TestVerifyBearer(t *testing.T) {
 }
 
 func TestVerifyBearer_Audience(t *testing.T) {
-	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	access := config.AuthAccess{AllowedDomains: []string{"example.com"}}
 	a, mint := jwtAuth(t, config.AuthJWT{Audiences: []string{"cheshmhayash"}}, access)
 
 	t.Run("matching audience accepted", func(t *testing.T) {
-		tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab", "aud": "cheshmhayash"})
+		tok := mint(map[string]any{"sub": "u1", "email": "ops@example.com", "aud": "cheshmhayash"})
 		if _, _, err := a.verifyBearer(context.Background(), tok); err != nil {
 			t.Fatalf("expected accept, got %v", err)
 		}
 	})
 	t.Run("foreign audience rejected", func(t *testing.T) {
-		tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab", "aud": "other"})
+		tok := mint(map[string]any{"sub": "u1", "email": "ops@example.com", "aud": "other"})
 		if _, _, err := a.verifyBearer(context.Background(), tok); err == nil {
 			t.Fatal("token with foreign audience must be rejected")
 		}
@@ -144,7 +144,7 @@ func TestVerifyBearer_Audience(t *testing.T) {
 
 func TestJWTMiddleware(t *testing.T) {
 	access := config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
+		AllowedDomains: []string{"example.com"},
 		Admin:          config.AccessRule{AllowedGroups: []string{"nats-admin"}},
 	}
 	a, mint := jwtAuth(t, config.AuthJWT{}, access)
@@ -162,8 +162,8 @@ func TestJWTMiddleware(t *testing.T) {
 		return rec
 	}
 
-	adminTok := mint(map[string]any{"sub": "a", "email": "ops@snapp.cab", "groups": []string{"nats-admin"}})
-	roTok := mint(map[string]any{"sub": "r", "email": "dev@snapp.cab"})
+	adminTok := mint(map[string]any{"sub": "a", "email": "ops@example.com", "groups": []string{"nats-admin"}})
+	roTok := mint(map[string]any{"sub": "r", "email": "dev@example.com"})
 
 	t.Run("public path bypasses auth", func(t *testing.T) {
 		if rec := do(http.MethodGet, "/healthz", ""); rec.Code != http.StatusOK {
@@ -206,11 +206,11 @@ func TestJWTMiddleware(t *testing.T) {
 }
 
 func TestHandleMeJWT(t *testing.T) {
-	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	access := config.AuthAccess{AllowedDomains: []string{"example.com"}}
 	a, mint := jwtAuth(t, config.AuthJWT{}, access)
 
 	t.Run("valid token reports identity + mode", func(t *testing.T) {
-		tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab"})
+		tok := mint(map[string]any{"sub": "u1", "email": "ops@example.com"})
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/auth/me", nil)
 		req.Header.Set("Authorization", "Bearer "+tok)
 		rec := httptest.NewRecorder()
@@ -228,7 +228,7 @@ func TestHandleMeJWT(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if !body.Authenticated || body.Mode != "jwt" || body.Email != "ops@snapp.cab" || body.Role != string(RoleAdmin) {
+		if !body.Authenticated || body.Mode != "jwt" || body.Email != "ops@example.com" || body.Role != string(RoleAdmin) {
 			t.Fatalf("unexpected body: %+v", body)
 		}
 	})

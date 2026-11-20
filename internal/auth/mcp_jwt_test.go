@@ -39,25 +39,25 @@ func mcpJWTAuth(access config.AuthAccess) *Authenticator {
 
 func TestMCPJWTSession(t *testing.T) {
 	a := mcpJWTAuth(config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
-		Admin:          config.AccessRule{AllowedGroups: []string{"/snapp-kc/Cloud"}},
+		AllowedDomains: []string{"example.com"},
+		Admin:          config.AccessRule{AllowedGroups: []string{"/example/platform"}},
 	})
 
 	t.Run("unsigned token accepted, claims drive role", func(t *testing.T) {
 		tok := mintUnsigned(t, map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "groups": []string{"/snapp-kc/Cloud"},
+			"sub": "u1", "email": "ops@example.com", "groups": []string{"/example/platform"},
 		})
 		sess, role, err := a.mcpJWTSession(tok)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if sess.Email != "ops@snapp.cab" || role != RoleAdmin {
-			t.Fatalf("got %q/%q, want ops@snapp.cab/admin", sess.Email, role)
+		if sess.Email != "ops@example.com" || role != RoleAdmin {
+			t.Fatalf("got %q/%q, want ops@example.com/admin", sess.Email, role)
 		}
 	})
 
 	t.Run("sign-in only resolves readonly", func(t *testing.T) {
-		tok := mintUnsigned(t, map[string]any{"sub": "u2", "email": "dev@snapp.cab"})
+		tok := mintUnsigned(t, map[string]any{"sub": "u2", "email": "dev@example.com"})
 		_, role, err := a.mcpJWTSession(tok)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -76,7 +76,7 @@ func TestMCPJWTSession(t *testing.T) {
 
 	t.Run("string groups claim accepted", func(t *testing.T) {
 		tok := mintUnsigned(t, map[string]any{
-			"sub": "u3", "email": "ops@snapp.cab", "groups": "/snapp-kc/Cloud",
+			"sub": "u3", "email": "ops@example.com", "groups": "/example/platform",
 		})
 		_, role, err := a.mcpJWTSession(tok)
 		if err != nil || role != RoleAdmin {
@@ -94,7 +94,7 @@ func TestMCPJWTSession(t *testing.T) {
 }
 
 func TestMCPMiddleware_UnverifiedJWT(t *testing.T) {
-	a := mcpJWTAuth(config.AuthAccess{AllowedDomains: []string{"snapp.cab"}})
+	a := mcpJWTAuth(config.AuthAccess{AllowedDomains: []string{"example.com"}})
 
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	keys := []KeyMatcher{{Name: "ci", Value: "static-secret"}}
@@ -113,7 +113,7 @@ func TestMCPMiddleware_UnverifiedJWT(t *testing.T) {
 	if got := do("Bearer static-secret"); got != http.StatusOK {
 		t.Errorf("static key should still pass: got %d", got)
 	}
-	tok := mintUnsigned(t, map[string]any{"sub": "u1", "email": "ops@snapp.cab"})
+	tok := mintUnsigned(t, map[string]any{"sub": "u1", "email": "ops@example.com"})
 	if got := do("Bearer " + tok); got != http.StatusOK {
 		t.Errorf("unverified jwt on allowlist should pass: got %d", got)
 	}

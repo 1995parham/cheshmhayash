@@ -204,12 +204,12 @@ ingress:
   #     - cheshmhayash.local
 
 # Contour HTTPProxy (projectcontour.io/v1). Use this on clusters that run
-# Contour as the ingress controller (e.g. Snappcloud's OKD clusters) where
+# Contour as the ingress controller (for example OpenShift clusters) where
 # Contour-specific features beat plain Ingress.
 httpProxy:
   enabled: false
-  # IngressClass / Contour shard. Snappcloud private: "private",
-  # public: "public", inter-dc: "inter-dc", inter-venture: "inter-venture".
+  # IngressClass / Contour shard, for example "private", "public" or
+  # "inter-dc".
   ingressClassName: ""
   # Required when enabled. The FQDN browsers will hit.
   fqdn: ""

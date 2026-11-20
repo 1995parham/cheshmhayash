@@ -15,14 +15,14 @@ func TestManifestRoundTrip(t *testing.T) {
 		GeneratedAt: time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC),
 		GeneratedBy: "natsie test",
 		Scan: ScanInfo{
-			Context:     "snapp-js-main-teh1",
-			PeerContext: "snapp-js-main-teh2",
+			Context:     "prod-js-a",
+			PeerContext: "prod-js-b",
 			MinPending:  10000,
 			MinIdle:     24 * time.Hour,
 		},
 		Entries: []Entry{
 			{
-				Cluster:    "snapp-js-main-teh1",
+				Cluster:    "prod-js-a",
 				Stream:     "rides",
 				Consumer:   "gabriel-ride-active-group_ride_accepted",
 				Status:     "STALE",
@@ -33,7 +33,7 @@ func TestManifestRoundTrip(t *testing.T) {
 				Reason:     "stale since may 12 upgrade",
 			},
 			{
-				Cluster:    "snapp-js-main-teh1",
+				Cluster:    "prod-js-a",
 				Stream:     "rides",
 				Consumer:   "intercity-teh-1-ride-accepted",
 				Status:     "STALE",
@@ -84,9 +84,9 @@ func TestWriteRefusesToOverwriteByDefault(t *testing.T) {
 func TestReadFromParsesStdin(t *testing.T) {
 	doc := "version: " + Version + "\n" +
 		"generated_at: 2026-05-22T10:00:00Z\n" +
-		"scan:\n  context: snapp-js-main-teh1\n" +
+		"scan:\n  context: prod-js-a\n" +
 		"entries:\n" +
-		"  - cluster: snapp-js-main-teh1\n" +
+		"  - cluster: prod-js-a\n" +
 		"    stream: rides\n" +
 		"    consumer: stale-group\n" +
 		"    status: STALE\n" +

@@ -13,9 +13,9 @@ func sampleManifest() *manifest.Manifest {
 	return &manifest.Manifest{
 		Version:     manifest.Version,
 		GeneratedAt: time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC),
-		Scan:        manifest.ScanInfo{Context: "snapp-js-main-teh1"},
+		Scan:        manifest.ScanInfo{Context: "prod-js-a"},
 		Entries: []manifest.Entry{{
-			Cluster:    "snapp-js-main-teh1",
+			Cluster:    "prod-js-a",
 			Stream:     "rides",
 			Consumer:   "stale-consumer",
 			Status:     "STALE",

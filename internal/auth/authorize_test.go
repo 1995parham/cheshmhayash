@@ -15,9 +15,9 @@ func authFor(access config.AuthAccess) *Authenticator {
 func TestAuthorize_NoAdminAllowlist_GrantsAdmin(t *testing.T) {
 	// Backward-compatible: with no admin allowlist, every signed-in user is
 	// an admin (full access, same as before roles existed).
-	a := authFor(config.AuthAccess{AllowedDomains: []string{"snappcloud.io"}})
+	a := authFor(config.AuthAccess{AllowedDomains: []string{"platform.example.org"}})
 
-	role, ok := a.authorize(sessionData{Email: "ops@snappcloud.io"})
+	role, ok := a.authorize(sessionData{Email: "ops@platform.example.org"})
 	if !ok || role != RoleAdmin {
 		t.Fatalf("want admin/true, got %q/%v", role, ok)
 	}
@@ -29,8 +29,8 @@ func TestAuthorize_NoAdminAllowlist_GrantsAdmin(t *testing.T) {
 
 func TestAuthorize_AdminAllowlist_SplitsTiers(t *testing.T) {
 	a := authFor(config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
-		Admin:          config.AccessRule{AllowedDomains: []string{"snappcloud.io"}},
+		AllowedDomains: []string{"example.com"},
+		Admin:          config.AccessRule{AllowedDomains: []string{"platform.example.org"}},
 	})
 
 	cases := []struct {
@@ -39,8 +39,8 @@ func TestAuthorize_AdminAllowlist_SplitsTiers(t *testing.T) {
 		wantRole Role
 		wantOK   bool
 	}{
-		{email: "platform@snappcloud.io", wantRole: RoleAdmin, wantOK: true},
-		{email: "employee@snapp.cab", wantRole: RoleReadOnly, wantOK: true},
+		{email: "platform@platform.example.org", wantRole: RoleAdmin, wantOK: true},
+		{email: "employee@example.com", wantRole: RoleReadOnly, wantOK: true},
 		{email: "stranger@gmail.com", wantOK: false},
 	}
 	for _, c := range cases {
@@ -55,7 +55,7 @@ func TestAuthorize_AdminNotOnBaseList_StillAdmin(t *testing.T) {
 	// An admin matched only by the admin allowlist (not the sign-in list)
 	// must still be let in — authorize ORs the two.
 	a := authFor(config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
+		AllowedDomains: []string{"example.com"},
 		Admin:          config.AccessRule{AllowedEmails: []string{"contractor@external.com"}},
 	})
 	role, ok := a.authorize(sessionData{Email: "contractor@external.com"})
@@ -66,14 +66,14 @@ func TestAuthorize_AdminNotOnBaseList_StillAdmin(t *testing.T) {
 
 func TestAuthorize_AdminByGroup(t *testing.T) {
 	a := authFor(config.AuthAccess{
-		AllowedDomains: []string{"snapp.cab"},
+		AllowedDomains: []string{"example.com"},
 		Admin:          config.AccessRule{AllowedGroups: []string{"nats-admins"}},
 	})
-	role, ok := a.authorize(sessionData{Email: "lead@snapp.cab", Groups: []string{"nats-admins", "eng"}})
+	role, ok := a.authorize(sessionData{Email: "lead@example.com", Groups: []string{"nats-admins", "eng"}})
 	if !ok || role != RoleAdmin {
 		t.Fatalf("group admin: want admin/true, got %q/%v", role, ok)
 	}
-	role, ok = a.authorize(sessionData{Email: "lead@snapp.cab", Groups: []string{"eng"}})
+	role, ok = a.authorize(sessionData{Email: "lead@example.com", Groups: []string{"eng"}})
 	if !ok || role != RoleReadOnly {
 		t.Fatalf("non-admin group: want readonly/true, got %q/%v", role, ok)
 	}

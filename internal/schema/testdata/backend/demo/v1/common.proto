@@ -4,5 +4,5 @@ package demo.v1;
 
 enum Region {
   REGION_UNSPECIFIED = 0;
-  REGION_TEHRAN = 1;
+  REGION_EU = 1;
 }

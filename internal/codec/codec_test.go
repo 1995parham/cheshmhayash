@@ -39,7 +39,7 @@ func testChain(t *testing.T, reg *schema.Registry, force string) Chain {
 func encodePing(t *testing.T, reg *schema.Registry) []byte {
 	t.Helper()
 	data, _, err := Encode(reg, "backend:demo.v1.Ping",
-		[]byte(`{"id":"r-1","count":"5","region":"REGION_TEHRAN","at":"2026-11-20T10:00:00Z","inner":{"ok":true},"tags":{"a":1}}`))
+		[]byte(`{"id":"r-1","count":"5","region":"REGION_EU","at":"2026-11-20T10:00:00Z","inner":{"ok":true},"tags":{"a":1}}`))
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
@@ -57,14 +57,14 @@ func decodeBody(t *testing.T, res Result) map[string]json.RawMessage {
 
 func TestProtoBySubject(t *testing.T) {
 	reg := testRegistry(t)
-	res := testChain(t, reg, "").Decode(Message{Subject: "demo.ping.teh1", Data: encodePing(t, reg)})
+	res := testChain(t, reg, "").Decode(Message{Subject: "demo.ping.eu1", Data: encodePing(t, reg)})
 
 	if res.Format != FormatProto || res.Type != "backend:demo.v1.Ping" {
 		t.Fatalf("got %s %s, want protobuf backend:demo.v1.Ping (notes %v)", res.Format, res.Type, res.Notes)
 	}
 	body := decodeBody(t, res)
 	for key, want := range map[string]string{
-		"id": `"r-1"`, "count": `"5"`, "region": `"REGION_TEHRAN"`, "at": `"2026-11-20T10:00:00Z"`,
+		"id": `"r-1"`, "count": `"5"`, "region": `"REGION_EU"`, "at": `"2026-11-20T10:00:00Z"`,
 	} {
 		if got := string(body[key]); got != want {
 			t.Errorf("%s = %s, want %s", key, got, want)

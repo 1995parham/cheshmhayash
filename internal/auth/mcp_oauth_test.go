@@ -83,25 +83,25 @@ func mcpOAuthAuth(t *testing.T, mcp config.AuthMCPOAuth, access config.AuthAcces
 
 func TestVerifyMCPToken(t *testing.T) {
 	mcp := config.AuthMCPOAuth{Enabled: true, Resource: "https://host/mcp"}
-	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	access := config.AuthAccess{AllowedDomains: []string{"example.com"}}
 	a, mint := mcpOAuthAuth(t, mcp, access)
 
 	t.Run("valid token on allowlist", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "aud": "https://host/mcp",
+			"sub": "u1", "email": "ops@example.com", "aud": "https://host/mcp",
 		})
 		sess, role, err := a.verifyMCPToken(context.Background(), tok)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if sess.Email != "ops@snapp.cab" || role != RoleAdmin {
-			t.Fatalf("got %q/%q, want ops@snapp.cab/admin", sess.Email, role)
+		if sess.Email != "ops@example.com" || role != RoleAdmin {
+			t.Fatalf("got %q/%q, want ops@example.com/admin", sess.Email, role)
 		}
 	})
 
 	t.Run("wrong audience rejected", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "aud": "https://someone-else/mcp",
+			"sub": "u1", "email": "ops@example.com", "aud": "https://someone-else/mcp",
 		})
 		if _, _, err := a.verifyMCPToken(context.Background(), tok); err == nil {
 			t.Fatal("token with foreign audience must be rejected")
@@ -119,7 +119,7 @@ func TestVerifyMCPToken(t *testing.T) {
 
 	t.Run("expired token rejected", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "aud": "https://host/mcp",
+			"sub": "u1", "email": "ops@example.com", "aud": "https://host/mcp",
 			"exp": time.Now().Add(-time.Hour).Unix(),
 		})
 		if _, _, err := a.verifyMCPToken(context.Background(), tok); err == nil {
@@ -130,19 +130,19 @@ func TestVerifyMCPToken(t *testing.T) {
 
 func TestVerifyMCPToken_SkipAudienceCheck(t *testing.T) {
 	mcp := config.AuthMCPOAuth{Enabled: true, Resource: "https://host/mcp", SkipAudienceCheck: true}
-	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	access := config.AuthAccess{AllowedDomains: []string{"example.com"}}
 	a, mint := mcpOAuthAuth(t, mcp, access)
 
 	t.Run("foreign audience accepted", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab", "aud": "account",
+			"sub": "u1", "email": "ops@example.com", "aud": "account",
 		})
 		if _, _, err := a.verifyMCPToken(context.Background(), tok); err != nil {
 			t.Fatalf("expected accept with skip_audience_check, got %v", err)
 		}
 	})
 	t.Run("no audience accepted", func(t *testing.T) {
-		tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab"})
+		tok := mint(map[string]any{"sub": "u1", "email": "ops@example.com"})
 		if _, _, err := a.verifyMCPToken(context.Background(), tok); err != nil {
 			t.Fatalf("expected accept with skip_audience_check, got %v", err)
 		}
@@ -155,7 +155,7 @@ func TestVerifyMCPToken_SkipAudienceCheck(t *testing.T) {
 	})
 	t.Run("expired token still rejected", func(t *testing.T) {
 		tok := mint(map[string]any{
-			"sub": "u1", "email": "ops@snapp.cab",
+			"sub": "u1", "email": "ops@example.com",
 			"exp": time.Now().Add(-time.Hour).Unix(),
 		})
 		if _, _, err := a.verifyMCPToken(context.Background(), tok); err == nil {
@@ -166,7 +166,7 @@ func TestVerifyMCPToken_SkipAudienceCheck(t *testing.T) {
 
 func TestMCPMiddleware_Precedence(t *testing.T) {
 	mcp := config.AuthMCPOAuth{Enabled: true, Resource: "https://host/mcp"}
-	access := config.AuthAccess{AllowedDomains: []string{"snapp.cab"}}
+	access := config.AuthAccess{AllowedDomains: []string{"example.com"}}
 	a, mint := mcpOAuthAuth(t, mcp, access)
 
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -186,7 +186,7 @@ func TestMCPMiddleware_Precedence(t *testing.T) {
 	if rec := do("Bearer static-secret"); rec.Code != http.StatusOK {
 		t.Errorf("static key should pass: got %d", rec.Code)
 	}
-	tok := mint(map[string]any{"sub": "u1", "email": "ops@snapp.cab", "aud": "https://host/mcp"})
+	tok := mint(map[string]any{"sub": "u1", "email": "ops@example.com", "aud": "https://host/mcp"})
 	if rec := do("Bearer " + tok); rec.Code != http.StatusOK {
 		t.Errorf("valid OIDC token should pass: got %d", rec.Code)
 	}

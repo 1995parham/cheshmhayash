@@ -115,7 +115,7 @@ func TestSubAndPub(t *testing.T) {
 	waitFor(t, func() bool { return strings.Contains(errOut.String(), "listening on") })
 
 	for _, args := range [][]string{
-		{"pub", "demo.ping.teh1", `{"id":"r-1","count":"5","region":"REGION_TEHRAN"}`},
+		{"pub", "demo.ping.eu1", `{"id":"r-1","count":"5","region":"REGION_EU"}`},
 		{"pub", "demo.text", "hello"},
 		{"pub", "--type", "backend:demo.v1.Ping", "demo.forced", `{"id":"r-2"}`},
 	} {
@@ -139,7 +139,7 @@ func TestSubAndPub(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("got %d lines, want 3:\n%s", len(got), out.String())
 	}
-	if got[0].Format != "protobuf" || got[0].Type != "backend:demo.v1.Ping" || !strings.Contains(string(got[0].Payload), `"region":"REGION_TEHRAN"`) {
+	if got[0].Format != "protobuf" || got[0].Type != "backend:demo.v1.Ping" || !strings.Contains(string(got[0].Payload), `"region":"REGION_EU"`) {
 		t.Errorf("line 1 = %+v %s", got[0], got[0].Payload)
 	}
 	if got[1].Format != "text" || string(got[1].Payload) != `"hello"` {
@@ -232,7 +232,7 @@ func TestSchemaCommands(t *testing.T) {
 	}
 
 	out, err = run(t, "--config", cfg, "schema", "show", "demo.v1.Ping")
-	if err != nil || !strings.Contains(out, "map<string, int32>") || !strings.Contains(out, "REGION_TEHRAN=1") {
+	if err != nil || !strings.Contains(out, "map<string, int32>") || !strings.Contains(out, "REGION_EU=1") {
 		t.Errorf("schema show = %q, %v", out, err)
 	}
 

@@ -38,9 +38,9 @@ func TestConnectRejectsPathTraversal(t *testing.T) {
 }
 
 // TestContextPathAcceptsRealNames keeps the validation from being so strict
-// it rejects the names operators actually use (see snapp-js-* contexts).
+// it rejects the names operators actually use (for example prod-js-a).
 func TestContextPathAcceptsRealNames(t *testing.T) {
-	for _, name := range []string{"snapp-js-main-teh1", "snapp-js-hodhod", "local", "dev_1.2"} {
+	for _, name := range []string{"prod-js-a", "prod-js-c", "local", "dev_1.2"} {
 		if _, err := contextPath(name); err != nil {
 			t.Errorf("contextPath(%q) = %v, want accepted", name, err)
 		}

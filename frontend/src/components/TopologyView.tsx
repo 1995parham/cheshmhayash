@@ -473,7 +473,7 @@ function RoleGlyph({ role }: { role: Role }) {
 }
 
 function shortServer(s: string): string {
-  // js-nats-production-3 → "prod-3" if matches the common Snapp pattern;
+  // js-nats-production-3 → "prod-3" when the name ends in a replica number;
   // otherwise return last 12 chars.
   const m = s.match(/^(.*?)-(\d+)$/);
   if (m) return m[2] ? `…-${m[2]}` : s;

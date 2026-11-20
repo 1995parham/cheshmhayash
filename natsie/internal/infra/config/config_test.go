@@ -34,15 +34,15 @@ defaults:
   min_idle: 6h
 
 contexts:
-  snapp-js-main-teh1:
-    peer: snapp-js-main-teh2
+  prod-js-a:
+    peer: prod-js-b
 
 bot:
   schedules:
     - name: daily
       cron: "0 3 * * *"
-      context: snapp-js-main-teh1
-      peer_context: snapp-js-main-teh2
+      context: prod-js-a
+      peer_context: prod-js-b
       min_pending: 10000
       min_idle: 24h
   notify:
@@ -68,7 +68,7 @@ bot:
 		t.Errorf("Defaults.MinPending=%d want 5000", cfg.Defaults.MinPending)
 	}
 
-	if cfg.Contexts["snapp-js-main-teh1"].Peer != "snapp-js-main-teh2" {
+	if cfg.Contexts["prod-js-a"].Peer != "prod-js-b" {
 		t.Errorf("peer mapping not loaded: %+v", cfg.Contexts)
 	}
 
