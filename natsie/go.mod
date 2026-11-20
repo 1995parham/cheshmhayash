@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/carlmjohnson/versioninfo v0.22.5
-	github.com/jedib0t/go-pretty/v6 v6.9.1
+	github.com/jedib0t/go-pretty/v6 v6.9.2
 	github.com/knadh/koanf/parsers/yaml v1.1.1
 	github.com/knadh/koanf/providers/env/v2 v2.0.2
 	github.com/knadh/koanf/providers/file v1.2.1
