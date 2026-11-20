@@ -102,6 +102,14 @@ source type is one entry in `schema.Loaders`; a new payload format is one
 `codec.Decoder` in the chain. `internal/cmd/cmd_test.go` runs them
 end-to-end against an embedded nats-server.
 
+Live tap — `[tap]` (off by default) registers `GET /api/tap/config` and
+`GET /api/tap/clusters/{c}/stream?subject=&type=` (SSE: `message`,
+`stats`, `end`) in `internal/handler/tap.go`. It is bounded by `allow`
+(`schema.PatternCovers`), `max_rate`, `max_duration_seconds`, `max_taps`
+and `role` (admin by default when auth is on), logs every tap, and decodes
+with the same chain as `sub`. The SPA's `TapView` reads it with `fetch`
+(not EventSource) so refusals show their reason and nothing reconnects.
+
 Operations commands — `consumer scan|apply|owner`, `peer check`, `stream
 report`, `bot serve` (docs/operations.md). They came from natsie (history
 under `natsie/` before the move, then `git log --follow`). They connect

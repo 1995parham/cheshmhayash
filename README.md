@@ -159,6 +159,28 @@ chart can mount a schemas folder from a ConfigMap or an image
 (`schemas.*` values), so `kubectl exec deploy/<release> -- /app/cheshmhayash
 sub …` decodes in the cluster.
 
+## Live tap
+
+The dashboard's **Tap** tab streams the messages of a subject, decoded with
+the same schemas as `sub` (protobuf, JSON, text, a schemaless protobuf dump
+or base64). It uses core NATS and creates no JetStream consumer. It shows
+message content, so it is off until you turn it on, and every tap is logged:
+
+```toml
+[tap]
+enabled = true
+allow = ["orders.>", "payments.*.created"]  # a tap must stay inside one of these
+max_rate = 20                # messages per second per browser; the rest are counted as skipped
+max_duration_seconds = 600   # a tap closes after this long
+max_taps = 10                # concurrent taps per dashboard process
+role = "admin"               # with auth on: "admin" (default) or "readonly"
+```
+
+The connection's account decides what a tap can see: a cluster entry that
+uses the system account sees only `$SYS` subjects, so add a `[[nats]]`
+entry with an application user for the subjects you want to tap. In the
+chart, the same settings are `tap.*`.
+
 ## JetStream operations
 
 ```sh
