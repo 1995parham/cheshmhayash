@@ -14,10 +14,14 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/cheshmhayash/internal/cliutil"
+	"github.com/1995parham/cheshmhayash/internal/cmd/bot"
+	"github.com/1995parham/cheshmhayash/internal/cmd/consumer"
 	"github.com/1995parham/cheshmhayash/internal/cmd/mcp"
+	"github.com/1995parham/cheshmhayash/internal/cmd/peer"
 	"github.com/1995parham/cheshmhayash/internal/cmd/pub"
 	"github.com/1995parham/cheshmhayash/internal/cmd/schemacmd"
 	"github.com/1995parham/cheshmhayash/internal/cmd/serve"
+	"github.com/1995parham/cheshmhayash/internal/cmd/stream"
 	"github.com/1995parham/cheshmhayash/internal/cmd/sub"
 	"github.com/1995parham/cheshmhayash/internal/version"
 )
@@ -26,7 +30,7 @@ import (
 func Root() *cli.Command {
 	return &cli.Command{
 		Name:    "cheshmhayash",
-		Usage:   "a Swiss Army knife for NATS: dashboard, MCP server, protobuf-aware pub/sub",
+		Usage:   "a Swiss Army knife for NATS: dashboard, MCP server, protobuf-aware pub/sub, and JetStream operations",
 		Version: version.String(),
 		Flags: append(cliutil.RootFlags(),
 			&cli.StringFlag{
@@ -43,6 +47,10 @@ func Root() *cli.Command {
 			sub.Command(),
 			pub.Command(),
 			schemacmd.Command(),
+			consumer.Command(),
+			peer.Command(),
+			stream.Command(),
+			bot.Command(),
 		},
 	}
 }

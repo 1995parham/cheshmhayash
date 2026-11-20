@@ -14,6 +14,10 @@ import (
 // every subcommand reads it through LoadSettings.
 const ConfigFlag = "config"
 
+// OpsConfigFlag is the global --ops-config flag: the YAML file of the
+// operations commands (NATS contexts, protection rules, bot schedules).
+const OpsConfigFlag = "ops-config"
+
 // RootFlags returns the flags the root command declares for all
 // subcommands.
 func RootFlags() []cli.Flag {
@@ -24,6 +28,11 @@ func RootFlags() []cli.Flag {
 			Usage:   "settings file (TOML)",
 			Value:   config.DefaultFile,
 			Sources: cli.EnvVars("CHESHMHAYASH_CONFIG"),
+		},
+		&cli.StringFlag{
+			Name:    OpsConfigFlag,
+			Usage:   "YAML file of the operations commands (consumer, peer, stream, bot); default ~/.config/cheshmhayash/ops.yaml",
+			Sources: cli.EnvVars("CHESHMHAYASH_OPS_CONFIG", "NATSIE_CONFIG"),
 		},
 	}
 }

@@ -1,0 +1,129 @@
+package manifest
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestManifestRoundTrip(t *testing.T) {
+	original := &Manifest{
+		Version:     Version,
+		GeneratedAt: time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC),
+		GeneratedBy: "cheshmhayash test",
+		Scan: ScanInfo{
+			Context:     "prod-js-a",
+			PeerContext: "prod-js-b",
+			MinPending:  10000,
+			MinIdle:     24 * time.Hour,
+		},
+		Entries: []Entry{
+			{
+				Cluster:    "prod-js-a",
+				Stream:     "rides",
+				Consumer:   "gabriel-ride-active-group_ride_accepted",
+				Status:     "STALE",
+				PeerStatus: "ABSENT",
+				NumPending: 317252,
+				Idle:       216 * time.Hour,
+				LastAck:    time.Date(2026, 5, 12, 19, 48, 22, 0, time.UTC),
+				Reason:     "stale since may 12 upgrade",
+			},
+			{
+				Cluster:    "prod-js-a",
+				Stream:     "rides",
+				Consumer:   "intercity-eu-1-ride-accepted",
+				Status:     "STALE",
+				PeerStatus: "ABSENT",
+				NumPending: 317259,
+				Idle:       216 * time.Hour,
+				Skip:       true,
+				Reason:     "kept for audit, owner not reached yet",
+			},
+		},
+	}
+
+	dir := t.TempDir()
+
+	path := filepath.Join(dir, "manifest.yaml")
+	if err := original.Write(path, false); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	round, err := Read(path)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	if !reflect.DeepEqual(original, round) {
+		t.Fatalf("round trip mismatch:\noriginal: %+v\nround:    %+v", original, round)
+	}
+}
+
+func TestWriteRefusesToOverwriteByDefault(t *testing.T) {
+	dir := t.TempDir()
+
+	path := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(path, []byte("existing\n"), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	m := &Manifest{Version: Version, GeneratedAt: time.Now()}
+	if err := m.Write(path, false); err == nil {
+		t.Fatal("expected refusal, got nil")
+	}
+
+	if err := m.Write(path, true); err != nil {
+		t.Fatalf("force should succeed: %v", err)
+	}
+}
+
+func TestReadFromParsesStdin(t *testing.T) {
+	doc := "version: " + Version + "\n" +
+		"generated_at: 2026-05-22T10:00:00Z\n" +
+		"scan:\n  context: prod-js-a\n" +
+		"entries:\n" +
+		"  - cluster: prod-js-a\n" +
+		"    stream: rides\n" +
+		"    consumer: stale-group\n" +
+		"    status: STALE\n" +
+		"    num_pending: 42\n"
+
+	m, err := ReadFrom(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("ReadFrom: %v", err)
+	}
+
+	if len(m.Entries) != 1 || m.Entries[0].Consumer != "stale-group" {
+		t.Fatalf("unexpected entries: %+v", m.Entries)
+	}
+}
+
+func TestReadFromRejectsUnknownVersion(t *testing.T) {
+	doc := "version: bogus/v9\ngenerated_at: 2026-05-22T00:00:00Z\nscan:\n  context: x\nentries: []\n"
+
+	_, err := ReadFrom(strings.NewReader(doc))
+	if err == nil {
+		t.Fatal("expected version error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "stdin") {
+		t.Errorf("error should name the source: %v", err)
+	}
+}
+
+func TestReadRejectsUnknownVersion(t *testing.T) {
+	dir := t.TempDir()
+
+	path := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(path, []byte("version: bogus/v9\ngenerated_at: 2026-05-22T00:00:00Z\nscan:\n  context: x\nentries: []\n"), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if _, err := Read(path); err == nil {
+		t.Fatal("expected version error, got nil")
+	}
+}

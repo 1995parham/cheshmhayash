@@ -1,0 +1,18 @@
+package httpsrv
+
+import (
+	"context"
+
+	"github.com/1995parham/cheshmhayash/internal/ops/cleanup"
+	"github.com/1995parham/cheshmhayash/internal/ops/manifest"
+	"github.com/1995parham/cheshmhayash/internal/ops/protect"
+)
+
+// applyManifest is a tiny indirection so tests can stub out cleanup.Apply
+// without standing up a real NATS server. Kept as a var (not a const fn)
+// because tests rebind it; production never mutates it.
+//
+//nolint:gochecknoglobals // documented testing seam, not configuration
+var applyManifest = func(ctx context.Context, m *manifest.Manifest, c cleanup.Connector, p *protect.Protector) (*cleanup.Result, error) {
+	return cleanup.Apply(ctx, m, cleanup.Options{Connect: c, Protect: p})
+}
