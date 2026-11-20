@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package withdeps;
 
-import "vendor/dep.proto";
+import "thirdparty/dep.proto";
 
 message Svc {
-  vendor.Dep dep = 1;
+  thirdparty.Dep dep = 1;
 }

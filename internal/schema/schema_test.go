@@ -179,7 +179,7 @@ func TestLoadProtoDirImportPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("with the import path: %v", err)
 	}
-	if _, _, err := reg.FindMessage("vendor.Dep"); err != nil {
+	if _, _, err := reg.FindMessage("thirdparty.Dep"); err != nil {
 		t.Errorf("the imported file is not in the source: %v", err)
 	}
 }
