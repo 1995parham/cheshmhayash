@@ -15,8 +15,10 @@ import (
 
 	"github.com/1995parham/cheshmhayash/internal/cliutil"
 	"github.com/1995parham/cheshmhayash/internal/cmd/mcp"
+	"github.com/1995parham/cheshmhayash/internal/cmd/pub"
+	"github.com/1995parham/cheshmhayash/internal/cmd/schemacmd"
 	"github.com/1995parham/cheshmhayash/internal/cmd/serve"
-	"github.com/1995parham/cheshmhayash/internal/natsx"
+	"github.com/1995parham/cheshmhayash/internal/cmd/sub"
 	"github.com/1995parham/cheshmhayash/internal/version"
 )
 
@@ -24,7 +26,7 @@ import (
 func Root() *cli.Command {
 	return &cli.Command{
 		Name:    "cheshmhayash",
-		Usage:   "a toolbox for NATS: dashboard, MCP server and operations",
+		Usage:   "a Swiss Army knife for NATS: dashboard, MCP server, protobuf-aware pub/sub",
 		Version: version.String(),
 		Flags: append(cliutil.RootFlags(),
 			&cli.StringFlag{
@@ -38,6 +40,9 @@ func Root() *cli.Command {
 		Commands: []*cli.Command{
 			serve.Command(),
 			mcp.Command(),
+			sub.Command(),
+			pub.Command(),
+			schemacmd.Command(),
 		},
 	}
 }
@@ -63,7 +68,7 @@ func setupLogger(ctx context.Context, cmd *cli.Command) (context.Context, error)
 		return ctx, fmt.Errorf("--log-level: %w", err)
 	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	// natsx falls back to slog.Default, so setting the default is enough.
 	slog.SetDefault(log)
-	natsx.Logger = log
 	return ctx, nil
 }
