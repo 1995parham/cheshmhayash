@@ -40,6 +40,8 @@ type Server struct {
 	log   *slog.Logger
 	tools []tool
 	write bool
+	// chains builds decoders for subject_sample; nil until EnableSampling.
+	chains ChainFactory
 
 	out   io.Writer
 	outMu sync.Mutex

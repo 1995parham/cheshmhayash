@@ -17,6 +17,7 @@ import (
 
 	"github.com/1995parham/cheshmhayash/internal/auth"
 	"github.com/1995parham/cheshmhayash/internal/cliutil"
+	"github.com/1995parham/cheshmhayash/internal/codec"
 	"github.com/1995parham/cheshmhayash/internal/config"
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/httpserver"
@@ -43,6 +44,16 @@ func Command() *cli.Command {
 				Usage:   "register the destructive tools (purge, delete, kick, reload, stepdown)",
 				Sources: cli.EnvVars("CHESHMHAYASH_MCP_WRITE"),
 			},
+			&cli.BoolFlag{
+				Name:    "allow-sampling",
+				Usage:   "register subject_sample, which sends decoded message payloads to the model",
+				Sources: cli.EnvVars("CHESHMHAYASH_MCP_SAMPLE"),
+			},
+			&cli.StringSliceFlag{
+				Name:    "schemas",
+				Usage:   "extra schemas file for subject_sample; repeat for more",
+				Sources: cli.EnvVars("CHESHMHAYASH_SCHEMAS"),
+			},
 		},
 		Action: run,
 	}
@@ -66,6 +77,14 @@ func run(ctx context.Context, cmd *cli.Command) error {
 
 	write := cmd.Bool("write")
 	srv := mcpserver.NewServer(mgr, log, write)
+	if cmd.Bool("allow-sampling") {
+		schemas, err := cliutil.LoadSchemas(ctx, cmd, settings)
+		if err != nil {
+			return err
+		}
+		srv.EnableSampling(func(force string) codec.Chain { return schemas.Chain(force, false) })
+		log.Info("mcp subject_sample enabled", "schema_sources", schemas.Registry.Len())
+	}
 
 	if !cmd.Bool("http") {
 		log.Info("starting mcp server",
