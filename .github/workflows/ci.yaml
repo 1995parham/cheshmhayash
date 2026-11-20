@@ -140,5 +140,6 @@ jobs:
           helm template cheshmhayash chart/cheshmhayash-chart \
             --set mcp.enabled=true --set mcp.allowSampling=true \
             --set schemas.configMap=nats-schemas \
+            --set tap.enabled=true --set 'tap.allow={orders.>}' \
             --set bot.enabled=true --set bot.signingKey=ci-only \
             --set bot.metrics.serviceMonitor.enabled=true > /dev/null

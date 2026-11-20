@@ -147,6 +147,25 @@ schemas:
   mountPath: /schemas
   file: schemas.toml
 
+# ---- live tap ---------------------------------------------------------------
+# The dashboard's Tap view streams decoded messages of a subject (core NATS,
+# no JetStream consumer), decoded with `schemas` when set. It shows message
+# content, so it is off by default. The connection's account decides what is
+# visible: a system-account cluster entry sees only $SYS subjects, so add a
+# cluster entry with an application user to tap application subjects.
+tap:
+  enabled: false
+  # Subject patterns a tap must stay inside; empty allows any subject.
+  allow: []
+  # Messages per second sent to one browser; the rest are counted as skipped.
+  maxRate: 20
+  # A tap closes after this long.
+  maxDurationSeconds: 600
+  # Taps one dashboard pod serves at a time.
+  maxTaps: 10
+  # Who may tap when auth is on: "admin" or "readonly".
+  role: admin
+
 # ---- dashboard components -------------------------------------------------
 # Parts of `cheshmhayash serve` that the dashboard Deployment runs (passed as
 # `--components`). Known values: api (JSON API + overview cache), ui (the

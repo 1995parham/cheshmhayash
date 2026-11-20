@@ -42,6 +42,8 @@ annotations:
       url: https://nats.io
   artifacthub.io/changes: |
     - kind: added
+      description: "`tap.*` turns on the dashboard's live Tap view (decoded messages over SSE) with an allow list, a rate limit, a maximum duration, a cap on concurrent taps and a role. Off by default."
+    - kind: added
       description: "`bot.*` runs the operations bot (`cheshmhayash bot serve`, formerly the natsie chart) as its own single-replica Deployment with its config, NATS contexts, signing key, state PVC, Service, ServiceMonitor, Ingress/HTTPProxy and NetworkPolicy. Off by default."
     - kind: added
       description: "`mcp.allowSampling` registers the subject_sample MCP tool (CHESHMHAYASH_MCP_SAMPLE=1), which returns a few decoded messages of a subject."

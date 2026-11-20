@@ -348,6 +348,16 @@ enabled = true
 [[auth.mcp_keys]]
 name = "{{ $k.name }}"
 {{- end }}
+{{- if .Values.tap.enabled }}
+
+[tap]
+enabled = true
+allow = [{{ range $i, $s := .Values.tap.allow }}{{ if $i }}, {{ end }}{{ $s | quote }}{{ end }}]
+max_rate = {{ .Values.tap.maxRate }}
+max_duration_seconds = {{ .Values.tap.maxDurationSeconds }}
+max_taps = {{ .Values.tap.maxTaps }}
+role = {{ .Values.tap.role | quote }}
+{{- end }}
 {{- end }}
 
 {{/*
