@@ -1,0 +1,23 @@
+{{- if .Values.bot.enabled }}
+{{- if .Values.bot.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "cheshmhayash-chart.bot.pvcName" . }}
+  labels:
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
+  {{- with .Values.bot.persistence.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes:
+    - {{ .Values.bot.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.bot.persistence.size }}
+  {{- with .Values.bot.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}

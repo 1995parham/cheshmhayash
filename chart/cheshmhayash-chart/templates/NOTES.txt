@@ -41,6 +41,23 @@ NOTE: the dashboard no longer serves /mcp. Set `mcp.enabled: true` to run
 the MCP HTTP server (`cheshmhayash mcp --http`) as its own Deployment + Service.
 {{- end }}
 
+{{- if .Values.bot.enabled }}
+
+Operations bot (`cheshmhayash bot serve`):
+  kubectl --namespace {{ .Release.Namespace }} rollout status deploy/{{ include "cheshmhayash-chart.bot.fullname" . }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "cheshmhayash-chart.bot.fullname" . }} 8080:{{ .Values.bot.service.port }}
+  curl http://localhost:8080/healthz
+{{- if not .Values.bot.schedules }}
+  No schedules are configured (`bot.schedules: []`); the bot starts and idles.
+{{- end }}
+{{- if and (not .Values.bot.notify) (not .Values.bot.notifySecret) }}
+  No notify sinks are configured; add `bot.notify: [stdout://]` or a chat URL.
+{{- end }}
+{{- if and (not .Values.bot.signingKey) (not .Values.bot.existingSigningKeySecret.name) }}
+  `bot.signingKey` is unset, so /slash and /approve are disabled.
+{{- end }}
+{{- end }}
+
 Helm tests:
   helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}
 

@@ -1,0 +1,11 @@
+{{- if .Values.bot.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cheshmhayash-chart.bot.configMapName" . }}
+  labels:
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
+data:
+  config.yaml: |-
+    {{- include "cheshmhayash-chart.bot.configYaml" . | nindent 4 }}
+{{- end }}

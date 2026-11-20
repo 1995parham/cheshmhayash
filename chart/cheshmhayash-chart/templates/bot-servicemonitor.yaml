@@ -1,0 +1,25 @@
+{{- if .Values.bot.enabled }}
+{{- if .Values.bot.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cheshmhayash-chart.bot.fullname" . }}
+  labels:
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
+    {{- with .Values.bot.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cheshmhayash-chart.bot.selectorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: http
+      path: {{ .Values.bot.metrics.serviceMonitor.path }}
+      interval: {{ .Values.bot.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.bot.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}

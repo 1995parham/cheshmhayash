@@ -1,21 +1,22 @@
-{{- if .Values.ingress.enabled -}}
-{{- $fullName := include "natsie-chart.fullname" . -}}
-{{- $svcPort := .Values.service.port -}}
+{{- if .Values.bot.enabled }}
+{{- if .Values.bot.ingress.enabled -}}
+{{- $fullName := include "cheshmhayash-chart.bot.fullname" . -}}
+{{- $svcPort := .Values.bot.service.port -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ $fullName }}
   labels:
-    {{- include "natsie-chart.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
+  {{- with .Values.bot.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.ingress.className }}
+  {{- with .Values.bot.ingress.className }}
   ingressClassName: {{ . }}
   {{- end }}
-  {{- with .Values.ingress.tls }}
+  {{- with .Values.bot.ingress.tls }}
   tls:
     {{- range . }}
     - hosts:
@@ -26,7 +27,7 @@ spec:
     {{- end }}
   {{- end }}
   rules:
-    {{- range .Values.ingress.hosts }}
+    {{- range .Values.bot.ingress.hosts }}
     - host: {{ .host | quote }}
       http:
         paths:
@@ -40,4 +41,5 @@ spec:
                   number: {{ $svcPort }}
           {{- end }}
     {{- end }}
+{{- end }}
 {{- end }}

@@ -1,32 +1,33 @@
-{{- if .Values.networkPolicy.enabled -}}
+{{- if .Values.bot.enabled }}
+{{- if .Values.bot.networkPolicy.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "natsie-chart.fullname" . }}
+  name: {{ include "cheshmhayash-chart.bot.fullname" . }}
   labels:
-    {{- include "natsie-chart.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "natsie-chart.selectorLabels" . | nindent 6 }}
+      {{- include "cheshmhayash-chart.bot.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
     - Egress
   ingress:
     - from:
-        {{- with .Values.networkPolicy.ingress.fromNamespaceSelector }}
+        {{- with .Values.bot.networkPolicy.ingress.fromNamespaceSelector }}
         - namespaceSelector:
             {{- toYaml . | nindent 12 }}
         {{- end }}
-        {{- with .Values.networkPolicy.ingress.fromPodSelector }}
+        {{- with .Values.bot.networkPolicy.ingress.fromPodSelector }}
         - podSelector:
             {{- toYaml . | nindent 12 }}
         {{- end }}
       ports:
         - protocol: TCP
-          port: {{ .Values.service.port }}
+          port: {{ .Values.bot.service.port }}
   egress:
-    {{- if .Values.networkPolicy.egress.allowDNS }}
+    {{- if .Values.bot.networkPolicy.egress.allowDNS }}
     - to:
         - namespaceSelector: {}
           podSelector:
@@ -38,16 +39,17 @@ spec:
         - protocol: TCP
           port: 53
     {{- end }}
-    {{- if .Values.networkPolicy.egress.natsCidrs }}
+    {{- if .Values.bot.networkPolicy.egress.natsCidrs }}
     - to:
-        {{- range .Values.networkPolicy.egress.natsCidrs }}
+        {{- range .Values.bot.networkPolicy.egress.natsCidrs }}
         - ipBlock:
             cidr: {{ . }}
         {{- end }}
       ports:
-        {{- range .Values.networkPolicy.egress.natsPorts }}
+        {{- range .Values.bot.networkPolicy.egress.natsPorts }}
         - protocol: TCP
           port: {{ . }}
         {{- end }}
     {{- end }}
+{{- end }}
 {{- end }}

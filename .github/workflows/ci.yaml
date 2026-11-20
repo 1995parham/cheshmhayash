@@ -133,3 +133,12 @@ jobs:
 
       - name: helm template (defaults)
         run: helm template cheshmhayash chart/cheshmhayash-chart > /dev/null
+
+      # Every optional workload on: MCP, the operations bot and schemas.
+      - name: helm template (all workloads)
+        run: |
+          helm template cheshmhayash chart/cheshmhayash-chart \
+            --set mcp.enabled=true --set mcp.allowSampling=true \
+            --set schemas.configMap=nats-schemas \
+            --set bot.enabled=true --set bot.signingKey=ci-only \
+            --set bot.metrics.serviceMonitor.enabled=true > /dev/null

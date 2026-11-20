@@ -1,49 +1,50 @@
+{{- if .Values.bot.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "natsie-chart.fullname" . }}
+  name: {{ include "cheshmhayash-chart.bot.fullname" . }}
   labels:
-    {{- include "natsie-chart.labels" . | nindent 4 }}
+    {{- include "cheshmhayash-chart.bot.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
-  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  replicas: {{ .Values.bot.replicaCount }}
+  revisionHistoryLimit: {{ .Values.bot.revisionHistoryLimit }}
   strategy:
-    {{- toYaml .Values.strategy | nindent 4 }}
+    {{- toYaml .Values.bot.strategy | nindent 4 }}
   selector:
     matchLabels:
-      {{- include "natsie-chart.selectorLabels" . | nindent 6 }}
+      {{- include "cheshmhayash-chart.bot.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "natsie-chart.selectorLabels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        {{- include "cheshmhayash-chart.bot.selectorLabels" . | nindent 8 }}
+        {{- with .Values.bot.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- if .Values.restartOnConfigChange }}
-        checksum/config: {{ include "natsie-chart.configYaml" . | sha256sum }}
+        {{- if .Values.bot.restartOnConfigChange }}
+        checksum/config: {{ include "cheshmhayash-chart.bot.configYaml" . | sha256sum }}
         {{- end }}
-        {{- with .Values.podAnnotations }}
+        {{- with .Values.bot.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ include "natsie-chart.serviceAccountName" . }}
+      serviceAccountName: {{ include "cheshmhayash-chart.bot.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.priorityClassName }}
+      {{- with .Values.bot.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if or .Values.initContainers (and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts) }}
+      {{- if or .Values.bot.initContainers (and .Values.bot.natsContexts.fromEnv.enabled .Values.bot.natsContexts.fromEnv.contexts) }}
       initContainers:
-        {{- if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+        {{- if and .Values.bot.natsContexts.fromEnv.enabled .Values.bot.natsContexts.fromEnv.contexts }}
         - name: render-nats-contexts
-          image: {{ printf "%s:%s" .Values.natsContexts.fromEnv.image.repository .Values.natsContexts.fromEnv.image.tag }}
-          imagePullPolicy: {{ .Values.natsContexts.fromEnv.image.pullPolicy }}
+          image: {{ printf "%s:%s" .Values.bot.natsContexts.fromEnv.image.repository .Values.bot.natsContexts.fromEnv.image.tag }}
+          imagePullPolicy: {{ .Values.bot.natsContexts.fromEnv.image.pullPolicy }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -59,10 +60,10 @@ spec:
               # runs as a different uid than busybox's `cat` default
               # (busybox writes mode 0600 in some SCC contexts), so an
               # explicit umask + chmod is the only way to guarantee the
-              # nonroot natsie user can open the file.
+              # nonroot cheshmhayash user can open the file.
               umask 0022
               mkdir -p /shared
-              {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
+              {{- range $i, $c := .Values.bot.natsContexts.fromEnv.contexts }}
               cat > /shared/{{ $c.name }}.json <<EOF
               {
                 "url": "{{ $c.url }}",
@@ -73,7 +74,7 @@ spec:
               chmod 0644 /shared/{{ $c.name }}.json
               {{- end }}
           env:
-            {{- range $i, $c := .Values.natsContexts.fromEnv.contexts }}
+            {{- range $i, $c := .Values.bot.natsContexts.fromEnv.contexts }}
             - name: CTX_{{ $i }}_USER
               valueFrom:
                 secretKeyRef:
@@ -89,24 +90,24 @@ spec:
             - name: nats-contexts
               mountPath: /shared
         {{- end }}
-        {{- with .Values.initContainers }}
+        {{- with .Values.bot.initContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          image: {{ include "natsie-chart.image" . }}
+        - name: bot
+          image: {{ include "cheshmhayash-chart.bot.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           args:
             - bot
             - serve
-            - --config
-            - /etc/natsie/config.yaml
+            - --ops-config
+            - /etc/cheshmhayash/config.yaml
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.bot.service.port }}
               protocol: TCP
           env:
             # natsctx looks up ~/.config/nats/context/<name>.json via
@@ -120,137 +121,138 @@ spec:
             # kubelet mount-point creation produces 0755 root:root dirs
             # that any uid can traverse.
             - name: HOME
-              value: /home/natsie
-            {{- if or (eq (include "natsie-chart.hasManagedSigningKey" .) "true") .Values.bot.existingSigningKeySecret.name }}
-            - name: NATSIE_BOT__SIGNING_KEY
+              value: /home/cheshmhayash
+            {{- if or (eq (include "cheshmhayash-chart.bot.hasManagedSigningKey" .) "true") .Values.bot.existingSigningKeySecret.name }}
+            - name: CHESHMHAYASH_OPS_BOT__SIGNING_KEY
               valueFrom:
                 secretKeyRef:
                   {{- if .Values.bot.existingSigningKeySecret.name }}
                   name: {{ .Values.bot.existingSigningKeySecret.name }}
                   key: {{ .Values.bot.existingSigningKeySecret.key | default "signing_key" }}
                   {{- else }}
-                  name: {{ include "natsie-chart.secretName" . }}
+                  name: {{ include "cheshmhayash-chart.bot.secretName" . }}
                   key: signing_key
                   {{- end }}
             {{- end }}
             {{- if .Values.bot.notifySecret }}
-            - name: NATSIE_BOT__NOTIFY
+            - name: CHESHMHAYASH_OPS_BOT__NOTIFY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.bot.notifySecret }}
                   key: urls
             {{- end }}
             {{- if .Values.bot.mattermost.enabled }}
-            - name: NATSIE_BOT__MATTERMOST__TOKEN
+            - name: CHESHMHAYASH_OPS_BOT__MATTERMOST__TOKEN
               valueFrom:
                 secretKeyRef:
                   {{- if .Values.bot.mattermost.existingTokenSecret.name }}
                   name: {{ .Values.bot.mattermost.existingTokenSecret.name }}
                   key: {{ .Values.bot.mattermost.existingTokenSecret.key | default "token" }}
                   {{- else }}
-                  name: {{ include "natsie-chart.mattermostTokenSecretName" . }}
+                  name: {{ include "cheshmhayash-chart.bot.mattermostTokenSecretName" . }}
                   key: token
                   {{- end }}
             {{- end }}
-            {{- with .Values.extraEnv }}
+            {{- with .Values.bot.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- with .Values.extraEnvFrom }}
+          {{- with .Values.bot.extraEnvFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if .Values.probes.startup.enabled }}
+          {{- if .Values.bot.probes.startup.enabled }}
           startupProbe:
             httpGet:
               path: /healthz
               port: http
-            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
-            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
-            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            periodSeconds: {{ .Values.bot.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.bot.probes.startup.failureThreshold }}
+            timeoutSeconds: {{ .Values.bot.probes.startup.timeoutSeconds }}
           {{- end }}
-          {{- if .Values.probes.readiness.enabled }}
+          {{- if .Values.bot.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
-            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
-            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
-            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
-            successThreshold: {{ .Values.probes.readiness.successThreshold }}
+            periodSeconds: {{ .Values.bot.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.bot.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.bot.probes.readiness.failureThreshold }}
+            successThreshold: {{ .Values.bot.probes.readiness.successThreshold }}
           {{- end }}
-          {{- if .Values.probes.liveness.enabled }}
+          {{- if .Values.bot.probes.liveness.enabled }}
           livenessProbe:
             httpGet:
               path: /healthz
               port: http
-            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
-            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
-            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+            periodSeconds: {{ .Values.bot.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.bot.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.bot.probes.liveness.failureThreshold }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.bot.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/natsie/config.yaml
+              mountPath: /etc/cheshmhayash/config.yaml
               subPath: config.yaml
               readOnly: true
-            {{- if or .Values.natsContexts.existingSecret (eq (include "natsie-chart.hasManagedNatsContexts" .) "true") }}
+            {{- if or .Values.bot.natsContexts.existingSecret (eq (include "cheshmhayash-chart.bot.hasManagedNatsContexts" .) "true") }}
             - name: nats-contexts
-              mountPath: /home/natsie/.config/nats/context
+              mountPath: /home/cheshmhayash/.config/nats/context
               readOnly: true
-            {{- else if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+            {{- else if and .Values.bot.natsContexts.fromEnv.enabled .Values.bot.natsContexts.fromEnv.contexts }}
             - name: nats-contexts
-              mountPath: /home/natsie/.config/nats/context
+              mountPath: /home/cheshmhayash/.config/nats/context
               readOnly: true
             {{- end }}
             - name: state
-              mountPath: /var/lib/natsie
+              mountPath: /var/lib/cheshmhayash
             # readOnlyRootFilesystem is true, so anything the binary writes
-            # outside of /var/lib/natsie has to land on an emptyDir.
+            # outside of /var/lib/cheshmhayash has to land on an emptyDir.
             - name: tmp
               mountPath: /tmp
-            {{- with .Values.extraVolumeMounts }}
+            {{- with .Values.bot.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-        {{- with .Values.extraContainers }}
+        {{- with .Values.bot.extraContainers }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       volumes:
         - name: config
           configMap:
-            name: {{ include "natsie-chart.configMapName" . }}
-        {{- if or .Values.natsContexts.existingSecret (eq (include "natsie-chart.hasManagedNatsContexts" .) "true") }}
+            name: {{ include "cheshmhayash-chart.bot.configMapName" . }}
+        {{- if or .Values.bot.natsContexts.existingSecret (eq (include "cheshmhayash-chart.bot.hasManagedNatsContexts" .) "true") }}
         - name: nats-contexts
           secret:
-            secretName: {{ include "natsie-chart.natsCtxSecretEffective" . }}
+            secretName: {{ include "cheshmhayash-chart.bot.natsCtxSecretEffective" . }}
             defaultMode: 0400
-        {{- else if and .Values.natsContexts.fromEnv.enabled .Values.natsContexts.fromEnv.contexts }}
+        {{- else if and .Values.bot.natsContexts.fromEnv.enabled .Values.bot.natsContexts.fromEnv.contexts }}
         - name: nats-contexts
           emptyDir:
             sizeLimit: 1Mi
         {{- end }}
         - name: state
-          {{- if .Values.persistence.enabled }}
+          {{- if .Values.bot.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "natsie-chart.pvcName" . }}
+            claimName: {{ include "cheshmhayash-chart.bot.pvcName" . }}
           {{- else }}
           emptyDir: {}
           {{- end }}
         - name: tmp
           emptyDir:
             sizeLimit: 16Mi
-        {{- with .Values.extraVolumes }}
+        {{- with .Values.bot.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.bot.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.bot.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.bot.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

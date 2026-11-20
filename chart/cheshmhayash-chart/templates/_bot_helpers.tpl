@@ -1,39 +1,27 @@
 {{/*
-Expand the name of the chart.
+Operations bot (`cheshmhayash bot serve`, formerly natsie). Every value
+lives under `bot:`; the image, pull secrets, service account and security
+contexts are the dashboard's.
 */}}
-{{- define "natsie-chart.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- define "cheshmhayash-chart.bot.fullname" -}}
+{{- printf "%s-bot" (include "cheshmhayash-chart.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
 {{/*
-Fully qualified app name. Truncated at 63 chars (DNS-1123 label).
+Immutable selector subset for the bot, distinct from the dashboard and MCP
+selectors.
 */}}
-{{- define "natsie-chart.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
+{{- define "cheshmhayash-chart.bot.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "cheshmhayash-chart.name" . }}-bot
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Chart name + version, used by the helm.sh/chart label.
+Recommended labels for the bot (component: bot).
 */}}
-{{- define "natsie-chart.chart" -}}
-{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
-{{/*
-Recommended app.kubernetes.io/* labels. Apply to every rendered object.
-*/}}
-{{- define "natsie-chart.labels" -}}
-helm.sh/chart: {{ include "natsie-chart.chart" . }}
-{{ include "natsie-chart.selectorLabels" . }}
+{{- define "cheshmhayash-chart.bot.labels" -}}
+helm.sh/chart: {{ include "cheshmhayash-chart.chart" . }}
+{{ include "cheshmhayash-chart.bot.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -42,54 +30,34 @@ app.kubernetes.io/part-of: nats
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
-{{/*
-Immutable selector subset. Only name+instance — never include `version`
-because Deployment selectors are immutable after creation.
-*/}}
-{{- define "natsie-chart.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "natsie-chart.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- define "cheshmhayash-chart.bot.serviceAccountName" -}}
+{{- include "cheshmhayash-chart.serviceAccountName" . -}}
 {{- end }}
 
-{{/*
-ServiceAccount name in use.
-*/}}
-{{- define "natsie-chart.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "natsie-chart.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
-Container image reference (`repo:tag`). Tag falls back to .Chart.AppVersion.
-*/}}
-{{- define "natsie-chart.image" -}}
-{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- define "cheshmhayash-chart.bot.image" -}}
+{{- include "cheshmhayash-chart.image" . -}}
 {{- end }}
 
 {{/*
 Names of chart-managed child objects.
 */}}
-{{- define "natsie-chart.configMapName" -}}
-{{- printf "%s-config" (include "natsie-chart.fullname" .) -}}
+{{- define "cheshmhayash-chart.bot.configMapName" -}}
+{{- printf "%s-config" (include "cheshmhayash-chart.bot.fullname" .) -}}
 {{- end }}
-{{- define "natsie-chart.secretName" -}}
-{{- printf "%s-signing-key" (include "natsie-chart.fullname" .) -}}
+{{- define "cheshmhayash-chart.bot.secretName" -}}
+{{- printf "%s-signing-key" (include "cheshmhayash-chart.bot.fullname" .) -}}
 {{- end }}
-{{- define "natsie-chart.natsCtxSecretName" -}}
-{{- printf "%s-nats-contexts" (include "natsie-chart.fullname" .) -}}
+{{- define "cheshmhayash-chart.bot.natsCtxSecretName" -}}
+{{- printf "%s-nats-contexts" (include "cheshmhayash-chart.bot.fullname" .) -}}
 {{- end }}
-{{- define "natsie-chart.pvcName" -}}
-{{- printf "%s-state" (include "natsie-chart.fullname" .) -}}
+{{- define "cheshmhayash-chart.bot.pvcName" -}}
+{{- printf "%s-state" (include "cheshmhayash-chart.bot.fullname" .) -}}
 {{- end }}
 
 {{/*
 True when the chart should create its own Signing-key Secret.
 */}}
-{{- define "natsie-chart.hasManagedSigningKey" -}}
+{{- define "cheshmhayash-chart.bot.hasManagedSigningKey" -}}
 {{- if and .Values.bot.signingKey (not .Values.bot.existingSigningKeySecret.name) -}}
 true
 {{- end -}}
@@ -98,7 +66,7 @@ true
 {{/*
 True when the chart should create its own Mattermost-token Secret.
 */}}
-{{- define "natsie-chart.hasManagedMattermostToken" -}}
+{{- define "cheshmhayash-chart.bot.hasManagedMattermostToken" -}}
 {{- if and .Values.bot.mattermost.enabled .Values.bot.mattermost.token (not .Values.bot.mattermost.existingTokenSecret.name) -}}
 true
 {{- end -}}
@@ -108,15 +76,15 @@ true
 Mattermost-token Secret name (chart-managed) — only meaningful when
 hasManagedMattermostToken is true.
 */}}
-{{- define "natsie-chart.mattermostTokenSecretName" -}}
-{{- printf "%s-mattermost-token" (include "natsie-chart.fullname" .) -}}
+{{- define "cheshmhayash-chart.bot.mattermostTokenSecretName" -}}
+{{- printf "%s-mattermost-token" (include "cheshmhayash-chart.bot.fullname" .) -}}
 {{- end }}
 
 {{/*
 True when the chart should create the NATS contexts Secret from inline data.
 */}}
-{{- define "natsie-chart.hasManagedNatsContexts" -}}
-{{- if and .Values.natsContexts.inline (not .Values.natsContexts.existingSecret) -}}
+{{- define "cheshmhayash-chart.bot.hasManagedNatsContexts" -}}
+{{- if and .Values.bot.natsContexts.inline (not .Values.bot.natsContexts.existingSecret) -}}
 true
 {{- end -}}
 {{- end }}
@@ -124,21 +92,21 @@ true
 {{/*
 Effective NATS contexts Secret name (inline → chart-managed, else existing).
 */}}
-{{- define "natsie-chart.natsCtxSecretEffective" -}}
-{{- if .Values.natsContexts.existingSecret -}}
-{{- .Values.natsContexts.existingSecret -}}
+{{- define "cheshmhayash-chart.bot.natsCtxSecretEffective" -}}
+{{- if .Values.bot.natsContexts.existingSecret -}}
+{{- .Values.bot.natsContexts.existingSecret -}}
 {{- else -}}
-{{- include "natsie-chart.natsCtxSecretName" . -}}
+{{- include "cheshmhayash-chart.bot.natsCtxSecretName" . -}}
 {{- end -}}
 {{- end }}
 
 {{/*
-Render the natsie config.yaml. Sensitive values (signing_key, notify URLs
+Render the cheshmhayash config.yaml. Sensitive values (signing_key, notify URLs
 that reference Secrets) come in via env vars at runtime, so they don't
 appear in the rendered ConfigMap.
 */}}
-{{- define "natsie-chart.configYaml" -}}
-{{- with .Values.protect }}
+{{- define "cheshmhayash-chart.bot.configYaml" -}}
+{{- with .Values.bot.protect }}
 {{- if or .metadataKeys .patterns }}
 protect:
 {{- with .metadataKeys }}
@@ -158,10 +126,10 @@ protect:
 {{- end }}
 
 defaults:
-  min_pending: {{ .Values.defaults.minPending }}
-  min_idle: {{ .Values.defaults.minIdle | quote }}
-  format: {{ .Values.defaults.format | quote }}
-{{- with .Values.contexts }}
+  min_pending: {{ .Values.bot.defaults.minPending }}
+  min_idle: {{ .Values.bot.defaults.minIdle | quote }}
+  format: {{ .Values.bot.defaults.format | quote }}
+{{- with .Values.bot.contexts }}
 
 contexts:
 {{- range $name, $opts := . }}
@@ -174,7 +142,7 @@ bot:
   store: "file://{{ .Values.bot.storePath }}"
   audit_log: {{ .Values.bot.auditLogPath | quote }}
   http:
-    listen: ":{{ .Values.service.port }}"
+    listen: ":{{ .Values.bot.service.port }}"
 {{- if .Values.bot.baseUrl }}
     base_url: {{ .Values.bot.baseUrl | quote }}
 {{- end }}
