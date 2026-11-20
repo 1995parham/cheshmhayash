@@ -31,6 +31,9 @@ type SchemaSource struct {
 	// Path is the descriptor set file or the .proto import root. A
 	// relative path resolves against the folder of the file it is in.
 	Path string `json:"path" koanf:"path"`
+	// ImportPaths are more import roots for proto_dir (for example a copy
+	// of googleapis), resolved like Path.
+	ImportPaths []string `json:"import_paths,omitempty" koanf:"import_paths"`
 }
 
 // SubjectRule maps the subjects that match a NATS pattern to a message.
@@ -77,9 +80,16 @@ func LoadSchemas(path string) (Schemas, error) {
 }
 
 func resolveSchemaPaths(s *Schemas, base string) {
+	abs := func(p string) string {
+		if p == "" || filepath.IsAbs(p) {
+			return p
+		}
+		return filepath.Join(base, p)
+	}
 	for i := range s.Sources {
-		if p := s.Sources[i].Path; p != "" && !filepath.IsAbs(p) {
-			s.Sources[i].Path = filepath.Join(base, p)
+		s.Sources[i].Path = abs(s.Sources[i].Path)
+		for j, p := range s.Sources[i].ImportPaths {
+			s.Sources[i].ImportPaths[j] = abs(p)
 		}
 	}
 }

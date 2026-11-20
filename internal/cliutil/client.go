@@ -3,6 +3,7 @@ package cliutil
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -121,11 +122,19 @@ func LoadSchemas(ctx context.Context, cmd *cli.Command, settings *config.Setting
 
 	sources := make([]schema.SourceConfig, 0, len(cfg.Sources))
 	for _, s := range cfg.Sources {
-		sources = append(sources, schema.SourceConfig{Name: s.Name, Type: schema.SourceType(s.Type), Path: s.Path})
+		sources = append(sources, schema.SourceConfig{
+			Name: s.Name, Type: schema.SourceType(s.Type), Path: s.Path, ImportPaths: s.ImportPaths,
+		})
 	}
 	reg, err := schema.Load(ctx, sources)
 	if err != nil {
 		return nil, err
+	}
+	for _, src := range reg.Sources() {
+		if n := len(src.Skipped); n > 0 {
+			slog.Warn("some schema files did not load; `cheshmhayash schema list -v` shows why",
+				"source", src.Name, "skipped", n)
+		}
 	}
 
 	rules := make([]schema.Rule, 0, len(cfg.Subjects))

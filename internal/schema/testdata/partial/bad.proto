@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package partial;
+
+// The import is missing on purpose: the loader must skip this file and
+// keep good.proto.
+import "google/api/annotations.proto";
+
+message Bad {
+  string id = 1;
+}

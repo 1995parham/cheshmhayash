@@ -28,6 +28,8 @@ type Source struct {
 	// Types resolves messages and extensions of the source for protojson,
 	// for example the payload of a google.protobuf.Any.
 	Types *dynamicpb.Types
+	// Skipped explains the files of the source that did not load.
+	Skipped []error
 }
 
 // Messages returns the full names of every message the source defines,

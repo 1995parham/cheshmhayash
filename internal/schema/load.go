@@ -36,10 +36,21 @@ type SourceConfig struct {
 	Name string
 	Type SourceType
 	Path string
+	// ImportPaths are more import roots for proto_dir, for example a copy
+	// of googleapis that the files import but the folder does not hold.
+	ImportPaths []string
 }
 
-// Loader reads the files of one source from path.
-type Loader func(ctx context.Context, path string) (*protoregistry.Files, error)
+// Loaded is what a loader returns: the files, and the files it skipped.
+type Loaded struct {
+	Files *protoregistry.Files
+	// Skipped explains each file that did not load. The other files of
+	// the source still work.
+	Skipped []error
+}
+
+// Loader reads the files of one source.
+type Loader func(ctx context.Context, cfg SourceConfig) (Loaded, error)
 
 // Loaders maps each source type to its loader. A build that needs another
 // kind of source (a schema registry, gRPC reflection) adds an entry here.
@@ -59,19 +70,29 @@ func Load(ctx context.Context, cfgs []SourceConfig) (*Registry, error) {
 			return nil, fmt.Errorf("schema source %q: unknown type %q (known: %s, %s)",
 				c.Name, c.Type, TypeDescriptorSet, TypeProtoDir)
 		}
-		files, err := load(ctx, c.Path)
+		loaded, err := load(ctx, c)
 		if err != nil {
 			return nil, fmt.Errorf("schema source %q: %w", c.Name, err)
 		}
-		if err := reg.Add(c.Name, files); err != nil {
+		if err := reg.Add(c.Name, loaded.Files); err != nil {
 			return nil, err
 		}
+		reg.Source(c.Name).Skipped = loaded.Skipped
 	}
 	return reg, nil
 }
 
-// LoadDescriptorSet reads a serialized FileDescriptorSet from path.
-func LoadDescriptorSet(_ context.Context, path string) (*protoregistry.Files, error) {
+// LoadDescriptorSet reads the serialized FileDescriptorSet at cfg.Path.
+func LoadDescriptorSet(_ context.Context, cfg SourceConfig) (Loaded, error) {
+	files, err := ReadDescriptorSet(cfg.Path)
+	if err != nil {
+		return Loaded{}, err
+	}
+	return Loaded{Files: files}, nil
+}
+
+// ReadDescriptorSet reads a serialized FileDescriptorSet from path.
+func ReadDescriptorSet(path string) (*protoregistry.Files, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // the operator names the descriptor set in config; reading it is the point
 	if err != nil {
 		return nil, fmt.Errorf("read descriptor set: %w", err)
@@ -87,9 +108,13 @@ func LoadDescriptorSet(_ context.Context, path string) (*protoregistry.Files, er
 	return files, nil
 }
 
-// LoadProtoDir compiles every .proto file under dir, with dir as the
-// import root.
-func LoadProtoDir(ctx context.Context, dir string) (*protoregistry.Files, error) {
+// LoadProtoDir compiles every .proto file under cfg.Path, with cfg.Path
+// and then cfg.ImportPaths as the import roots. When some files do not
+// compile (a missing import, a syntax error), they are skipped and
+// reported in Loaded.Skipped; the source fails only when no file
+// compiles.
+func LoadProtoDir(ctx context.Context, cfg SourceConfig) (Loaded, error) {
+	dir := cfg.Path
 	var names []string
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -106,30 +131,50 @@ func LoadProtoDir(ctx context.Context, dir string) (*protoregistry.Files, error)
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", dir, err)
+		return Loaded{}, fmt.Errorf("walk %s: %w", dir, err)
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("no .proto files under %s", dir)
+		return Loaded{}, fmt.Errorf("no .proto files under %s", dir)
 	}
 	slices.Sort(names)
 
 	compiler := protocompile.Compiler{
 		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
-			ImportPaths: []string{dir},
+			ImportPaths: append([]string{dir}, cfg.ImportPaths...),
 		}),
-	}
-	compiled, err := compiler.Compile(ctx, names...)
-	if err != nil {
-		return nil, fmt.Errorf("compile %s: %w", dir, err)
 	}
 
 	files := new(protoregistry.Files)
-	for _, fd := range compiled {
-		if err := register(files, fd); err != nil {
-			return nil, err
+	// The fast path: every file compiles in one pass.
+	if compiled, err := compiler.Compile(ctx, names...); err == nil {
+		for _, fd := range compiled {
+			if err := register(files, fd); err != nil {
+				return Loaded{}, err
+			}
+		}
+		return Loaded{Files: files}, nil
+	}
+
+	// Some file failed. Compile each file alone and keep the ones that
+	// work, so one broken import does not hide the whole repository.
+	var skipped []error
+	for _, name := range names {
+		if err := ctx.Err(); err != nil {
+			return Loaded{}, err
+		}
+		compiled, err := compiler.Compile(ctx, name)
+		if err != nil {
+			skipped = append(skipped, err)
+			continue
+		}
+		if err := register(files, compiled[0]); err != nil {
+			skipped = append(skipped, err)
 		}
 	}
-	return files, nil
+	if files.NumFiles() == 0 {
+		return Loaded{}, fmt.Errorf("no file under %s compiles: %w", dir, errors.Join(skipped...))
+	}
+	return Loaded{Files: files, Skipped: skipped}, nil
 }
 
 // register adds fd and, first, every file it imports that files does not

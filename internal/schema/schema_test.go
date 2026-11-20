@@ -89,11 +89,11 @@ func TestSourceMessages(t *testing.T) {
 }
 
 func TestLoadDescriptorSet(t *testing.T) {
-	files, err := LoadProtoDir(t.Context(), "testdata/backend")
+	loaded, err := LoadProtoDir(t.Context(), SourceConfig{Path: "testdata/backend"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := writeDescriptorSet(t, files)
+	path := writeDescriptorSet(t, loaded.Files)
 
 	reg, err := Load(t.Context(), []SourceConfig{{Name: "set", Type: TypeDescriptorSet, Path: path}})
 	if err != nil {
@@ -134,11 +134,11 @@ func TestLoadErrors(t *testing.T) {
 }
 
 func TestLoadDescriptorSetWithoutImports(t *testing.T) {
-	files, err := LoadProtoDir(t.Context(), "testdata/backend")
+	loaded, err := LoadProtoDir(t.Context(), SourceConfig{Path: "testdata/backend"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	fd, err := files.FindFileByPath("demo/v1/demo.proto")
+	fd, err := loaded.Files.FindFileByPath("demo/v1/demo.proto")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,8 +146,41 @@ func TestLoadDescriptorSetWithoutImports(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "partial.binpb")
 	writeSet(t, path, set)
 
-	if _, err := LoadDescriptorSet(t.Context(), path); err == nil || !strings.Contains(err.Error(), "--include_imports") {
+	if _, err := ReadDescriptorSet(path); err == nil || !strings.Contains(err.Error(), "--include_imports") {
 		t.Fatalf("error = %v, want a hint about --include_imports", err)
+	}
+}
+
+func TestLoadProtoDirSkipsBrokenFiles(t *testing.T) {
+	reg, err := Load(t.Context(), []SourceConfig{{Name: "p", Type: TypeProtoDir, Path: "testdata/partial"}})
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if _, _, err := reg.FindMessage("p:partial.Good"); err != nil {
+		t.Errorf("good.proto did not load: %v", err)
+	}
+	if _, _, err := reg.FindMessage("p:partial.Bad"); err == nil {
+		t.Error("bad.proto loaded")
+	}
+	skipped := reg.Source("p").Skipped
+	if len(skipped) != 1 || !strings.Contains(skipped[0].Error(), "google/api/annotations.proto") {
+		t.Errorf("Skipped = %v, want the missing import of bad.proto", skipped)
+	}
+}
+
+func TestLoadProtoDirImportPaths(t *testing.T) {
+	if _, err := Load(t.Context(), []SourceConfig{{Name: "w", Type: TypeProtoDir, Path: "testdata/withdeps"}}); err == nil ||
+		!strings.Contains(err.Error(), "no file under") {
+		t.Fatalf("without the import path: err = %v, want no file to compile", err)
+	}
+	reg, err := Load(t.Context(), []SourceConfig{{
+		Name: "w", Type: TypeProtoDir, Path: "testdata/withdeps", ImportPaths: []string{"testdata/vendored"},
+	}})
+	if err != nil {
+		t.Fatalf("with the import path: %v", err)
+	}
+	if _, _, err := reg.FindMessage("vendor.Dep"); err != nil {
+		t.Errorf("the imported file is not in the source: %v", err)
 	}
 }
 

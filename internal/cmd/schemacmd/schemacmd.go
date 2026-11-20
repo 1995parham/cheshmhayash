@@ -25,9 +25,11 @@ func Command() *cli.Command {
 		Usage: "inspect protobuf schemas and subject rules",
 		Commands: []*cli.Command{
 			{
-				Name:   "list",
-				Usage:  "list the schema sources",
-				Flags:  cliutil.SchemaFlags(),
+				Name:  "list",
+				Usage: "list the schema sources",
+				Flags: append(cliutil.SchemaFlags(),
+					&cli.BoolFlag{Name: "verbose", Aliases: []string{"v"}, Usage: "explain every skipped file"},
+				),
 				Action: list,
 			},
 			{
@@ -75,10 +77,19 @@ func list(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	t := newTable(cmd.Root().Writer)
-	t.row("SOURCE", "TYPE", "FILES", "MESSAGES", "PATH")
+	t.row("SOURCE", "TYPE", "FILES", "SKIPPED", "MESSAGES", "PATH")
 	for i, src := range s.Registry.Sources() {
 		c := s.Config.Sources[i]
-		t.row(src.Name, c.Type, strconv.Itoa(src.Files.NumFiles()), strconv.Itoa(len(src.Messages())), c.Path)
+		t.row(src.Name, c.Type, strconv.Itoa(src.Files.NumFiles()), strconv.Itoa(len(src.Skipped)),
+			strconv.Itoa(len(src.Messages())), c.Path)
+	}
+	if cmd.Bool("verbose") {
+		for _, src := range s.Registry.Sources() {
+			for _, err := range src.Skipped {
+				t.row()
+				t.row("skipped in " + src.Name + ": " + err.Error())
+			}
+		}
 	}
 	t.row()
 	t.row(strconv.Itoa(len(s.Router.Rules())) + " subject rules")
