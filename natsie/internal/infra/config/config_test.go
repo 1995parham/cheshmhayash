@@ -1,0 +1,231 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestLoadAbsentFileUsesDefaults(t *testing.T) {
+	t.Setenv("NATSIE_CONFIG", filepath.Join(t.TempDir(), "absent.yaml"))
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Defaults.MinIdle != 24*time.Hour {
+		t.Errorf("MinIdle=%v want 24h", cfg.Defaults.MinIdle)
+	}
+
+	if cfg.Defaults.Format != "tsv" {
+		t.Errorf("Format=%q want tsv", cfg.Defaults.Format)
+	}
+}
+
+func TestLoadFileAndBotConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	body := `
+defaults:
+  min_pending: 5000
+  min_idle: 6h
+
+contexts:
+  snapp-js-main-teh1:
+    peer: snapp-js-main-teh2
+
+bot:
+  schedules:
+    - name: daily
+      cron: "0 3 * * *"
+      context: snapp-js-main-teh1
+      peer_context: snapp-js-main-teh2
+      min_pending: 10000
+      min_idle: 24h
+  notify:
+    - stdout://
+    - mattermost://chat.example.com/hooks/abc?channel=cleanup
+  store: file:///var/lib/natsie/manifests
+  audit_log: /var/lib/natsie/audit.jsonl
+  http:
+    listen: ":8080"
+    base_url: https://natsie.example.com
+  signing_key: secret
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Defaults.MinPending != 5000 {
+		t.Errorf("Defaults.MinPending=%d want 5000", cfg.Defaults.MinPending)
+	}
+
+	if cfg.Contexts["snapp-js-main-teh1"].Peer != "snapp-js-main-teh2" {
+		t.Errorf("peer mapping not loaded: %+v", cfg.Contexts)
+	}
+
+	if len(cfg.Bot.Schedules) != 1 || cfg.Bot.Schedules[0].Cron != "0 3 * * *" {
+		t.Errorf("bot schedules not loaded: %+v", cfg.Bot.Schedules)
+	}
+
+	if cfg.Bot.Schedules[0].MinIdle != 24*time.Hour {
+		t.Errorf("schedule MinIdle=%v want 24h", cfg.Bot.Schedules[0].MinIdle)
+	}
+
+	if len(cfg.Bot.Notify) != 2 {
+		t.Errorf("notify=%v want 2 entries", cfg.Bot.Notify)
+	}
+
+	if cfg.Bot.HTTP.Listen != ":8080" {
+		t.Errorf("HTTP.Listen=%q want :8080", cfg.Bot.HTTP.Listen)
+	}
+
+	if cfg.Bot.SigningKey != "secret" {
+		t.Errorf("signing key not loaded")
+	}
+}
+
+func TestLoadOwners(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	body := `
+bot:
+  owners:
+    - name: chronos
+      streams: [rides]
+      consumer_prefix: [chronos-]
+      notify:
+        - mattermost://chat.example.com/hooks/abc?channel=chronos-alerts
+    - name: dolos
+      consumer_prefix: [dolos-, dolos-dolos-]
+      notify:
+        - stdout://
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if len(cfg.Bot.Owners) != 2 {
+		t.Fatalf("owners=%d want 2", len(cfg.Bot.Owners))
+	}
+
+	chronos := cfg.Bot.Owners[0]
+	if chronos.Name != "chronos" {
+		t.Errorf("name=%q want chronos", chronos.Name)
+	}
+
+	if len(chronos.Streams) != 1 || chronos.Streams[0] != "rides" {
+		t.Errorf("streams=%v", chronos.Streams)
+	}
+
+	if len(chronos.ConsumerPrefix) != 1 || chronos.ConsumerPrefix[0] != "chronos-" {
+		t.Errorf("consumer_prefix=%v", chronos.ConsumerPrefix)
+	}
+
+	if len(chronos.Notify) != 1 {
+		t.Errorf("notify=%v", chronos.Notify)
+	}
+
+	dolos := cfg.Bot.Owners[1]
+	if len(dolos.ConsumerPrefix) != 2 {
+		t.Errorf("dolos prefixes=%v", dolos.ConsumerPrefix)
+	}
+}
+
+func TestEnvOverridesFile(t *testing.T) {
+	dir := t.TempDir()
+
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("defaults:\n  min_pending: 1000\n"), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	t.Setenv("NATSIE_DEFAULTS__MIN_PENDING", "9999")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Defaults.MinPending != 9999 {
+		t.Errorf("MinPending=%d want 9999 (env override failed)", cfg.Defaults.MinPending)
+	}
+}
+
+// The Helm chart renders this exact shape into the ConfigMap, so parsing it
+// is what proves the chart's new options actually reach the daemon rather
+// than being silently dropped by koanf.
+func TestLoadProtectAndAutoDelete(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	body := `
+protect:
+  metadata_keys:
+    - "app.kubernetes.io/managed-by"
+  patterns:
+    - stream: "rides"
+      consumer: "svc-*"
+    - consumer: "*-gitops"
+
+bot:
+  store: "file:///tmp/x"
+  notify:
+    - "stdout://"
+  schedules:
+    - name: "nightly-sweep"
+      cron: "0 4 * * *"
+      context: "prod-teh1"
+      auto_delete: true
+    - name: "proposal-only"
+      cron: "0 3 * * *"
+      context: "prod-teh2"
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if len(cfg.Protect.MetadataKeys) != 1 || cfg.Protect.MetadataKeys[0] != "app.kubernetes.io/managed-by" {
+		t.Errorf("MetadataKeys=%v", cfg.Protect.MetadataKeys)
+	}
+
+	if len(cfg.Protect.Patterns) != 2 {
+		t.Fatalf("Patterns=%v want 2", cfg.Protect.Patterns)
+	}
+
+	if cfg.Protect.Patterns[0].Stream != "rides" || cfg.Protect.Patterns[0].Consumer != "svc-*" {
+		t.Errorf("Patterns[0]=%+v", cfg.Protect.Patterns[0])
+	}
+
+	if cfg.Protect.Patterns[1].Stream != "" || cfg.Protect.Patterns[1].Consumer != "*-gitops" {
+		t.Errorf("Patterns[1]=%+v", cfg.Protect.Patterns[1])
+	}
+
+	// auto_delete must be opt-in: set where asked for, false everywhere else.
+	if !cfg.Bot.Schedules[0].AutoDelete {
+		t.Error("schedule 0: auto_delete should be true")
+	}
+
+	if cfg.Bot.Schedules[1].AutoDelete {
+		t.Error("schedule 1: auto_delete must default to false")
+	}
+}
