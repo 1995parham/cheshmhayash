@@ -96,3 +96,29 @@ func MatchSubject(pattern, subject string) bool {
 		pattern, subject = pRest, sRest
 	}
 }
+
+// PatternCovers reports whether every subject that req matches is also
+// matched by allow, so a request for req may be granted under allow. Both
+// are NATS subject patterns: "ride.>" covers "ride.accepted" and
+// "ride.*.v2", while "ride.*" does not cover "ride.>".
+func PatternCovers(allow, req string) bool {
+	for {
+		aTok, aRest, aMore := strings.Cut(allow, ".")
+		rTok, rRest, rMore := strings.Cut(req, ".")
+		switch {
+		case aTok == ">":
+			return true
+		case rTok == ">":
+			// Only a '>' in allow covers a '>' in the request.
+			return false
+		case aTok == "*":
+			// '*' covers any one literal token and a '*'.
+		case aTok != rTok:
+			return false
+		}
+		if !aMore || !rMore {
+			return aMore == rMore
+		}
+		allow, req = aRest, rRest
+	}
+}

@@ -25,6 +25,9 @@ type Options struct {
 	// StaticDir, when non-empty, serves the built SPA from that directory
 	// with an index.html fallback at /.
 	StaticDir string
+	// Tap, when non-nil and API is on, registers the live tap under
+	// /api/tap.
+	Tap *Tap
 }
 
 // Mux returns a ServeMux with /healthz and the parts that opts selects:
@@ -62,6 +65,11 @@ func Mux(
 		mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{"version": version.String()})
 		})
+
+		if opts.Tap != nil {
+			tap := &tapHandler{mgr: mgr, cfg: opts.Tap, log: logger}
+			tap.register(mux)
+		}
 
 		if authn.Enabled() {
 			authn.Register(mux)

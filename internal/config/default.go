@@ -13,6 +13,14 @@ func Default() Settings {
 		// one in settings.toml or via env vars. Validation in Load() will
 		// error out if the final list is empty.
 		NATS: nil,
+		// The live tap shows message content, so it is opt-in.
+		Tap: Tap{
+			Enabled:            false,
+			MaxRate:            20,
+			MaxDurationSeconds: 600,
+			MaxTaps:            10,
+			Role:               TapRoleAdmin,
+		},
 		// Auth is opt-in. When Enabled stays false the HTTP API and MCP
 		// endpoint behave exactly as before this feature landed.
 		Auth: Auth{

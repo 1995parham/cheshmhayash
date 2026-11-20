@@ -42,6 +42,7 @@ type Settings struct {
 	Notify  []Notify `json:"notify,omitempty" koanf:"notify"`
 	Auth    Auth     `json:"auth"             koanf:"auth"`
 	Schemas Schemas  `json:"schemas,omitzero" koanf:"schemas"`
+	Tap     Tap      `json:"tap"              koanf:"tap"`
 }
 
 // Cluster returns the cluster called name. An empty name selects the only
@@ -379,6 +380,9 @@ func validate(s *Settings, noClusters bool) error {
 	}
 	if err := s.Schemas.validate(); err != nil {
 		return fmt.Errorf("schemas: %w", err)
+	}
+	if err := s.Tap.validate(); err != nil {
+		return fmt.Errorf("tap: %w", err)
 	}
 	return nil
 }

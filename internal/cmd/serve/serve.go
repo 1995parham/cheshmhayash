@@ -16,6 +16,7 @@ import (
 
 	"github.com/1995parham/cheshmhayash/internal/auth"
 	"github.com/1995parham/cheshmhayash/internal/cliutil"
+	"github.com/1995parham/cheshmhayash/internal/codec"
 	"github.com/1995parham/cheshmhayash/internal/config"
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/httpserver"
@@ -86,6 +87,11 @@ func Command() *cli.Command {
 				Usage: "directory of the built SPA (the ui component)",
 				Value: "frontend/dist",
 			},
+			&cli.StringSliceFlag{
+				Name:    "schemas",
+				Usage:   "extra schemas file for the live tap; repeat for more",
+				Sources: cli.EnvVars("CHESHMHAYASH_SCHEMAS"),
+			},
 			&cli.DurationFlag{
 				Name:    "overview-period",
 				Usage:   "refresh interval of the JetStream overview cache",
@@ -144,6 +150,9 @@ func run(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 		cache = startOverviewCache(ctx, log, mgr, period)
+		if opts.Tap, err = newTap(ctx, cmd, log, settings); err != nil {
+			return err
+		}
 	}
 
 	// The listener always runs, also for a notify-only process, so that
@@ -229,6 +238,30 @@ func newAuthenticator(ctx context.Context, log *slog.Logger, cfg config.Auth) (*
 		"admin_allowlist_set", !admin.IsEmpty(),
 	)
 	return authn, nil
+}
+
+// newTap returns the live tap configuration, or nil when [tap] is off. It
+// loads the schemas the tap decodes with.
+func newTap(ctx context.Context, cmd *cli.Command, log *slog.Logger, settings *config.Settings) (*handler.Tap, error) {
+	t := settings.Tap
+	if !t.Enabled {
+		return nil, nil
+	}
+	schemas, err := cliutil.LoadSchemas(ctx, cmd, settings)
+	if err != nil {
+		return nil, fmt.Errorf("tap schemas: %w", err)
+	}
+	log.Info("tap enabled",
+		"allow", t.Allow, "max_rate", t.MaxRate, "max_duration", t.MaxDuration(),
+		"max_taps", t.MaxTaps, "role", t.Role, "schema_sources", schemas.Registry.Len())
+	return &handler.Tap{
+		Allow:           t.Allow,
+		MaxRate:         t.MaxRate,
+		MaxDuration:     t.MaxDuration(),
+		MaxTaps:         t.MaxTaps,
+		ReadOnlyAllowed: t.Role == config.TapRoleReadOnly,
+		Chains:          func(force string) codec.Chain { return schemas.Chain(force, false) },
+	}, nil
 }
 
 // startOverviewCache starts the background JSZ cache that

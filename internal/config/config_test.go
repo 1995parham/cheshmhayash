@@ -146,3 +146,20 @@ func TestLoadSchemasErrors(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestTapDefaultsAndValidation(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "s.toml", "[[nats]]\nname = \"a\"\nurl = \"nats://a:4222\"\n\n[tap]\nenabled = true\nallow = [\"ride.>\"]\n")
+	s, err := Load(path, Quiet())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !s.Tap.Enabled || s.Tap.MaxRate != 20 || s.Tap.MaxTaps != 10 || s.Tap.Role != TapRoleAdmin || s.Tap.MaxDuration().Minutes() != 10 {
+		t.Errorf("tap = %+v, want the defaults with enabled and allow set", s.Tap)
+	}
+
+	bad := writeFile(t, dir, "bad.toml", "[[nats]]\nname = \"a\"\nurl = \"nats://a:4222\"\n\n[tap]\nenabled = true\nrole = \"everyone\"\nmax_rate = 0\n")
+	if _, err := Load(bad, Quiet()); err == nil || !strings.Contains(err.Error(), "role must be") || !strings.Contains(err.Error(), "max_rate") {
+		t.Errorf("err = %v, want role and max_rate errors", err)
+	}
+}

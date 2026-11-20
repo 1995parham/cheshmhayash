@@ -74,3 +74,33 @@ func TestNewRouterRejectsBadRules(t *testing.T) {
 		t.Fatal("rule without message accepted")
 	}
 }
+
+func TestPatternCovers(t *testing.T) {
+	tests := []struct {
+		allow, req string
+		want       bool
+	}{
+		{"ride.>", "ride.accepted", true},
+		{"ride.>", "ride.*.v2", true},
+		{"ride.>", "ride.>", true},
+		{"ride.>", "ride", false},
+		{"ride.*", "ride.accepted", true},
+		{"ride.*", "ride.*", true},
+		{"ride.*", "ride.>", false},
+		{"ride.*", "ride.accepted.v2", false},
+		{"ride.accepted", "ride.accepted", true},
+		{"ride.accepted", "ride.*", false},
+		{"ride.accepted", "ride.finished", false},
+		{">", "anything.at.all", true},
+		{">", ">", true},
+		{"*.status", "driver.status", true},
+		{"*.status", "*.status", true},
+		{"*.status", "driver.location", false},
+		{"a.b", "a", false},
+	}
+	for _, tt := range tests {
+		if got := PatternCovers(tt.allow, tt.req); got != tt.want {
+			t.Errorf("PatternCovers(%q, %q) = %v, want %v", tt.allow, tt.req, got, tt.want)
+		}
+	}
+}
