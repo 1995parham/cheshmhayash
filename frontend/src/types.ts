@@ -241,3 +241,34 @@ export interface AggregatedConsumer {
   num_waiting?: number;
   delivered?: { consumer_seq?: number; stream_seq?: number };
 }
+
+// ---- Live tap ------------------------------------------------------------
+
+export interface TapConfig {
+  allow: string[];
+  max_rate: number;
+  max_duration_seconds: number;
+  can_tap: boolean;
+}
+
+export type TapFormat = "protobuf" | "json" | "text" | "protowire" | "binary" | "empty";
+
+export interface TapMessage {
+  seq: number;
+  time: string;
+  subject: string;
+  reply?: string;
+  size: number;
+  headers?: Record<string, string[]>;
+  format: TapFormat;
+  type?: string;
+  notes?: string[];
+  payload: unknown;
+}
+
+export interface TapStats {
+  received: number;
+  sent: number;
+  skipped: number;
+  dropped: number;
+}

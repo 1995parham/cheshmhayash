@@ -1104,3 +1104,49 @@ dialog button.primary:hover {
   border-radius: 4px;
   padding: 1px 6px;
 }
+
+/* ---- live tap ---------------------------------------------------------- */
+.tap-status {
+  margin: 8px 0 12px;
+  font-size: 12px;
+}
+.tap-status .dot.live {
+  background: var(--good);
+}
+.tap-note {
+  color: var(--warn);
+  font-size: 12px;
+  margin: 4px 0;
+}
+.tap-warn {
+  color: var(--warn);
+}
+.tap-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tap-list details {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.tap-list summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  cursor: pointer;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.tap-list .tap-protobuf {
+  color: var(--accent);
+}
+.tap-list .tap-protowire,
+.tap-list .tap-binary {
+  color: var(--warn);
+}

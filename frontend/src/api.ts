@@ -4,6 +4,9 @@ import type {
   AggregatedStream,
   JszData,
   PingReply,
+  TapConfig,
+  TapMessage,
+  TapStats,
 } from "./types";
 
 export class ApiError extends Error {
@@ -197,4 +200,59 @@ export function aggregateOverview(
     totalMessages: accountList.reduce((n, a) => n + a.totals.messages, 0),
     totalBytes: accountList.reduce((n, a) => n + a.totals.bytes, 0),
   };
+}
+
+// ---- Live tap -------------------------------------------------------------
+
+export const tapConfig = () => http<TapConfig>("GET", "/api/tap/config");
+
+export interface TapHandlers {
+  onMessage: (m: TapMessage) => void;
+  onStats: (s: TapStats) => void;
+  onEnd: (reason: string) => void;
+}
+
+// openTap streams /api/tap/clusters/{c}/stream with fetch rather than
+// EventSource: fetch exposes the status and error body of a refused tap,
+// and does not reconnect by itself after the server ends the stream.
+// It resolves when the stream ends; abort the signal to stop it.
+export async function openTap(
+  cluster: string,
+  subject: string,
+  type: string,
+  signal: AbortSignal,
+  h: TapHandlers,
+): Promise<void> {
+  const q = new URLSearchParams({ subject });
+  if (type) q.set("type", type);
+  const r = await fetch(`/api/tap/clusters/${enc(cluster)}/stream?${q}`, { signal });
+  if (!r.ok || !r.body) throw new ApiError(r.status, await readBody(r));
+
+  const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buf += value;
+    let cut = buf.indexOf("\n\n");
+    while (cut >= 0) {
+      dispatch(buf.slice(0, cut), h);
+      buf = buf.slice(cut + 2);
+      cut = buf.indexOf("\n\n");
+    }
+  }
+}
+
+function dispatch(frame: string, h: TapHandlers) {
+  let event = "message";
+  let data = "";
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event: ")) event = line.slice(7);
+    else if (line.startsWith("data: ")) data += line.slice(6);
+  }
+  if (!data) return; // heartbeat comment
+  const v: unknown = JSON.parse(data);
+  if (event === "message") h.onMessage(v as TapMessage);
+  else if (event === "stats") h.onStats(v as TapStats);
+  else if (event === "end") h.onEnd((v as { reason?: string }).reason ?? "end");
 }

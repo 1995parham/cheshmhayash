@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Database, LogOut, Network, RefreshCw, Server, Users } from "lucide-react";
+import { Database, LogOut, Network, Radio, RefreshCw, Server, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { type ApiError, api } from "./api";
 import { AccountsView } from "./components/AccountsView";
@@ -8,12 +8,13 @@ import { Footer } from "./components/Footer";
 import { JetStreamView } from "./components/JetStreamView";
 import { LoginScreen } from "./components/LoginScreen";
 import { ServersView } from "./components/ServersView";
+import { TapView } from "./components/TapView";
 import { TopologyView } from "./components/TopologyView";
 import { canWrite, displayName, useAuth } from "./hooks/useAuth";
 import { CanWriteProvider } from "./state/access";
 import { ToastProvider, useToast } from "./state/toast";
 
-type Tab = "servers" | "accounts" | "jetstream" | "topology";
+type Tab = "servers" | "accounts" | "jetstream" | "topology" | "tap";
 
 export function App() {
   return (
@@ -107,6 +108,9 @@ function Shell() {
           >
             <Network size={14} /> Topology
           </button>
+          <button className={clsx(tab === "tap" && "active")} onClick={() => setTab("tap")}>
+            <Radio size={14} /> Tap
+          </button>
         </nav>
         <div className="cluster-picker">
           <label htmlFor="cluster">cluster</label>
@@ -174,8 +178,10 @@ function Shell() {
           <AccountsView cluster={cluster} />
         ) : tab === "jetstream" ? (
           <JetStreamView cluster={cluster} refreshKey={refreshKey} />
-        ) : (
+        ) : tab === "topology" ? (
           <TopologyView cluster={cluster} refreshKey={refreshKey} />
+        ) : (
+          <TapView key={cluster} cluster={cluster} />
         )}
       </main>
       <Footer />
