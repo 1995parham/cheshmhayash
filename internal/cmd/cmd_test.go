@@ -236,6 +236,19 @@ func TestSchemaCommands(t *testing.T) {
 		t.Errorf("schema show = %q, %v", out, err)
 	}
 
+	out, err = run(t, "--config", cfg, "schema", "check")
+	if err != nil || !strings.Contains(out, "ok: 1 sources, 1 subject rules") {
+		t.Errorf("schema check = %q, %v", out, err)
+	}
+
+	bad := filepath.Join(t.TempDir(), "bad.toml")
+	if err := os.WriteFile(bad, []byte("[[subjects]]\nmatch = \"x.>\"\nmessage = \"demo.v1.Nope\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, "--config", cfg, "schema", "check", "--schemas", bad); err == nil || !strings.Contains(err.Error(), "rule x.>") {
+		t.Errorf("schema check with a missing message: err = %v", err)
+	}
+
 	out, err = run(t, "--config", cfg, "schema", "resolve", "demo.ping.a", "other")
 	if err != nil || !strings.Contains(out, "backend:demo.v1.Ping") || !strings.Contains(out, "no rule") {
 		t.Errorf("schema resolve = %q, %v", out, err)

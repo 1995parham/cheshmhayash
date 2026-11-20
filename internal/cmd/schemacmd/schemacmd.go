@@ -49,6 +49,12 @@ func Command() *cli.Command {
 				Action:    show,
 			},
 			{
+				Name:   "check",
+				Usage:  "fail when a source skipped files or a subject rule names a missing message (for CI)",
+				Flags:  cliutil.SchemaFlags(),
+				Action: check,
+			},
+			{
 				Name:      "resolve",
 				Usage:     "show which message each subject decodes as",
 				ArgsUsage: "SUBJECT [SUBJECT...]",
@@ -203,6 +209,30 @@ func resolve(ctx context.Context, cmd *cli.Command) error {
 		t.row(subj, rule.Pattern, rule.Message, status)
 	}
 	return t.flush()
+}
+
+func check(ctx context.Context, cmd *cli.Command) error {
+	s, err := load(ctx, cmd)
+	if err != nil {
+		return err
+	}
+	var problems []error
+	for _, src := range s.Registry.Sources() {
+		for _, skipped := range src.Skipped {
+			problems = append(problems, fmt.Errorf("source %s skipped a file: %w", src.Name, skipped))
+		}
+	}
+	rules := s.Router.Rules()
+	for _, r := range rules {
+		if _, _, err := s.Registry.FindMessage(r.Message); err != nil {
+			problems = append(problems, fmt.Errorf("rule %s: %w", r.Pattern, err))
+		}
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("%d problems:\n%w", len(problems), errors.Join(problems...))
+	}
+	_, err = fmt.Fprintf(cmd.Root().Writer, "ok: %d sources, %d subject rules\n", s.Registry.Len(), len(rules))
+	return err
 }
 
 // table writes tab-aligned rows and keeps the first write error.
