@@ -16,9 +16,20 @@ import (
 	"github.com/1995parham/cheshmhayash/internal/version"
 )
 
-// Mux returns a fully wired ServeMux covering /api/admin, /api/jsm,
-// /healthz, and a static-file SPA fallback at /. The HTTP MCP transport
-// lives in its own binary (cheshmhayash-mcp -http); see MCPMux.
+// Options selects which parts of the dashboard the Mux serves. The serve
+// command builds it from its --components flag, so one image can run the
+// API, the SPA, or both.
+type Options struct {
+	// API registers /api/admin, /api/jsm, /api/version and /api/auth.
+	API bool
+	// StaticDir, when non-empty, serves the built SPA from that directory
+	// with an index.html fallback at /.
+	StaticDir string
+}
+
+// Mux returns a ServeMux with /healthz and the parts that opts selects:
+// the /api routes and the static-file SPA fallback at /. The HTTP MCP
+// transport is served by `cheshmhayash mcp --http`; see MCPMux.
 //
 // cache is optional; when nil, /api/jsm/.../overview falls back to a
 // live NATS call on every request and /overview/stream returns 503.
@@ -29,33 +40,41 @@ import (
 func Mux(
 	mgr *natsx.Manager,
 	cache *natsx.OverviewCache,
-	staticDir string,
+	opts Options,
 	logger *slog.Logger,
 	authn *auth.Authenticator,
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	admin := admin{mgr: mgr, log: logger}
-	admin.register(mux)
-
-	jsm := jsm{mgr: mgr, cache: cache, log: logger}
-	jsm.register(mux)
-
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// /api/version is intentionally public (see auth.isPublic) so the SPA
-	// footer and the login screen can render the build tag pre-auth.
-	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"version": version.String()})
-	})
+	if opts.API {
+		admin := admin{mgr: mgr, log: logger}
+		admin.register(mux)
 
-	if authn.Enabled() {
-		authn.Register(mux)
+		jsm := jsm{mgr: mgr, cache: cache, log: logger}
+		jsm.register(mux)
+
+		// /api/version is intentionally public (see auth.isPublic) so the SPA
+		// footer and the login screen can render the build tag pre-auth.
+		mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]string{"version": version.String()})
+		})
+
+		if authn.Enabled() {
+			authn.Register(mux)
+		}
+	} else {
+		// Without the API, /api/* must not fall through to the SPA's
+		// index.html fallback and answer 200 with HTML.
+		mux.Handle("/api/", http.NotFoundHandler())
 	}
 
-	spa(mux, staticDir)
+	if opts.StaticDir != "" {
+		spa(mux, opts.StaticDir)
+	}
 
 	var inner http.Handler = mux
 	if authn.Enabled() {
@@ -64,8 +83,8 @@ func Mux(
 	return cors(requestLog(logger, inner))
 }
 
-// MCPMux builds the HTTP handler for the standalone MCP server
-// (cheshmhayash-mcp -http): a liveness probe at /healthz, the MCP
+// MCPMux builds the HTTP handler for the MCP server
+// (`cheshmhayash mcp --http`): a liveness probe at /healthz, the MCP
 // Streamable HTTP transport at /mcp, and the RFC 9728 OAuth metadata
 // endpoints. It shares the dashboard's CORS + request-logging wrappers.
 //

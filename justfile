@@ -1,5 +1,5 @@
 # cheshmhayash — task runner. `just` or `just --list` to see recipes.
-# Backend: Go 1.26 (net/http) · Frontend: React 19 + Vite 8 (in ./frontend)
+# Backend: Go 1.27 (net/http) · Frontend: React 19 + Vite 8 (in ./frontend)
 
 set shell := ["bash", "-uc"]
 
@@ -17,7 +17,7 @@ build: build-frontend build-backend
 
 # Compile the Go binary.
 build-backend:
-    go build -o ./{{bin}} .
+    go build -o ./{{bin}} ./cmd/cheshmhayash
 
 # Build the React SPA into frontend/dist.
 build-frontend:
@@ -29,14 +29,14 @@ build-frontend:
 dev:
     #!/usr/bin/env bash
     set -uo pipefail
-    go run . & back=$!
+    go run ./cmd/cheshmhayash serve & back=$!
     trap 'kill $back 2>/dev/null' EXIT INT TERM
     cd {{frontend}} && npm run dev
     wait $back
 
 # Run only the Go backend on :1378.
 run-backend:
-    go run .
+    go run ./cmd/cheshmhayash serve
 
 # Run only the Vite dev server on :5173 (proxies /api + /healthz to :1378).
 run-frontend:
@@ -44,11 +44,11 @@ run-frontend:
 
 # Run the read-only MCP server over stdio. Pass `write=1` for destructive tools.
 run-mcp write="0":
-    CHESHMHAYASH_MCP_WRITE={{write}} go run . -mcp
+    CHESHMHAYASH_MCP_WRITE={{write}} go run ./cmd/cheshmhayash mcp
 
 # Build then run the production binary (serves API + built SPA on :1378).
 run: build
-    ./{{bin}}
+    ./{{bin}} serve
 
 # ── Dependency upgrades ──────────────────────────────────────────────
 
