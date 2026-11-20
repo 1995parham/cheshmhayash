@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/1995parham/cheshmhayash/actions/workflows/ci.yaml"><img alt="ci" src="https://img.shields.io/github/actions/workflow/status/1995parham/cheshmhayash/ci.yaml?label=ci&logo=github&style=for-the-badge&branch=main" /></a>
   <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/1995parham/cheshmhayash?style=for-the-badge&logo=go" />
-  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" />
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge" />
 </p>
 
 ## Introducción
@@ -273,7 +273,7 @@ con el monitoreo habilitado, para que el dashboard tenga con quién hablar.
 
 Libre y de código abierto **para siempre**, al igual que
 [NATS](https://nats.io). Lanzado bajo la
-[Licencia MIT](LICENSE) — consulte el archivo para más detalles.
+[Licencia Apache 2.0](LICENSE) — consulte el archivo para más detalles.
 
 ---
 
