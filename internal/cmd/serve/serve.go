@@ -15,6 +15,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/cheshmhayash/internal/auth"
+	"github.com/1995parham/cheshmhayash/internal/cliutil"
 	"github.com/1995parham/cheshmhayash/internal/config"
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/httpserver"
@@ -108,7 +109,7 @@ func run(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("--overview-period must be positive, got %s", period)
 	}
 
-	settings, err := config.Load()
+	settings, err := cliutil.LoadSettings(cmd)
 	if err != nil {
 		return err
 	}

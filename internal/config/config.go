@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -29,16 +30,44 @@ const (
 	defaultRequestTimeout   = 2 * time.Second
 	defaultDiscoveryTimeout = 500 * time.Millisecond
 	envPrefix               = "CHESHMHAYASH__"
-	configFile              = "settings.toml"
+	// DefaultFile is the settings file Load reads when no path is given.
+	DefaultFile = "settings.toml"
 )
 
 // Settings is the fully-resolved runtime configuration (defaults → TOML →
 // env), returned by Load and consumed by main.
 type Settings struct {
-	Server Server   `json:"server"           koanf:"server"`
-	NATS   []NATS   `json:"nats"             koanf:"nats"`
-	Notify []Notify `json:"notify,omitempty" koanf:"notify"`
-	Auth   Auth     `json:"auth"             koanf:"auth"`
+	Server  Server   `json:"server"           koanf:"server"`
+	NATS    []NATS   `json:"nats"             koanf:"nats"`
+	Notify  []Notify `json:"notify,omitempty" koanf:"notify"`
+	Auth    Auth     `json:"auth"             koanf:"auth"`
+	Schemas Schemas  `json:"schemas,omitzero" koanf:"schemas"`
+}
+
+// Cluster returns the cluster called name. An empty name selects the only
+// configured cluster; with several clusters the name is required.
+func (s *Settings) Cluster(name string) (NATS, error) {
+	if name == "" {
+		if len(s.NATS) == 1 {
+			return s.NATS[0], nil
+		}
+		return NATS{}, fmt.Errorf("%d clusters are configured; choose one with --cluster (%s)", len(s.NATS), strings.Join(s.ClusterNames(), ", "))
+	}
+	for _, n := range s.NATS {
+		if n.Name == name {
+			return n, nil
+		}
+	}
+	return NATS{}, fmt.Errorf("no cluster %q is configured (known: %s)", name, strings.Join(s.ClusterNames(), ", "))
+}
+
+// ClusterNames returns the configured cluster names in order.
+func (s *Settings) ClusterNames() []string {
+	names := make([]string, 0, len(s.NATS))
+	for _, n := range s.NATS {
+		names = append(names, n.Name)
+	}
+	return names
 }
 
 // Auth gates the HTTP API behind OIDC. When Enabled is false the API stays
@@ -244,21 +273,52 @@ func (a AuthSession) TTL() time.Duration {
 	return time.Duration(a.TTLSeconds) * time.Second
 }
 
-// Load layers defaults → TOML → env. The returned *Settings is fully
-// validated; callers can use it without further checks.
-func Load() (*Settings, error) {
+// LoadOption changes how Load reads and checks the settings.
+type LoadOption func(*loadOptions)
+
+type loadOptions struct {
+	mustExist  bool
+	noClusters bool
+	quiet      bool
+}
+
+// MustExist makes a missing settings file an error. Use it when the
+// operator named the file explicitly.
+func MustExist() LoadOption { return func(o *loadOptions) { o.mustExist = true } }
+
+// AllowNoClusters accepts settings without a [[nats]] entry, for commands
+// that take a server URL on the command line.
+func AllowNoClusters() LoadOption { return func(o *loadOptions) { o.noClusters = true } }
+
+// Quiet skips the dump of the loaded settings on stderr, for the
+// interactive commands.
+func Quiet() LoadOption { return func(o *loadOptions) { o.quiet = true } }
+
+// Load layers defaults → the TOML file at path (DefaultFile when empty) →
+// env. Relative schema paths in the file resolve against its folder. The
+// returned *Settings is fully validated; callers can use it without
+// further checks.
+func Load(path string, opts ...LoadOption) (*Settings, error) {
+	var o loadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if path == "" {
+		path = DefaultFile
+	}
+
 	k := koanf.New(".")
 
 	if err := k.Load(structs.Provider(Default(), "koanf"), nil); err != nil {
 		return nil, fmt.Errorf("load defaults: %w", err)
 	}
 
-	if _, err := os.Stat(configFile); err == nil {
-		if lerr := k.Load(file.Provider(configFile), toml.Parser()); lerr != nil {
-			return nil, fmt.Errorf("load %s: %w", configFile, lerr)
+	if _, err := os.Stat(path); err == nil {
+		if lerr := k.Load(file.Provider(path), toml.Parser()); lerr != nil {
+			return nil, fmt.Errorf("load %s: %w", path, lerr)
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("stat %s: %w", configFile, err)
+	} else if !errors.Is(err, os.ErrNotExist) || o.mustExist {
+		return nil, fmt.Errorf("settings file: %w", err)
 	}
 
 	// Unmarshal *before* applying env vars. koanf's env provider stores
@@ -275,16 +335,19 @@ func Load() (*Settings, error) {
 		return nil, fmt.Errorf("env overlay: %w", err)
 	}
 
-	if err := validate(&s); err != nil {
+	resolveSchemaPaths(&s.Schemas, filepath.Dir(path))
+	if err := validate(&s, o.noClusters); err != nil {
 		return nil, err
 	}
 
-	logLoaded(&s)
+	if !o.quiet {
+		logLoaded(&s)
+	}
 	return &s, nil
 }
 
-func validate(s *Settings) error {
-	if len(s.NATS) == 0 {
+func validate(s *Settings, noClusters bool) error {
+	if len(s.NATS) == 0 && !noClusters {
 		return errors.New("no NATS clusters configured")
 	}
 	for i, n := range s.NATS {
@@ -313,6 +376,9 @@ func validate(s *Settings) error {
 		if k.Value == "" {
 			return fmt.Errorf("auth.mcp_keys[%d]: value is required", i)
 		}
+	}
+	if err := s.Schemas.validate(); err != nil {
+		return fmt.Errorf("schemas: %w", err)
 	}
 	return nil
 }

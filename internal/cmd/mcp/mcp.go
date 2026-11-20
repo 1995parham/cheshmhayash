@@ -16,6 +16,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/1995parham/cheshmhayash/internal/auth"
+	"github.com/1995parham/cheshmhayash/internal/cliutil"
 	"github.com/1995parham/cheshmhayash/internal/config"
 	"github.com/1995parham/cheshmhayash/internal/handler"
 	"github.com/1995parham/cheshmhayash/internal/httpserver"
@@ -50,7 +51,7 @@ func Command() *cli.Command {
 func run(ctx context.Context, cmd *cli.Command) error {
 	log := slog.Default()
 
-	settings, err := config.Load()
+	settings, err := cliutil.LoadSettings(cmd)
 	if err != nil {
 		return err
 	}

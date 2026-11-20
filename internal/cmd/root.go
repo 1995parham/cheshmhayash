@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/1995parham/cheshmhayash/internal/cliutil"
 	"github.com/1995parham/cheshmhayash/internal/cmd/mcp"
 	"github.com/1995parham/cheshmhayash/internal/cmd/serve"
 	"github.com/1995parham/cheshmhayash/internal/natsx"
@@ -25,14 +26,14 @@ func Root() *cli.Command {
 		Name:    "cheshmhayash",
 		Usage:   "a toolbox for NATS: dashboard, MCP server and operations",
 		Version: version.String(),
-		Flags: []cli.Flag{
+		Flags: append(cliutil.RootFlags(),
 			&cli.StringFlag{
 				Name:    "log-level",
 				Usage:   "log level: debug, info, warn or error",
 				Value:   "info",
 				Sources: cli.EnvVars("LOG_LEVEL"),
 			},
-		},
+		),
 		Before: setupLogger,
 		Commands: []*cli.Command{
 			serve.Command(),
