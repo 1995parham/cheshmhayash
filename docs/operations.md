@@ -1,18 +1,8 @@
-<p align="center">
-  <img src="assets/banner.svg" alt="natsie — scan, review, apply; auto-delete is opt-in" width="880">
-</p>
+# Operations commands
 
-<p align="center">
-  <a href="https://github.com/1995parham/natsie/actions/workflows/ci.yaml"><img src="https://img.shields.io/github/actions/workflow/status/1995parham/natsie/ci.yaml?style=for-the-badge&logo=github&label=ci" alt="CI"></a>
-  <a href="https://github.com/1995parham/natsie/tags"><img src="https://img.shields.io/github/v/tag/1995parham/natsie?sort=semver&style=for-the-badge&logo=github" alt="Release"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL%20v3-blue?style=for-the-badge" alt="License: GPL v3"></a>
-  <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/1995parham/natsie?style=for-the-badge&logo=go" alt="Go Version"></a>
-  <a href="https://codecov.io/gh/1995parham/natsie"><img src="https://img.shields.io/codecov/c/github/1995parham/natsie?style=for-the-badge&logo=codecov" alt="Codecov"></a>
-</p>
+The operations commands of cheshmhayash (`consumer`, `peer`, `stream` and `bot`) report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
 
-A Swiss-army knife for NATS operations: report on, diagnose, and (with explicit human approval) clean up consumers, streams, and cluster state across one or many JetStream clusters.
-
-`natsie` is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. **Auto-delete is supported and off by default.** Out of the box, cleanup goes through a manifest a human reviews. Turn on `--delete` or `auto_delete: true` and natsie will remove stale consumers on its own — with the same re-verification against live state microseconds before each deletion, and the same refusal to touch consumers owned by an external controller.
+cheshmhayash is built for the ops engineer who has dozens of NATS contexts, recurring cluster events, and consumers that quietly outlive the services that created them. **Auto-delete is supported and off by default.** Out of the box, cleanup goes through a manifest a human reviews. Turn on `--delete` or `auto_delete: true` and cheshmhayash will remove stale consumers on its own — with the same re-verification against live state microseconds before each deletion, and the same refusal to touch consumers owned by an external controller.
 
 ## Why another NATS tool
 
@@ -20,13 +10,9 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 
 > Which consumers, streams, or peers are still here that *probably shouldn't be*, and what's the safest way to remove them?
 
-`natsie` is the answer to that question. It treats cleanup like a code review: scan → propose → human approves → apply, with an audit trail.
+cheshmhayash is the answer to that question. It treats cleanup like a code review: scan → propose → human approves → apply, with an audit trail.
 
-## Status
-
-`consumer scan`, `consumer apply`, `peer check`, `stream report`, and `bot serve` are all working.
-
-## Subcommands (current and planned)
+## Subcommands
 
 | Command | Status | Purpose |
 | --- | --- | --- |
@@ -42,49 +28,40 @@ The ecosystem has `nats` (the official CLI), `nats-top`, and `nats-surveyor` —
 1. **Auto-delete is opt-in.** The default flow proposes; it does not act. Deletion happens when you approve a manifest, pass `consumer scan --delete`, or set `auto_delete: true` on a schedule. Every one of those paths re-verifies immediately before deleting, so a consumer that woke up since the scan is preserved — including on the unattended path.
 2. **Cross-cluster aware.** Many production deployments run NATS in pairs or N-way groups; "consumer X is stale here, but active on the peer" is a first-class signal.
 3. **Rename- and move-aware.** Consumer name conventions drift — region suffixes, environment tags, service renames. `scan` flags a stale consumer as a likely rename (`renamed_to`) when another consumer on the same stream filters the same `filter_subject` and is still active; `consumer owner` chases the same `filter_subject` across every configured context to find where the work moved, so a migration isn't mistaken for an abandoned consumer.
-4. **Respects other owners.** A consumer declared by a Kubernetes operator (NACK), Terraform, or a GitOps pipeline is never natsie's to delete. Deleting one out of band either fights the reconciler forever or silently drifts the cluster from its declared state, so natsie refuses — see [Working alongside NACK](#working-alongside-nack-and-other-declarative-owners).
+4. **Respects other owners.** A consumer declared by a Kubernetes operator (NACK), Terraform, or a GitOps pipeline is never cheshmhayash's to delete. Deleting one out of band either fights the reconciler forever or silently drifts the cluster from its declared state, so cheshmhayash refuses — see [Working alongside NACK](#working-alongside-nack-and-other-declarative-owners).
 5. **No vendor lock-in.** Connection (NATS contexts), rules, notification sinks, and approval flows are all pluggable. Operator-specific opinions live in config, not the binary.
 
-## Install
+## Configuration file
 
-```bash
-go install github.com/1995parham/natsie/cmd/natsie@latest
-```
-
-Or from source, with [just](https://just.systems):
-
-```bash
-git clone https://github.com/1995parham/natsie && cd natsie
-just build
-```
+These commands read the same `~/.config/nats/context/*.json` files that `nats context` writes, and a YAML file of their own: scan defaults, context topology (`peer`), protection rules and the bot. The global `--ops-config` flag (or `CHESHMHAYASH_OPS_CONFIG`) names it; the default is `~/.config/cheshmhayash/ops.yaml`, and `~/.config/natsie/config.yaml` is read when it is the only one (these commands used to be the natsie tool). Environment variables prefixed `CHESHMHAYASH_OPS_`, with `__` between sections, override it, for example `CHESHMHAYASH_OPS_DEFAULTS__MIN_PENDING=10000`.
 
 ## Quick start
 
 ```bash
 # Scan one cluster, emit TSV to stdout
-natsie consumer scan --context prod-teh1
+cheshmhayash consumer scan --context prod-a
 
 # Scan with cross-cluster peer awareness
-natsie consumer scan --context prod-teh1 --peer-context prod-teh2
+cheshmhayash consumer scan --context prod-a --peer-context prod-b
 
 # Only report consumers idle > 24h with > 10k pending
-natsie consumer scan --context prod-teh1 \
+cheshmhayash consumer scan --context prod-a \
   --min-idle 24h --min-pending 10000
 
 # Emit JSON for piping to other tools
-natsie consumer scan --context prod-teh1 --format json
+cheshmhayash consumer scan --context prod-a --format json
 
 # Where did this filter subject's work move to? (searches every context)
-natsie consumer owner "rides.trip.>"
+cheshmhayash consumer owner "rides.trip.>"
 
 # Ghost peers: offline in every Raft group and leading none
-natsie peer check --context prod-teh1 --ghosts-only
+cheshmhayash peer check --context prod-a --ghosts-only
 
 # Per-stream retention, replication, size, and replica placement
-natsie stream report --context prod-teh1 --format pretty
+cheshmhayash stream report --context prod-a --format pretty
 ```
 
-`natsie` reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
+cheshmhayash reads from the same `~/.config/nats/context/*.json` files that `nats context` uses — no separate credential handling.
 
 ## The scan → edit → apply workflow
 
@@ -92,8 +69,8 @@ Deletion is gated on a hand-editable manifest. The flow:
 
 ```bash
 # 1. Scan and emit a cleanup manifest of stale rows.
-natsie consumer scan --context prod-teh1 \
-  --peer-context prod-teh2 \
+cheshmhayash consumer scan --context prod-a \
+  --peer-context prod-b \
   --min-pending 10000 --min-idle 24h \
   --emit-manifest cleanup.yaml
 
@@ -102,10 +79,10 @@ natsie consumer scan --context prod-teh1 \
 #    excluded from apply. Add `reason:` lines so future you remembers why.
 
 # 3. Dry-run to confirm what apply would do (re-verifies each consumer).
-natsie consumer apply cleanup.yaml --dry-run
+cheshmhayash consumer apply cleanup.yaml --dry-run
 
 # 4. Apply for real.
-natsie consumer apply cleanup.yaml
+cheshmhayash consumer apply cleanup.yaml
 ```
 
 Apply re-queries every consumer immediately before deleting it. A consumer
@@ -123,10 +100,10 @@ round-trip buys nothing:
 
 ```bash
 # Preview: re-verifies every candidate, deletes nothing
-natsie consumer scan --context prod-teh1 --min-idle 24h --delete --dry-run
+cheshmhayash consumer scan --context prod-a --min-idle 24h --delete --dry-run
 
 # Delete for real
-natsie consumer scan --context prod-teh1 --min-idle 24h --delete
+cheshmhayash consumer scan --context prod-a --min-idle 24h --delete
 ```
 
 `--delete` gives up the approval gate and nothing else. Each consumer is
@@ -142,13 +119,13 @@ If a consumer is declared by a [NACK](https://github.com/nats-io/nack)
 of band is not a cleanup — it is a fight with the system that owns it:
 
 - with NACK's reconciler (`--control-loop`) enabled, the consumer is
-  recreated, your next scan finds it idle again, and natsie deletes it again;
+  recreated, your next scan finds it idle again, and cheshmhayash deletes it again;
 - with reconciliation off, the delete sticks and the cluster silently
   diverges from the declared state until some unrelated future reconcile
   brings it back — typically during an unrelated deploy, long after anyone
   would connect the two events.
 
-So natsie refuses. Protected consumers still appear in scan output (with a
+So cheshmhayash refuses. Protected consumers still appear in scan output (with a
 `managed` reason), are never written into a manifest, and are vetoed inside
 `apply` itself — which means a hand-edited manifest or a signed approval
 click cannot delete one either.
@@ -156,10 +133,10 @@ click cannot delete one either.
 Mark them either way round:
 
 ```yaml
-# ~/.config/natsie/config.yaml
+# ~/.config/cheshmhayash/ops.yaml
 protect:
   # Consumers carrying any of these metadata keys are off limits.
-  # `natsie.io/managed` is honoured even with no config at all.
+  # `cheshmhayash.io/managed` is honoured even with no config at all.
   metadata_keys:
     - app.kubernetes.io/managed-by
 
@@ -181,21 +158,21 @@ spec:
   streamName: rides
   durableName: rides-worker
   metadata:
-    natsie.io/managed: "true"     # natsie will never delete this consumer
+    cheshmhayash.io/managed: "true"     # cheshmhayash will never delete this consumer
 ```
 
 Setting the value to `false`/`no`/`0`/`off` opts back out, so you can unmark
 one consumer without deleting the annotation everywhere.
 
-> natsie deliberately does **not** talk to the Kubernetes API to discover
+> cheshmhayash deliberately does **not** talk to the Kubernetes API to discover
 > this. Reading `consumers.jetstream.nats.io` would catch every NACK-managed
 > consumer with no annotation needed, but it would drag in client-go and RBAC
-> and turn natsie from "a NATS client you point at a context file" into a
+> and turn cheshmhayash from "a NATS client you point at a context file" into a
 > cluster-aware component. The annotation costs one line in the CR.
 
 ## Running as a bot
 
-`natsie bot serve` is the long-lived daemon mode. It runs scheduled scans,
+`cheshmhayash bot serve` is the long-lived daemon mode. It runs scheduled scans,
 posts chat messages with a signed approval URL, exposes a small HTTP
 listener for the manifest viewer / slash commands / approval clicks, and
 appends every action to a JSONL audit log.
@@ -203,7 +180,7 @@ appends every action to a JSONL audit log.
 ### Configuration
 
 ```yaml
-# ~/.config/natsie/config.yaml (or /etc/natsie/config.yaml in production)
+# ~/.config/cheshmhayash/ops.yaml (or /etc/cheshmhayash/config.yaml in production)
 
 bot:
   schedules:
@@ -211,8 +188,8 @@ bot:
     # manifest and an approve URL. The others are notify-only reports.
     - name: daily
       cron: "0 3 * * *"
-      context: prod-teh1
-      peer_context: prod-teh2
+      context: prod-a
+      peer_context: prod-b
       min_pending: 10000
       min_idle: 24h
     - name: edge-hourly
@@ -223,18 +200,18 @@ bot:
     - name: ghost-peers
       kind: peer-check           # peers offline in every Raft group
       cron: "*/30 * * * *"
-      context: prod-teh1
+      context: prod-a
     - name: unbounded-streams
       kind: stream-unlimited     # streams with no retention limit at all
       cron: "0 6 * * *"
-      context: prod-teh1
+      context: prod-a
     - name: replication
       kind: stream-report        # under-replicated streams
       cron: "0 7 * * *"
-      context: prod-teh1
+      context: prod-a
     - name: nightly-sweep
       cron: "0 4 * * *"
-      context: prod-teh1
+      context: prod-a
       min_pending: 10000
       min_idle: 168h
       # Delete instead of proposing. No manifest is stored and no approve
@@ -249,12 +226,12 @@ bot:
     # - webhook://hooks.example.com/n8n/abc   # structured JSON: {title, body, manifest_id, link}
     # - stdout://   # for local testing
 
-  store: file:///var/lib/natsie/manifests
-  audit_log: /var/lib/natsie/audit.jsonl
+  store: file:///var/lib/cheshmhayash/manifests
+  audit_log: /var/lib/cheshmhayash/audit.jsonl
 
   http:
     listen: ":8080"
-    base_url: https://natsie.example.com   # public URL used in chat links
+    base_url: https://cheshmhayash.example.com   # public URL used in chat links
 
   signing_key: change-me-to-32-random-bytes
 
@@ -272,10 +249,10 @@ bot:
   mattermost:
     enabled: false
     server: https://chat.example.com
-    token_file: /etc/natsie/mattermost-token
+    token_file: /etc/cheshmhayash/mattermost-token
     team: platform
     channel: nats-cleanup
-    trigger: "!natsie"
+    trigger: "!cheshmhayash"
 ```
 
 `signing_key` does two jobs:
@@ -322,23 +299,23 @@ help                      this list
 Pick based on whether your chat server can reach the bot.
 
 **Push (slash command).** Chat POSTs `/slash` on the bot; needs an ingress
-the chat server can reach. Configure `/natsie` in Mattermost or Slack to
+the chat server can reach. Configure `/cheshmhayash` in Mattermost or Slack to
 POST to `https://<your-host>/slash` with `signing_key` as the token:
 
 ```
-/natsie list
-/natsie scan prod-teh1
+/cheshmhayash list
+/cheshmhayash scan prod-a
 ```
 
 **Pull (WebSocket).** The bot opens an outbound WebSocket to Mattermost with
 a bot-account token, watches one channel for messages starting with
 `trigger`, and replies over REST. No inbound route needed — use this when
-natsie sits behind an ingress your chat server cannot reach. Enable the
+cheshmhayash sits behind an ingress your chat server cannot reach. Enable the
 `bot.mattermost` block above, then from the channel:
 
 ```
-!natsie list
-!natsie scan prod-teh1
+!cheshmhayash list
+!cheshmhayash scan prod-a
 ```
 
 The bot account must be a member of the team *and* the channel it should
@@ -355,77 +332,10 @@ exclusive lock.
 
 ### Kubernetes
 
-A minimal Deployment + Service + ConfigMap, with the config mounted
-into `/etc/natsie/config.yaml`:
+The cheshmhayash Helm chart runs the bot when `bot.enabled: true`: a single-replica Deployment (`args: [bot, serve, --ops-config, /etc/cheshmhayash/config.yaml]`) with the rendered config, a Secret of NATS contexts (`bot.natsContexts`), the signing key, a state PVC for the manifest store and audit log, a Service, and optionally a ServiceMonitor, Ingress/HTTPProxy and NetworkPolicy. Every value lives under `bot:` in `chart/cheshmhayash-chart/values.yaml`.
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata: { name: natsie }
-spec:
-  replicas: 1                          # do not scale > 1; schedules + store assume single-writer
-  selector: { matchLabels: { app: natsie } }
-  template:
-    metadata: { labels: { app: natsie } }
-    spec:
-      containers:
-        - name: natsie
-          image: ghcr.io/1995parham/natsie:latest
-          args: ["bot", "serve", "--config", "/etc/natsie/config.yaml"]
-          ports: [{ containerPort: 8080 }]
-          volumeMounts:
-            - { name: config,    mountPath: /etc/natsie }
-            - { name: state,     mountPath: /var/lib/natsie }
-            - { name: nats-ctx,  mountPath: /root/.config/nats }
-          livenessProbe:
-            httpGet: { path: /healthz, port: 8080 }
-      volumes:
-        - { name: config,   configMap: { name: natsie-config } }
-        - { name: state,    persistentVolumeClaim: { claimName: natsie-state } }
-        - { name: nats-ctx, secret:    { secretName: natsie-nats-contexts } }
-```
+The NATS contexts Secret holds the same `*.json` files the official `nats context` CLI writes, one per cluster, with the credentials inline. The bot does not run as a NATS account by itself; it borrows whatever the operator already trusts. Do not scale it beyond one replica: the schedules, the store and the audit log assume a single writer.
 
-The `natsie-nats-contexts` Secret should contain the same `*.json` files
-the official `nats context` CLI writes — one per cluster, with the
-credentials inline. The bot does not run as a NATS account by itself; it
-borrows whatever the operator already trusts.
+## Code layout
 
-## Project layout
-
-```
-.
-├── cmd/natsie/             # binary entrypoint (main.go)
-├── internal/
-│   ├── cmd/                # urfave/cli v3 command tree
-│   │   ├── consumer/       # consumer scan / apply / owner
-│   │   ├── peer/           # peer check
-│   │   ├── stream/         # stream report
-│   │   └── bot/            # bot serve
-│   ├── infra/
-│   │   ├── config/         # koanf loader (defaults → yaml → env)
-│   │   ├── natsctx/        # ~/.config/nats/context reader + dialer
-│   │   ├── httpsrv/        # echo listener: manifests, slash, approvals
-│   │   ├── mattermost/     # pull-mode WebSocket listener
-│   │   ├── notify/         # mattermost / slack / webhook / stdout sinks
-│   │   ├── scheduler/      # cron wrapper
-│   │   ├── store/          # manifest store (file://)
-│   │   └── metrics/        # Prometheus collectors
-│   ├── scanner/            # classification, renames, peers, stream report
-│   ├── manifest/           # YAML manifest schema + read/write
-│   ├── cleanup/            # re-verify + delete (the one deletion choke point)
-│   ├── protect/            # veto: consumers owned by NACK/Terraform/GitOps
-│   ├── chatops/            # transport-agnostic chat commands
-│   ├── owners/             # stream/prefix → owner routing
-│   ├── audit/              # JSONL audit log
-│   └── version/            # build info
-├── chart/                  # Helm chart for `bot serve`
-├── assets/                 # README banner
-├── .github/workflows/      # ci, release, codeql
-├── Dockerfile              # multi-stage, distroless runtime
-├── justfile                # build, test, lint, tidy, dev, docker
-└── .golangci.yml           # linter config
-```
-
-## License
-
-GPL-3.0-only. See [LICENSE](LICENSE).
+The commands live in `internal/cmd/{consumer,peer,stream,bot}` and the rest in `internal/ops/`: `scanner` (classification, renames, peers, stream report), `cleanup` (re-verify and delete: the only deletion path), `protect` (the veto for consumers owned by NACK, Terraform or GitOps), `manifest`, `chatops`, `owners`, `audit`, and `infra/` (config, NATS contexts, the bot's HTTP listener, the Mattermost listener, notify sinks, scheduler, store, metrics).

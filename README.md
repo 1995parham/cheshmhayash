@@ -23,8 +23,11 @@ connection, you do **not** need the server's HTTP monitoring port (`:8222`)
 open; only the client port (`:4222`, or wherever) is required.
 
 It is a Swiss Army knife for NATS in one binary: the dashboard (`serve`),
-an MCP server for LLM agents (`mcp`), and protobuf-aware `sub` / `pub`
-commands that decode payloads with schemas loaded at run time.
+an MCP server for LLM agents (`mcp`), protobuf-aware `sub` / `pub`
+commands that decode payloads with schemas loaded at run time, and
+JetStream operations — find and safely clean up stale consumers, ghost
+peers and risky streams, by hand or from a scheduled chat bot (`consumer`,
+`peer`, `stream`, `bot`; see [docs/operations.md](docs/operations.md)).
 
 ## Screenshots
 
@@ -155,6 +158,25 @@ of a subject. It is off by default because payloads reach the model.
 chart can mount a schemas folder from a ConfigMap or an image
 (`schemas.*` values), so `kubectl exec deploy/<release> -- /app/cheshmhayash
 sub …` decodes in the cluster.
+
+## JetStream operations
+
+```sh
+cheshmhayash consumer scan --context prod-a --peer-context prod-b --emit-manifest cleanup.yaml
+cheshmhayash consumer apply cleanup.yaml --dry-run     # re-verifies every consumer first
+cheshmhayash consumer owner 'orders.>'                 # where did this subject's work move?
+cheshmhayash peer check --context prod-a --ghosts-only
+cheshmhayash stream report --context prod-a --format pretty
+cheshmhayash bot serve                                 # schedules, chat, signed approvals, audit log
+```
+
+Cleanup works like a code review: scan → a manifest a person edits →
+apply, and apply re-checks each consumer against live state just before it
+deletes it. Auto-delete exists but is off by default, and consumers owned by
+NACK, Terraform or GitOps are never deleted. These commands use NATS
+contexts and their own YAML file (`--ops-config`); the chart runs the bot
+with `bot.enabled: true`. The details are in
+[docs/operations.md](docs/operations.md).
 
 ## HTTP API
 

@@ -21,7 +21,10 @@ the NATS client port (`:4222`).
 .
 ├── cmd/cheshmhayash/               # thin main → internal/cmd.Execute()
 ├── internal/
-│   ├── cmd/                       # urfave/cli v3 tree: root.go, serve/, mcp/, sub/, pub/, schemacmd/
+│   ├── cmd/                       # urfave/cli v3 tree: root.go, serve/, mcp/, sub/, pub/, schemacmd/,
+│   │                              #   consumer/, peer/, stream/, bot/ (the former natsie)
+│   ├── ops/                       # operations code: scanner, cleanup, protect, manifest, chatops,
+│   │                              #   owners, audit, infra/{config,natsctx,httpsrv,notify,store,…}
 │   ├── cliutil/                   # shared flags: --config, cluster/server, --schemas
 │   ├── httpserver/                # http.Server + graceful shutdown (serve, mcp)
 │   ├── schema/                    # protobuf registry: descriptor_set / proto_dir sources + subject router
@@ -98,6 +101,25 @@ pub/sub"). They load settings quietly with `config.AllowNoClusters()` so
 source type is one entry in `schema.Loaders`; a new payload format is one
 `codec.Decoder` in the chain. `internal/cmd/cmd_test.go` runs them
 end-to-end against an embedded nats-server.
+
+Operations commands — `consumer scan|apply|owner`, `peer check`, `stream
+report`, `bot serve` (docs/operations.md). They came from natsie (history
+under `natsie/` before the move, then `git log --follow`). They connect
+through NATS contexts (`~/.config/nats/context/*.json`) and read their own
+YAML file via the global `--ops-config` (`CHESHMHAYASH_OPS_CONFIG`; default
+`~/.config/cheshmhayash/ops.yaml`, falls back to `~/.config/natsie/
+config.yaml`; env overrides `CHESHMHAYASH_OPS_<SECTION>__<KEY>`). Invariants:
+
+- **Auto-delete is opt-in.** Default is scan → hand-edited manifest →
+  apply; `--delete` / a schedule's `auto_delete: true` turn it on.
+- **Every deletion goes through `ops/cleanup.Apply`**, which re-verifies
+  each consumer against live state and applies the `ops/protect` veto
+  (consumers owned by NACK, Terraform or GitOps). Never add a deletion path
+  around it. Deletes use raw `$JS.API.CONSUMER.DELETE` (leading-dash names).
+- **`bot serve` is single-writer** (scheduler, file store, audit log): the
+  chart's `bot.*` workload is one replica with `Recreate`. Its HTTP
+  listener uses echo v5; `signing_key` is both the slash-command token and
+  the HMAC key of the per-manifest approval URLs.
 
 ## Configuration
 
@@ -264,6 +286,9 @@ Destructive verbs require `?confirm=true`; without it the server returns
 
 - Go 1.27.x, stdlib `net/http` (1.22+ pattern syntax), `log/slog`
 - `github.com/urfave/cli/v3` for the command tree
+- Operations: `nats-io/jsm.go`, `robfig/cron/v3`, `labstack/echo/v5` (bot
+  HTTP), `prometheus/client_golang` (`cheshmhayash_ops_*` metrics),
+  mattermost's WebSocket client; tests embed `nats-server/v2`
 - `github.com/nats-io/nats.go v1.53.x`
 - `github.com/knadh/koanf/v2` for config (struct defaults → toml → env)
 - React 19, TypeScript 7, Vite 8, CodeMirror 6 (`@uiw/react-codemirror`,
