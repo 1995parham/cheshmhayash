@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package demo.v1;
+
+enum Region {
+  REGION_UNSPECIFIED = 0;
+  REGION_TEHRAN = 1;
+}

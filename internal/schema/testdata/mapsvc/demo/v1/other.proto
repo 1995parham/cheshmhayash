@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package demo.v1;
+
+// Ping clashes on purpose with backend's demo.v1.Ping.
+message Ping {
+  string other = 1;
+}
+
+message Pong {
+  string id = 1;
+}

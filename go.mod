@@ -3,6 +3,7 @@ module github.com/1995parham/cheshmhayash
 go 1.27.2
 
 require (
+	github.com/bufbuild/protocompile v0.14.1
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
@@ -13,6 +14,7 @@ require (
 	github.com/tidwall/pretty v1.3.0
 	github.com/urfave/cli/v3 v3.14.0
 	golang.org/x/oauth2 v0.38.0
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -27,5 +29,6 @@ require (
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 )

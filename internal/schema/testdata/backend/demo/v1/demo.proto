@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package demo.v1;
+
+import "demo/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+message Ping {
+  message Inner {
+    bool ok = 1;
+  }
+
+  string id = 1;
+  int64 count = 2;
+  google.protobuf.Timestamp at = 3;
+  Inner inner = 4;
+  map<string, int32> tags = 5;
+  Region region = 6;
+}
