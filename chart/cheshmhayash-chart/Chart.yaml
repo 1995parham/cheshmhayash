@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 2.0.0
+version: 2.1.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -41,6 +41,8 @@ annotations:
     - name: nats.io
       url: https://nats.io
   artifacthub.io/changes: |
+    - kind: added
+      description: "`mcp.allowSampling` registers the subject_sample MCP tool (CHESHMHAYASH_MCP_SAMPLE=1), which returns a few decoded messages of a subject."
     - kind: changed
       description: "One binary with subcommands: the dashboard runs `cheshmhayash serve` and the MCP workload runs `cheshmhayash mcp --http`. Requires an image built from this release or later; the `cheshmhayash-mcp` binary is gone."
     - kind: added

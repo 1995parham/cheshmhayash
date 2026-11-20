@@ -143,6 +143,8 @@ discovery_timeout_ms = 1500
 Env knobs:
 
 - `CHESHMHAYASH_MCP_WRITE=1` — `mcp --write`: register destructive MCP tools
+- `CHESHMHAYASH_MCP_SAMPLE=1` — `mcp --allow-sampling`: register `subject_sample`
+  (decoded payloads go to the model; schemas from `CHESHMHAYASH_SCHEMAS`)
 - `CHESHMHAYASH_OVERVIEW_PERIOD=10s` — `serve --overview-period`: JSZ cache refresh interval
 - `CHESHMHAYASH_COMPONENTS=api,ui,notify` — `serve --components`
 - `LOG_LEVEL=info|debug|warn|error` — `--log-level` (invalid value is fatal)

@@ -175,6 +175,10 @@ mcp:
   port: 8080
   # Register the destructive MCP tools (purge/delete/kick/reload/stepdown).
   write: false
+  # Register subject_sample, which reads a few messages from a subject and
+  # returns them decoded (with `schemas` when set). It sends message content
+  # to the model, so it is off by default.
+  allowSampling: false
   service:
     type: ClusterIP
     port: 8080

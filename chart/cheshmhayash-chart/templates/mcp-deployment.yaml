@@ -68,10 +68,14 @@ spec:
             {{- end }}
           {{- end }}
           {{- $hasMCPKeyEnv := gt (len .Values.auth.mcpKeys) 0 }}
-          {{- if or $hasNatsAuthEnv $hasMCPKeyEnv .Values.mcp.write .Values.mcp.extraEnv (include "cheshmhayash-chart.schemasEnabled" .) }}
+          {{- if or $hasNatsAuthEnv $hasMCPKeyEnv .Values.mcp.write .Values.mcp.allowSampling .Values.mcp.extraEnv (include "cheshmhayash-chart.schemasEnabled" .) }}
           env:
             {{- if .Values.mcp.write }}
             - name: CHESHMHAYASH_MCP_WRITE
+              value: "1"
+            {{- end }}
+            {{- if .Values.mcp.allowSampling }}
+            - name: CHESHMHAYASH_MCP_SAMPLE
               value: "1"
             {{- end }}
             {{- include "cheshmhayash-chart.natsAuthEnv" . | nindent 12 }}

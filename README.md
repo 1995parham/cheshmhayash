@@ -145,6 +145,11 @@ Each source keeps its own registry, so two repositories that both declare
 that does not compile is skipped (and reported by `schema list -v`) instead
 of failing the whole source.
 
+The MCP server can do the same for an LLM: `cheshmhayash mcp
+--allow-sampling` (or `CHESHMHAYASH_MCP_SAMPLE=1`, `mcp.allowSampling` in
+the chart) registers `subject_sample`, which returns a few decoded messages
+of a subject. It is off by default because payloads reach the model.
+
 `--cluster` picks a cluster from `settings.toml`; `--server`, `--user`,
 `--password` and `--creds` (or `NATS_URL`, …) connect without one. The Helm
 chart can mount a schemas folder from a ConfigMap or an image
