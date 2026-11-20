@@ -349,3 +349,60 @@ enabled = true
 name = "{{ $k.name }}"
 {{- end }}
 {{- end }}
+
+{{/*
+Protobuf schemas. A schemas folder (schemas.toml plus its descriptor sets)
+comes from an existing ConfigMap or from a folder inside an image, copied
+by an init container. Either way it is mounted at schemas.mountPath and
+CHESHMHAYASH_SCHEMAS points the binary at schemas.file inside it.
+*/}}
+{{- define "cheshmhayash-chart.schemasEnabled" -}}
+{{- if or .Values.schemas.configMap .Values.schemas.image.repository -}}true{{- end -}}
+{{- end -}}
+
+{{- define "cheshmhayash-chart.schemasEnv" -}}
+{{- if include "cheshmhayash-chart.schemasEnabled" . }}
+- name: CHESHMHAYASH_SCHEMAS
+  value: {{ printf "%s/%s" (trimSuffix "/" .Values.schemas.mountPath) .Values.schemas.file | quote }}
+{{- end }}
+{{- end -}}
+
+{{- define "cheshmhayash-chart.schemasVolumeMounts" -}}
+{{- if include "cheshmhayash-chart.schemasEnabled" . }}
+- name: schemas
+  mountPath: {{ .Values.schemas.mountPath }}
+  readOnly: true
+{{- end }}
+{{- end -}}
+
+{{- define "cheshmhayash-chart.schemasVolumes" -}}
+{{- if .Values.schemas.configMap }}
+- name: schemas
+  configMap:
+    name: {{ .Values.schemas.configMap }}
+{{- else if .Values.schemas.image.repository }}
+- name: schemas
+  emptyDir:
+    sizeLimit: {{ .Values.schemas.image.sizeLimit }}
+{{- end }}
+{{- end -}}
+
+{{- define "cheshmhayash-chart.schemasInitContainers" -}}
+{{- if and (not .Values.schemas.configMap) .Values.schemas.image.repository }}
+- name: schemas
+  image: {{ printf "%s:%s" .Values.schemas.image.repository (.Values.schemas.image.tag | default "latest" | toString) }}
+  imagePullPolicy: {{ .Values.schemas.image.pullPolicy }}
+  command: ["cp", "-R", {{ printf "%s/." (trimSuffix "/" .Values.schemas.image.path) | quote }}, "/mnt/schemas/"]
+  securityContext:
+    {{- toYaml .Values.securityContext | nindent 4 }}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 64Mi
+  volumeMounts:
+    - name: schemas
+      mountPath: /mnt/schemas
+{{- end }}
+{{- end -}}

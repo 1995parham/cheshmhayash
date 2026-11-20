@@ -124,6 +124,29 @@ service:
   # Use a specific nodePort/targetPort if you switch type: NodePort.
   annotations: {}
 
+# ---- protobuf schemas -----------------------------------------------------
+# A schemas folder holds a schemas.toml ([[sources]] + [[subjects]]) and the
+# descriptor sets it names. When set, it is mounted into the dashboard and MCP
+# pods and CHESHMHAYASH_SCHEMAS points at it, so `cheshmhayash sub/pub/schema`
+# decode protobuf in the pod, e.g.:
+#   kubectl exec deploy/<release> -- /app/cheshmhayash sub 'ride.>'
+# Use one of the two sources; configMap wins when both are set.
+schemas:
+  # Name of an existing ConfigMap with schemas.toml in data and the
+  # descriptor sets in binaryData (a 120 KiB set fits easily).
+  configMap: ""
+  # An image that holds the folder at `path`; an init container copies it
+  # into an emptyDir. The image needs `cp` (busybox or alpine base).
+  image:
+    repository: ""
+    tag: ""
+    pullPolicy: IfNotPresent
+    path: /schemas
+    sizeLimit: 64Mi
+  # Where the folder is mounted, and the file inside it to load.
+  mountPath: /schemas
+  file: schemas.toml
+
 # ---- dashboard components -------------------------------------------------
 # Parts of `cheshmhayash serve` that the dashboard Deployment runs (passed as
 # `--components`). Known values: api (JSON API + overview cache), ui (the

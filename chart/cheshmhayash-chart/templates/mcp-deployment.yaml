@@ -46,6 +46,10 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if include "cheshmhayash-chart.schemasInitContainers" . }}
+      initContainers:
+        {{- include "cheshmhayash-chart.schemasInitContainers" . | trim | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}-mcp
           image: {{ include "cheshmhayash-chart.image" . }}
@@ -64,7 +68,7 @@ spec:
             {{- end }}
           {{- end }}
           {{- $hasMCPKeyEnv := gt (len .Values.auth.mcpKeys) 0 }}
-          {{- if or $hasNatsAuthEnv $hasMCPKeyEnv .Values.mcp.write .Values.mcp.extraEnv }}
+          {{- if or $hasNatsAuthEnv $hasMCPKeyEnv .Values.mcp.write .Values.mcp.extraEnv (include "cheshmhayash-chart.schemasEnabled" .) }}
           env:
             {{- if .Values.mcp.write }}
             - name: CHESHMHAYASH_MCP_WRITE
@@ -72,6 +76,7 @@ spec:
             {{- end }}
             {{- include "cheshmhayash-chart.natsAuthEnv" . | nindent 12 }}
             {{- include "cheshmhayash-chart.mcpKeysEnv" . | nindent 12 }}
+            {{- include "cheshmhayash-chart.schemasEnv" . | nindent 12 }}
             {{- with .Values.mcp.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -116,6 +121,7 @@ spec:
             # has to land on an emptyDir.
             - name: tmp
               mountPath: /tmp
+            {{- include "cheshmhayash-chart.schemasVolumeMounts" . | nindent 12 }}
       volumes:
         - name: config
           configMap:
@@ -124,6 +130,7 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 16Mi
+        {{- include "cheshmhayash-chart.schemasVolumes" . | nindent 8 }}
       {{- with .Values.mcp.nodeSelector | default .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

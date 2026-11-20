@@ -47,3 +47,5 @@ annotations:
       description: "`components` selects the parts of the dashboard Deployment (`api`, `ui`, `notify`; all by default), so a notifier-only or API-only workload is one value away."
     - kind: changed
       description: "The license is now Apache-2.0."
+    - kind: added
+      description: "`schemas` mounts protobuf schemas (schemas.toml + descriptor sets) from a ConfigMap or an image into the dashboard and MCP pods and sets CHESHMHAYASH_SCHEMAS, so `cheshmhayash sub/pub/schema` decode protobuf in the pod."
