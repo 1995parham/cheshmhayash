@@ -72,9 +72,9 @@ server responds with `428 Precondition Required`.
 - Per-cluster JSZ overview is refreshed in the background and pushed to
   the SPA over SSE — the panel updates in real time, with a small
   `live` / `polling` / `disconnected` indicator next to each view.
-- **MCP server** as its own binary (`cheshmhayash-mcp`). Speaks the Model
+- **MCP server** as its own subcommand (`cheshmhayash mcp`). Speaks the Model
   Context Protocol over both stdio (default) and HTTP Streamable
-  (`-http`, `POST /mcp`) so LLM agents (Claude Desktop, Cursor, etc.) can
+  (`--http`, `POST /mcp`) so LLM agents (Claude Desktop, Cursor, etc.) can
   inspect and operate the cluster as tools. Read-only by default;
   destructive verbs gate on `CHESHMHAYASH_MCP_WRITE=1`.
 - **Webhook notifications** to Slack / Mattermost / Matrix (via hookshot
@@ -175,28 +175,37 @@ credentials grant; they will return `JetStream not enabled` (err_code
 
 ```sh
 # Backend (dashboard)
-go run ./cmd/cheshmhayash             # serves API + built SPA on :1378
+go run ./cmd/cheshmhayash serve       # serves API + built SPA on :1378
 
 # Frontend (dev — separate terminal)
 cd frontend && npm install
 npm run dev                           # HMR on :5173, /api proxied to :1378
 ```
 
-For a production build (the dashboard binary serves API + SPA):
+One binary holds every component; the subcommand picks which one runs.
+For a production build:
 
 ```sh
 cd frontend && npm install && npm run build
 go build -o ./bin/cheshmhayash ./cmd/cheshmhayash
-./bin/cheshmhayash                    # http://127.0.0.1:1378
+./bin/cheshmhayash serve              # http://127.0.0.1:1378
 ```
 
-The MCP server is a separate binary (`cmd/cheshmhayash-mcp`) — stdio by
-default, `-http` for the Streamable HTTP transport:
+`serve --components` selects the parts of the dashboard (`api`, `ui`,
+`notify`; all by default, also via `CHESHMHAYASH_COMPONENTS`):
 
 ```sh
-go build -o ./bin/cheshmhayash-mcp ./cmd/cheshmhayash-mcp
-./bin/cheshmhayash-mcp                # stdio (Claude Desktop, Cursor, …)
-./bin/cheshmhayash-mcp -http          # POST /mcp on server.host:port
+./bin/cheshmhayash serve --components api,ui   # no webhook notifier
+./bin/cheshmhayash serve --components notify   # notifier only (+ /healthz)
+```
+
+The MCP server is the `mcp` subcommand — stdio by default, `--http` for the
+Streamable HTTP transport:
+
+```sh
+./bin/cheshmhayash mcp                # stdio (Claude Desktop, Cursor, …)
+./bin/cheshmhayash mcp --http         # POST /mcp on server.host:port
+./bin/cheshmhayash mcp --write        # also register destructive tools
 ```
 
 ### Docker
@@ -206,6 +215,10 @@ docker build -t cheshmhayash .
 docker run --rm -p 1378:1378 \
     -v "$PWD/settings.toml:/app/settings.toml:ro" \
     cheshmhayash
+# the MCP server from the same image
+docker run --rm -p 8080:8080 \
+    -v "$PWD/settings.toml:/app/settings.toml:ro" \
+    cheshmhayash mcp --http --addr :8080
 ```
 
 ### Kubernetes (Helm)
@@ -217,7 +230,7 @@ artifact to GHCR on every tagged release.
 # install from GHCR
 helm install panel \
   oci://ghcr.io/1995parham/cheshmhayash-chart \
-  --version 1.9.0 \
+  --version 2.0.0 \
   -f my-values.yaml
 
 # or from a local checkout
@@ -240,9 +253,10 @@ clusters:
         passwordKey: password
 ```
 
-The chart deploys the dashboard only. The MCP HTTP server is a separate
-binary, so it ships as an opt-in workload — set `mcp.enabled: true` to add
-a `cheshmhayash-mcp -http` Deployment + Service. It reuses the same image,
+The chart deploys the dashboard, and `components` selects its parts
+(`api`, `ui`, `notify`). The MCP HTTP server ships as an opt-in workload —
+set `mcp.enabled: true` to add a `cheshmhayash mcp --http` Deployment +
+Service. It reuses the same image,
 `settings.toml` and NATS auth; `/mcp` auth is configured under
 `auth.mcpKeys` / `auth.mcpOauth` / `auth.mcpJwt`, and write tools gate on
 `mcp.write`:

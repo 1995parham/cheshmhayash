@@ -8,9 +8,10 @@ prefer deleting stale lines over qualifying them.
 `cheshmhayash` is a NATS administration dashboard. The backend speaks
 NATS on `$SYS.REQ.*` and `$JS.API.*` — the same channels `natscli` uses
 — and exposes the results as plain HTTP + JSON. The frontend is a React
-panel that talks to that JSON API. The same binary also exposes an
-**MCP server** over stdio and HTTP for LLM tool-use, and a **webhook
-notifier** that fans JetStream advisory events out to Slack/Mattermost/
+panel that talks to that JSON API. One binary holds every component as
+a subcommand: `serve` (API + SPA + notifier, selected by `--components`)
+and `mcp` (the **MCP server** over stdio or HTTP for LLM tool-use). The
+**webhook notifier** fans JetStream advisory events out to Slack/Mattermost/
 Matrix. There is **no** HTTP monitoring port (`:8222`) requirement; only
 the NATS client port (`:4222`).
 
@@ -18,10 +19,10 @@ the NATS client port (`:4222`).
 
 ```
 .
-├── cmd/
-│   ├── cheshmhayash/              # entrypoint — HTTP dashboard (API + SPA, no /mcp)
-│   └── cheshmhayash-mcp/          # entrypoint — MCP server: stdio (default) or `-http`
+├── cmd/cheshmhayash/               # thin main → internal/cmd.Execute()
 ├── internal/
+│   ├── cmd/                       # urfave/cli v3 tree: root.go, serve/, mcp/
+│   ├── httpserver/                # http.Server + graceful shutdown (serve, mcp)
 │   ├── config/                    # koanf loader: struct defaults → settings.toml → env
 │   ├── natsx/                     # NATS client + admin/jsm subjects + overview cache
 │   ├── handler/                   # http.ServeMux routes (Go 1.22+ pattern syntax)
@@ -50,39 +51,41 @@ Local dev — the Vite dev server proxies `/api` + `/healthz` to the Go
 process on `:1378`:
 
 ```sh
-go run ./cmd/cheshmhayash             # backend on :1378
+go run ./cmd/cheshmhayash serve       # backend on :1378
 cd frontend && npm run dev            # UI on :5173 with HMR
 ```
 
-Production (the dashboard binary serves API + built SPA from `frontend/dist`):
+Production (`serve` runs API + built SPA from `frontend/dist` + notifier):
 
 ```sh
 cd frontend && npm run build
 go build -o ./bin/cheshmhayash ./cmd/cheshmhayash
-./bin/cheshmhayash                    # http://127.0.0.1:1378
+./bin/cheshmhayash serve                            # http://127.0.0.1:1378
+./bin/cheshmhayash serve --components api,notify    # pick parts: api, ui, notify
 ```
+
+`--components` (env `CHESHMHAYASH_COMPONENTS`) is validated at start; an
+unknown name is fatal. `/healthz` is always served. Without `api`, `/api/*`
+answers 404 instead of the SPA fallback. The chart passes `components`.
 
 Docker — `docker build -t cheshmhayash .` and `docker run -p 1378:1378
 -v "$PWD/settings.toml:/app/settings.toml:ro" cheshmhayash`. The image
-ships both binaries; the default ENTRYPOINT is the dashboard. Run the MCP
-server with `docker run … cheshmhayash /app/cheshmhayash-mcp -http`.
+ships one binary; ENTRYPOINT is `/app/cheshmhayash`, CMD is `serve`. Run
+the MCP server with `docker run … cheshmhayash mcp --http`.
 
-MCP server — its own binary (`cmd/cheshmhayash-mcp`). The dashboard no
-longer serves `/mcp`; build/run the MCP binary instead:
+MCP server — the `mcp` subcommand. The dashboard does not serve `/mcp`:
 
 ```sh
-go build -o ./bin/cheshmhayash-mcp ./cmd/cheshmhayash-mcp
-
-./bin/cheshmhayash-mcp                              # stdio, read-only tool set
-CHESHMHAYASH_MCP_WRITE=1 ./bin/cheshmhayash-mcp     # stdio + purge/delete/kick/reload/stepdown
-./bin/cheshmhayash-mcp -http                        # Streamable HTTP /mcp on server.host:port
-./bin/cheshmhayash-mcp -http -addr :8080            # …or an explicit listen address
+./bin/cheshmhayash mcp                       # stdio, read-only tool set
+./bin/cheshmhayash mcp --write               # + purge/delete/kick/reload/stepdown (env CHESHMHAYASH_MCP_WRITE=1)
+./bin/cheshmhayash mcp --http                # Streamable HTTP /mcp on server.host:port
+./bin/cheshmhayash mcp --http --addr :8080   # …or an explicit listen address
 ```
 
-It reuses `settings.toml`; in stdio mode logs go to stderr because stdout
-is the JSON-RPC channel. In `-http` mode it serves `/mcp`, `/healthz`, and
-the RFC 9728 OAuth metadata, gated by the same `auth.mcp_*` config the
-dashboard used to apply.
+It reuses `settings.toml`; logs always go to stderr because stdout is the
+JSON-RPC channel in stdio mode. In `--http` mode it serves `/mcp`,
+`/healthz`, and the RFC 9728 OAuth metadata, gated by the `auth.mcp_*`
+config.
 
 ## Configuration
 
@@ -127,9 +130,10 @@ discovery_timeout_ms = 1500
 
 Env knobs:
 
-- `CHESHMHAYASH_MCP_WRITE=1` — register destructive MCP tools
-- `CHESHMHAYASH_OVERVIEW_PERIOD=10s` — JSZ cache refresh interval
-- `LOG_LEVEL=info|debug|warn|error`
+- `CHESHMHAYASH_MCP_WRITE=1` — `mcp --write`: register destructive MCP tools
+- `CHESHMHAYASH_OVERVIEW_PERIOD=10s` — `serve --overview-period`: JSZ cache refresh interval
+- `CHESHMHAYASH_COMPONENTS=api,ui,notify` — `serve --components`
+- `LOG_LEVEL=info|debug|warn|error` — `--log-level` (invalid value is fatal)
 - `CHESHMHAYASH__AUTH__ENABLED=true` — turn OIDC on (see settings.toml
   for the rest of the keys; slices are comma-separated, MCP keys use
   the `…__MCP_KEYS__0__VALUE` indexed form)
@@ -194,7 +198,8 @@ Destructive verbs require `?confirm=true`; without it the server returns
   drop frames rather than block the refresher).
 - **MCP** (`internal/mcp/`) — `Server.Serve` is the JSON-RPC core,
   shared between `RunStdio` and `ServeHTTP`. Tools live in `tools.go`;
-  destructive ones gate on `write := os.Getenv("CHESHMHAYASH_MCP_WRITE") == "1"`.
+  destructive ones gate on the `write` flag that `mcp --write` passes to
+  `mcp.NewServer`.
 - **Notify** (`internal/notify/`) — subscribes to
   `$JS.EVENT.ADVISORY.>` and the `$SYS.ACCOUNT.*.JETSTREAM.EVENT.ADVISORY.>`
   bridge on every cluster, classifies events in `classify.go`, sends to
@@ -237,20 +242,22 @@ Destructive verbs require `?confirm=true`; without it the server returns
   JWT's claims with NO verification at all and runs them through the same
   allowlist — trust-the-gateway mode, tried last after static keys and
   OIDC verify. MCP **write**
-  tools stay gated by `CHESHMHAYASH_MCP_WRITE` (startup env), not by
+  tools stay gated by `mcp --write` / `CHESHMHAYASH_MCP_WRITE` (startup), not by
   identity — a follow-up. stdio MCP stays open. Auth is fully off when
   `auth.enabled = false` (the default).
 
 ## Tech / versions
 
 - Go 1.27.x, stdlib `net/http` (1.22+ pattern syntax), `log/slog`
+- `github.com/urfave/cli/v3` for the command tree
 - `github.com/nats-io/nats.go v1.53.x`
 - `github.com/knadh/koanf/v2` for config (struct defaults → toml → env)
 - React 19, TypeScript 7, Vite 8, CodeMirror 6 (`@uiw/react-codemirror`,
   `@codemirror/lang-json`, `@codemirror/theme-one-dark`)
 - Biome 2.x is the frontend lint + formatter (`frontend/biome.jsonc`,
   replaces ESLint/Prettier); `tsc -b` still owns type checking
-- Runtime image: `gcr.io/distroless/static-debian12:nonroot`
+- Runtime image: `gcr.io/distroless/static-debian13:nonroot`
+- License: Apache-2.0
 - Chart published to `oci://ghcr.io/1995parham/cheshmhayash-chart`,
   image to `ghcr.io/1995parham/cheshmhayash`. Release workflow signs
   with cosign keyless; buildx already attaches SBOM + provenance.
