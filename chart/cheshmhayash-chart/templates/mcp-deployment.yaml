@@ -1,6 +1,6 @@
 {{- if .Values.mcp.enabled }}
 {{- /*
-Standalone MCP server. Runs the cheshmhayash-mcp binary in `-http` mode so
+Standalone MCP server. Runs `cheshmhayash mcp --http` so
 the Streamable HTTP transport at /mcp is served by its own workload — the
 dashboard no longer serves /mcp. Reuses the same image, settings.toml
 ConfigMap and NATS auth as the dashboard; /mcp auth (static keys / OIDC /
@@ -52,8 +52,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          command: ["/app/cheshmhayash-mcp"]
-          args: ["-http", "-addr", ":{{ .Values.mcp.port }}"]
+          args: ["mcp", "--http", "--addr", ":{{ .Values.mcp.port }}"]
           ports:
             - name: http
               containerPort: {{ .Values.mcp.port }}

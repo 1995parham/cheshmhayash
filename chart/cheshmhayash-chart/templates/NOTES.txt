@@ -38,7 +38,7 @@ MCP server (Streamable HTTP transport) is enabled as a separate workload:
 {{- else }}
 
 NOTE: the dashboard no longer serves /mcp. Set `mcp.enabled: true` to run
-the MCP HTTP server (cheshmhayash-mcp) as its own Deployment + Service.
+the MCP HTTP server (`cheshmhayash mcp --http`) as its own Deployment + Service.
 {{- end }}
 
 Helm tests:

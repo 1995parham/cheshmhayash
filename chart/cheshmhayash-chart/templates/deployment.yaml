@@ -50,6 +50,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          args: ["serve", "--components", {{ join "," .Values.components | quote }}]
           ports:
             - name: http
               containerPort: {{ .Values.server.port }}

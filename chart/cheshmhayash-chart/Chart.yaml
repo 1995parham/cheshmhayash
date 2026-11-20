@@ -4,7 +4,7 @@ description: NATS administration dashboard served over the NATS protocol itself.
 type: application
 
 # Chart version — bump on every chart change (independent of appVersion).
-version: 1.9.0
+version: 2.0.0
 
 # Application version — matches the cheshmhayash binary release. The
 # release.yaml workflow rewrites this to the pushed tag's version.
@@ -34,14 +34,16 @@ maintainers:
 
 annotations:
   artifacthub.io/category: monitoring
-  artifacthub.io/license: MIT
+  artifacthub.io/license: Apache-2.0
   artifacthub.io/links: |
     - name: source
       url: https://github.com/1995parham/cheshmhayash
     - name: nats.io
       url: https://nats.io
   artifacthub.io/changes: |
-    - kind: added
-      description: "The MCP workload now gets its own PodDisruptionBudget (`mcp.podDisruptionBudget`, rendered only when `mcp.replicaCount > 1`) and honours topology spread (`mcp.topologySpreadConstraints`, falling back to the top-level value) — availability parity with the dashboard."
     - kind: changed
-      description: "The MCP server is now a separate binary (`cheshmhayash-mcp`); the dashboard no longer serves `/mcp`. Set `mcp.enabled: true` to run the Streamable HTTP transport as its own Deployment + Service (reuses the same image, settings.toml and NATS auth; `auth.mcp*` keys configure /mcp auth as before). Write tools gate on `mcp.write`."
+      description: "One binary with subcommands: the dashboard runs `cheshmhayash serve` and the MCP workload runs `cheshmhayash mcp --http`. Requires an image built from this release or later; the `cheshmhayash-mcp` binary is gone."
+    - kind: added
+      description: "`components` selects the parts of the dashboard Deployment (`api`, `ui`, `notify`; all by default), so a notifier-only or API-only workload is one value away."
+    - kind: changed
+      description: "The license is now Apache-2.0."

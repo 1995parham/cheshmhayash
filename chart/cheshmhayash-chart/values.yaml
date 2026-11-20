@@ -124,9 +124,19 @@ service:
   # Use a specific nodePort/targetPort if you switch type: NodePort.
   annotations: {}
 
+# ---- dashboard components -------------------------------------------------
+# Parts of `cheshmhayash serve` that the dashboard Deployment runs (passed as
+# `--components`). Known values: api (JSON API + overview cache), ui (the
+# React SPA), notify (JetStream advisories → [[notify]] webhooks). Drop `ui`
+# and `api` for a notifier-only workload; /healthz is always served.
+components:
+  - api
+  - ui
+  - notify
+
 # ---- MCP server ------------------------------------------------------------
-# The MCP server is a separate binary (cheshmhayash-mcp). The dashboard no
-# longer serves /mcp; enable this to run the Streamable HTTP transport as its
+# The MCP server is the `cheshmhayash mcp` subcommand. The dashboard does not
+# serve /mcp; enable this to run the Streamable HTTP transport as its
 # own Deployment + Service. It reuses the same image, settings.toml and NATS
 # auth; /mcp auth is configured under `auth.mcpKeys` / `auth.mcpOauth` /
 # `auth.mcpJwt` below (shared settings). Write tools are off unless
@@ -138,7 +148,7 @@ service:
 mcp:
   enabled: false
   replicaCount: 1
-  # Container + Service port for the HTTP transport (passed as `-addr :PORT`).
+  # Container + Service port for the HTTP transport (passed as `--addr :PORT`).
   port: 8080
   # Register the destructive MCP tools (purge/delete/kick/reload/stepdown).
   write: false
