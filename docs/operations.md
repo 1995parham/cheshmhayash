@@ -52,7 +52,7 @@ cheshmhayash consumer scan --context prod-a \
 cheshmhayash consumer scan --context prod-a --format json
 
 # Where did this filter subject's work move to? (searches every context)
-cheshmhayash consumer owner "rides.trip.>"
+cheshmhayash consumer owner --subject "orders.created.>"
 
 # Ghost peers: offline in every Raft group and leading none
 cheshmhayash peer check --context prod-a --ghosts-only

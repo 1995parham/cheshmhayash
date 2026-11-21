@@ -659,9 +659,9 @@ bot:
   #        enabled: true
   #        contexts:
   #          - name: prod-a
-  #            url: nats://js-nats-production.nats-production.svc.cluster.local:4222
+  #            url: nats://nats.nats.svc.cluster.local:4222
   #            secret:
-  #              name: nats-system-account
+  #              name: nats-admin
   #              userKey: admin_username
   #              passwordKey: admin_password
   #
