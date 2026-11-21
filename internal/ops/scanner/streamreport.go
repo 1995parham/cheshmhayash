@@ -87,7 +87,7 @@ func ReportStreams(ctx context.Context, nc *natsctx.Conn, stream string) ([]Stre
 
 		if ci, err := s.ClusterInfo(); err == nil {
 			row.Leader = ci.Leader
-			row.Peers = placementPeers(ci)
+			row.Peers = PlacementPeers(ci)
 		}
 
 		rows = append(rows, row)
@@ -96,9 +96,9 @@ func ReportStreams(ctx context.Context, nc *natsctx.Conn, stream string) ([]Stre
 	return rows, nil
 }
 
-// placementPeers returns the servers hosting a replica of the group, leader
+// PlacementPeers returns the servers hosting a replica of the group, leader
 // first, each server once.
-func placementPeers(ci api.ClusterInfo) []string {
+func PlacementPeers(ci api.ClusterInfo) []string {
 	peers := make([]string, 0, len(ci.Replicas)+1)
 
 	if ci.Leader != "" {

@@ -41,13 +41,13 @@ type PeerRow struct {
 	Sample  []string   `json:"sample,omitempty"` // example group names referencing it
 }
 
-// raftGroup is one stream- or consumer-level Raft group's membership, the raw
-// input to aggregatePeers. Kept separate from the I/O walk so the
+// RaftGroup is one stream- or consumer-level Raft group's membership, the raw
+// input to AggregatePeers. Kept separate from the I/O walk so the
 // classification is unit-testable without a live cluster.
-type raftGroup struct {
-	name     string
-	leader   string
-	replicas []api.PeerInfo
+type RaftGroup struct {
+	Name     string
+	Leader   string
+	Replicas []api.PeerInfo
 }
 
 const maxPeerSamples = 5
@@ -67,7 +67,7 @@ func CheckPeers(ctx context.Context, nc *natsctx.Conn) ([]PeerRow, error) {
 		return nil, fmt.Errorf("stream names: %w", err)
 	}
 
-	var groups []raftGroup
+	var groups []RaftGroup
 
 	for _, sn := range streamNames {
 		if ctx.Err() != nil {
@@ -80,7 +80,7 @@ func CheckPeers(ctx context.Context, nc *natsctx.Conn) ([]PeerRow, error) {
 		}
 
 		if ci, err := stream.ClusterInfo(); err == nil {
-			groups = append(groups, raftGroup{name: sn, leader: ci.Leader, replicas: derefPeers(ci.Replicas)})
+			groups = append(groups, RaftGroup{Name: sn, Leader: ci.Leader, Replicas: derefPeers(ci.Replicas)})
 		}
 
 		consumerNames, err := stream.ConsumerNames()
@@ -95,12 +95,12 @@ func CheckPeers(ctx context.Context, nc *natsctx.Conn) ([]PeerRow, error) {
 			}
 
 			if ci, err := c.ClusterInfo(); err == nil {
-				groups = append(groups, raftGroup{name: sn + "/" + cn, leader: ci.Leader, replicas: derefPeers(ci.Replicas)})
+				groups = append(groups, RaftGroup{Name: sn + "/" + cn, Leader: ci.Leader, Replicas: derefPeers(ci.Replicas)})
 			}
 		}
 	}
 
-	return aggregatePeers(nc.Name, groups), nil
+	return AggregatePeers(nc.Name, groups), nil
 }
 
 // derefPeers copies the value of each non-nil *PeerInfo so the aggregation
@@ -116,11 +116,11 @@ func derefPeers(in []*api.PeerInfo) []api.PeerInfo {
 	return out
 }
 
-// aggregatePeers folds the per-group membership into one row per server and
+// AggregatePeers folds the per-group membership into one row per server and
 // classifies each. A group's leader counts as a current, leading reference;
 // each replica contributes its offline/current state. Rows are sorted ghosts
 // first, then by name, so the most actionable peers lead the report.
-func aggregatePeers(cluster string, groups []raftGroup) []PeerRow {
+func AggregatePeers(cluster string, groups []RaftGroup) []PeerRow {
 	type agg struct {
 		groups, offline, current, leads int
 		sample                          []string
@@ -144,19 +144,19 @@ func aggregatePeers(cluster string, groups []raftGroup) []PeerRow {
 	}
 
 	for _, g := range groups {
-		if g.leader != "" {
-			a := touch(g.leader, g.name)
+		if g.Leader != "" {
+			a := touch(g.Leader, g.Name)
 			a.leads++
 			a.current++
 		}
 
-		for _, p := range g.replicas {
+		for _, p := range g.Replicas {
 			// The leader can also appear in the replica list; don't double count.
-			if p.Name == g.leader {
+			if p.Name == g.Leader {
 				continue
 			}
 
-			a := touch(p.Name, g.name)
+			a := touch(p.Name, g.Name)
 			if p.Offline {
 				a.offline++
 			}

@@ -20,26 +20,26 @@ func peerRowByName(rows []PeerRow, name string) *PeerRow {
 func TestAggregatePeers(t *testing.T) {
 	// Topology: n1 leads everything and is healthy. n2 is a healthy follower.
 	// n3 is offline in every group it appears in and leads nothing — a ghost.
-	groups := []raftGroup{
+	groups := []RaftGroup{
 		{
-			name:   "rides",
-			leader: "n1",
-			replicas: []api.PeerInfo{
+			Name:   "rides",
+			Leader: "n1",
+			Replicas: []api.PeerInfo{
 				{Name: "n2", Current: true},
 				{Name: "n3", Offline: true},
 			},
 		},
 		{
-			name:   "trips",
-			leader: "n1",
-			replicas: []api.PeerInfo{
+			Name:   "trips",
+			Leader: "n1",
+			Replicas: []api.PeerInfo{
 				{Name: "n2", Current: true},
 				{Name: "n3", Offline: true},
 			},
 		},
 	}
 
-	rows := aggregatePeers("teh1", groups)
+	rows := AggregatePeers("teh1", groups)
 
 	if len(rows) != 3 {
 		t.Fatalf("got %d peers, want 3: %+v", len(rows), rows)
@@ -72,18 +72,18 @@ func TestAggregatePeers(t *testing.T) {
 
 func TestAggregatePeersLeaderNotDoubleCounted(t *testing.T) {
 	// Some server responses echo the leader inside the replica list too.
-	groups := []raftGroup{
+	groups := []RaftGroup{
 		{
-			name:   "rides",
-			leader: "n1",
-			replicas: []api.PeerInfo{
+			Name:   "rides",
+			Leader: "n1",
+			Replicas: []api.PeerInfo{
 				{Name: "n1", Current: true},
 				{Name: "n2", Current: true},
 			},
 		},
 	}
 
-	rows := aggregatePeers("teh1", groups)
+	rows := AggregatePeers("teh1", groups)
 
 	n1 := peerRowByName(rows, "n1")
 	if n1.Groups != 1 || n1.Leads != 1 {
@@ -94,11 +94,11 @@ func TestAggregatePeersLeaderNotDoubleCounted(t *testing.T) {
 func TestAggregatePeersLagging(t *testing.T) {
 	// n2 is referenced but neither offline nor current anywhere, and never
 	// leads — catching up, not a ghost.
-	groups := []raftGroup{
-		{name: "rides", leader: "n1", replicas: []api.PeerInfo{{Name: "n2"}}},
+	groups := []RaftGroup{
+		{Name: "rides", Leader: "n1", Replicas: []api.PeerInfo{{Name: "n2"}}},
 	}
 
-	rows := aggregatePeers("teh1", groups)
+	rows := AggregatePeers("teh1", groups)
 
 	n2 := peerRowByName(rows, "n2")
 	if n2.Health != PeerLagging {
@@ -107,16 +107,16 @@ func TestAggregatePeersLagging(t *testing.T) {
 }
 
 func TestAggregatePeersSampleCap(t *testing.T) {
-	groups := make([]raftGroup, 0, maxPeerSamples+3)
+	groups := make([]RaftGroup, 0, maxPeerSamples+3)
 	for i := range maxPeerSamples + 3 {
-		groups = append(groups, raftGroup{
-			name:     "s" + string(rune('a'+i)),
-			leader:   "n1",
-			replicas: []api.PeerInfo{{Name: "n2", Offline: true}},
+		groups = append(groups, RaftGroup{
+			Name:     "s" + string(rune('a'+i)),
+			Leader:   "n1",
+			Replicas: []api.PeerInfo{{Name: "n2", Offline: true}},
 		})
 	}
 
-	rows := aggregatePeers("teh1", groups)
+	rows := AggregatePeers("teh1", groups)
 
 	n2 := peerRowByName(rows, "n2")
 	if len(n2.Sample) != maxPeerSamples {

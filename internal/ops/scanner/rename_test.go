@@ -20,7 +20,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "rides", Consumer: "new-group", Status: StatusActive, FilterSubject: "ride.accepted", LastAck: t0},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "new-group" {
 			t.Errorf("stale.RenamedTo = %q, want %q", rows[0].RenamedTo, "new-group")
@@ -38,7 +38,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "rides", Consumer: "older", Status: StatusActive, FilterSubject: "ride.accepted", LastAck: t0},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "newer" {
 			t.Errorf("RenamedTo = %q, want %q", rows[0].RenamedTo, "newer")
@@ -51,7 +51,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "rides", Consumer: "new", Status: StatusActive, FilterSubject: "ride.cancelled", LastAck: t0},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "" {
 			t.Errorf("RenamedTo = %q, want empty (different subject)", rows[0].RenamedTo)
@@ -64,7 +64,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "trips", Consumer: "new", Status: StatusActive, FilterSubject: "ride.accepted", LastAck: t0},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "" {
 			t.Errorf("RenamedTo = %q, want empty (different stream)", rows[0].RenamedTo)
@@ -77,7 +77,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "rides", Consumer: "new", Status: StatusActive, FilterSubject: "", LastAck: t0},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "" {
 			t.Errorf("RenamedTo = %q, want empty (no filter subject)", rows[0].RenamedTo)
@@ -89,7 +89,7 @@ func TestDetectRenames(t *testing.T) {
 			{Stream: "rides", Consumer: "abandoned", Status: StatusStale, FilterSubject: "ride.accepted"},
 		}
 
-		detectRenames(rows)
+		DetectRenames(rows)
 
 		if rows[0].RenamedTo != "" {
 			t.Errorf("RenamedTo = %q, want empty (no successor)", rows[0].RenamedTo)

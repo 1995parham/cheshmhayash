@@ -133,7 +133,7 @@ func Scan(ctx context.Context, nc, peer *natsctx.Conn, opts Options) ([]Row, err
 	// Rename detection runs over the full classified set — before the output
 	// thresholds — so a stale consumer can be matched to its active successor
 	// even when that successor wouldn't otherwise be reported.
-	detectRenames(all)
+	DetectRenames(all)
 
 	var rows []Row
 
@@ -159,11 +159,11 @@ func Scan(ctx context.Context, nc, peer *natsctx.Conn, opts Options) ([]Row, err
 	return rows, nil
 }
 
-// detectRenames annotates each STALE row that looks like the old name of a
+// DetectRenames annotates each STALE row that looks like the old name of a
 // rename migration: another consumer on the same stream filters the same
 // subject and is still ACTIVE. When several active consumers qualify, the
 // most recently active one wins.
-func detectRenames(rows []Row) {
+func DetectRenames(rows []Row) {
 	type key struct{ stream, subject string }
 
 	active := map[key]Row{}
@@ -225,10 +225,25 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 		return r
 	}
 
+	r = ClassifyConsumer(&info, now, opts.MinIdle)
+	r.Cluster = cluster
+	r.Stream = stream
+	r.Consumer = consumer
+	r.Managed = opts.Protect.Reason(stream, consumer, info.Config.Metadata)
+
+	return r
+}
+
+// ClassifyConsumer classifies one consumer from its info with the rules of
+// Scan: ACTIVE, STALE or OK, as the package documentation describes. It does
+// no I/O, so the dashboard can run it over a JSZ snapshot. The caller sets
+// Cluster and Managed.
+func ClassifyConsumer(info *api.ConsumerInfo, now time.Time, minIdle time.Duration) Row {
+	r := Row{Stream: info.Stream, Consumer: info.Name}
+
 	r.NumPending = int64(info.NumPending) //nolint:gosec // counts are bounded by stream depth, well under int64
 	r.NumWaiting = info.NumWaiting
 	r.FilterSubject = filterSubject(info.Config)
-	r.Managed = opts.Protect.Reason(stream, consumer, info.Config.Metadata)
 
 	r.PushBound = info.PushBound
 	if info.AckFloor.Last != nil {
@@ -245,7 +260,7 @@ func classify(mgr *jsm.Manager, stream, consumer, cluster string, now time.Time,
 	switch {
 	case info.PushBound || info.NumWaiting > 0:
 		r.Status = StatusActive
-	case !r.LastAck.IsZero() && now.Sub(r.LastAck) < opts.MinIdle:
+	case !r.LastAck.IsZero() && now.Sub(r.LastAck) < minIdle:
 		r.Status = StatusActive
 	case r.NumPending == 0 && r.LastAck.IsZero():
 		// Never delivered, no backlog — too quiet to call stale.
