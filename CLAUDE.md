@@ -27,6 +27,7 @@ the NATS client port (`:4222`).
 │   │                              #   owners, audit, infra/{config,natsctx,httpsrv,notify,store,…}
 │   ├── cliutil/                   # shared flags: --config, cluster/server, --schemas
 │   ├── httpserver/                # http.Server + graceful shutdown (serve, mcp)
+│   ├── health/                    # JetStream findings over a JSZ overview (reuses ops/scanner rules)
 │   ├── schema/                    # protobuf registry: descriptor_set / proto_dir sources + subject router
 │   ├── codec/                     # decoder chain (protobuf → json → text → protowire → base64) + Encode
 │   ├── render/                    # pretty / json-lines / raw message printer
@@ -109,6 +110,15 @@ Live tap — `[tap]` (off by default) registers `GET /api/tap/config` and
 and `role` (admin by default when auth is on), logs every tap, and decodes
 with the same chain as `sub`. The SPA's `TapView` reads it with `fetch`
 (not EventSource) so refusals show their reason and nothing reconnects.
+
+Health — `internal/health.Analyze` folds the cached JSZ overview (each
+stream and consumer from its own leader's reply; only the leader knows
+every replica's state) and runs the `ops/scanner` rules on it
+(`ClassifyConsumer`, `IsUnlimited`, `AggregatePeers`, `PlacementSkew`) plus
+ack-pending-full, near-limit and Raft checks. It is pure (no I/O); the
+`/health` route, the MCP tool `jetstream_health` and the SPA's `HealthView`
+use it. A new rule goes there, not in the frontend. The SPA keeps the
+active tab in the URL hash (`#health`).
 
 Operations commands — `consumer scan|apply|owner`, `peer check`, `stream
 report`, `bot serve` (docs/operations.md). They came from natsie (history
@@ -217,6 +227,7 @@ whole cluster.
 | `POST`      | `…/servers/{id}/actions/reload` \| `…/lame-duck` \| `…/kick` | server actions |
 | `GET`       | `/api/jsm/clusters/{c}/overview` | cached overview · `?live=true` bypasses |
 | `GET`       | `/api/jsm/clusters/{c}/overview/stream` | SSE — frame per cache tick + 20s heartbeats |
+| `GET`       | `/api/jsm/clusters/{c}/health` | `internal/health` findings over the cached overview · `?min_idle=&min_pending=&live=` |
 | `GET\|PUT\|DELETE` | `/api/jsm/clusters/{c}/streams/{s}` | info / update / delete |
 | `POST`      | `…/streams/{s}/purge?confirm=true` | drop all messages |
 | `POST`      | `/api/jsm/clusters/{c}/actions/meta-stepdown?confirm=true` | force meta raft re-election |

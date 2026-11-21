@@ -181,6 +181,34 @@ uses the system account sees only `$SYS` subjects, so add a `[[nats]]`
 entry with an application user for the subjects you want to tap. In the
 chart, the same settings are `tap.*`.
 
+## JetStream health
+
+The dashboard's **Health** tab lists what misbehaves, most severe first,
+from the overview that the dashboard already caches (no extra NATS
+traffic). It uses the same rules as `consumer scan`, `peer check` and
+`stream report`:
+
+| Severity | Finding |
+| --- | --- |
+| critical | a consumer at `max_ack_pending` (the server delivers nothing more) |
+| critical | a stream near `max_bytes`/`max_msgs` with `discard: new` (publishes fail at the limit) |
+| critical | a stream or consumer Raft group with no leader |
+| critical | a ghost peer: offline in every Raft group that names it, leading none |
+| warning | a stale consumer: a backlog and no ack for longer than "stale after" (24h by default) |
+| warning | a limits stream with no `max_age`, `max_bytes` or `max_msgs` |
+| warning | a Raft group with an offline or lagging replica; a lagging peer |
+| info | a stream with one replica; a stream near a limit with `discard: old` |
+
+![Health tab on a test cluster with one server stopped](./docs/screenshots/04-health.png)
+
+A stale consumer that another active consumer replaces on the same filter
+is marked as its likely old name, and a consumer that NACK, Terraform or
+GitOps owns is marked `managed`. The tab also shows each Raft peer's
+standing and the stream placement per server. The same report is
+`GET /api/jsm/clusters/{c}/health?min_idle=24h&min_pending=1` and the
+MCP tool `jetstream_health`. The Health tab only shows the findings; cleanup
+goes through `consumer scan` and `consumer apply`.
+
 ## JetStream operations
 
 ```sh
@@ -214,6 +242,7 @@ with `bot.enabled: true`. The details are in
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/kick` | body: `{"cid": N}` |
 | `GET` | `/api/jsm/clusters/{c}/overview` | cluster-wide JetStream (sys-account) · pass `?live=true` to bypass cache |
 | `GET` | `/api/jsm/clusters/{c}/overview/stream` | SSE — pushes a fresh overview on every cache refresh |
+| `GET` | `/api/jsm/clusters/{c}/health` | findings over the cached overview · `?min_idle=24h&min_pending=1&live=true` |
 | `GET` | `/api/jsm/clusters/{c}/streams?offset=N` | paginated |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}` | stream info |
 | `PUT` | `/api/jsm/clusters/{c}/streams/{s}` | full `StreamConfig` update |

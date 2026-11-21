@@ -56,6 +56,10 @@ la misma que obtendría de la interfaz de monitoreo HTTP.
   `$SYS.REQ.SERVER.PING.JSZ` — cada cuenta, cada stream, cada
   consumer, en un solo viaje de ida y vuelta
 - JetStream: listar streams, información de stream, listar consumers, información de consumer
+- Pestaña **Health**: lo que funciona mal, primero lo más grave — consumers inactivos con
+  backlog, consumers en `max_ack_pending`, streams sin límites o cerca de `max_bytes`/`max_msgs`,
+  grupos Raft sin líder o con réplicas caídas, peers fantasma y el reparto de streams por servidor.
+  Usa las mismas reglas que `consumer scan`, `peer check` y `stream report`
 
 ### Acciones
 
@@ -93,6 +97,7 @@ servidor responde con `428 Precondition Required`.
 | `POST` | `/api/admin/clusters/{c}/servers/{id}/actions/kick` | cuerpo: `{"cid": N}` |
 | `GET` | `/api/jsm/clusters/{c}/overview` | JetStream global del clúster (cuenta-sys) · pasar `?live=true` para omitir caché |
 | `GET` | `/api/jsm/clusters/{c}/overview/stream` | SSE — envía una vista general fresca en cada actualización de caché |
+| `GET` | `/api/jsm/clusters/{c}/health` | hallazgos sobre la vista general en caché · `?min_idle=24h&min_pending=1` |
 | `GET` | `/api/jsm/clusters/{c}/streams?offset=N` | paginado |
 | `GET` | `/api/jsm/clusters/{c}/streams/{s}` | info del stream |
 | `PUT` | `/api/jsm/clusters/{c}/streams/{s}` | actualización completa de `StreamConfig` |
