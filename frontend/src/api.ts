@@ -1,7 +1,9 @@
 import type {
   AggregatedAccount,
+  AggregatedConsumer,
   AggregatedOverview,
   AggregatedStream,
+  HealthReport,
   JszData,
   PingReply,
   TapConfig,
@@ -76,6 +78,11 @@ export const api = {
       `/api/jsm/clusters/${enc(c)}/overview?live=true`,
     ),
   jsOverviewStreamURL: (c: string) => `/api/jsm/clusters/${enc(c)}/overview/stream`,
+  health: (c: string, minIdle: string, minPending: number) =>
+    http<HealthReport>(
+      "GET",
+      `/api/jsm/clusters/${enc(c)}/health?min_idle=${enc(minIdle)}&min_pending=${minPending}`,
+    ),
   streams: (c: string, offset = 0) =>
     http<unknown>("GET", `/api/jsm/clusters/${enc(c)}/streams?offset=${offset}`),
   stream: (c: string, s: string) =>
@@ -113,13 +120,17 @@ export const api = {
 };
 
 // Fold the per-server JSZ replies into a single per-account / per-stream
-// / per-consumer view. Each stream and consumer is counted once via its
-// leader's report (the authoritative one for state).
+// / per-consumer view. Every server that hosts a replica reports the asset,
+// so each stream and consumer is counted once, from the report of its own
+// leader (the authoritative one for state), else from the first report.
+// A consumer's leader is often not its stream's leader, so consumers are
+// folded on their own and attached to their stream at the end.
 export function aggregateOverview(
   replies: { server: { name: string }; data: JszData }[],
 ): AggregatedOverview {
   const accountMap = new Map<string, AggregatedAccount>();
   const streamMap = new Map<string, AggregatedStream>(); // key: `${account}/${stream}`
+  const consumerMap = new Map<string, AggregatedConsumer>(); // key: `${account}/${stream}/${name}`
   let cluster: string | undefined;
   let meta = replies[0]?.data?.meta_cluster;
 
@@ -142,10 +153,9 @@ export function aggregateOverview(
       }
       for (const s of a.stream_detail ?? []) {
         const key = `${a.name}/${s.name}`;
-        const isLeader = s.cluster?.leader && s.cluster.leader === sname;
-        let entry = streamMap.get(key);
+        const entry = streamMap.get(key);
         if (!entry) {
-          entry = {
+          const fresh: AggregatedStream = {
             name: s.name,
             account: a.name,
             created: s.created,
@@ -154,38 +164,44 @@ export function aggregateOverview(
             cluster: s.cluster,
             consumers: [],
           };
-          streamMap.set(key, entry);
-          acct.streams.push(entry);
-        }
-        if (isLeader) {
+          streamMap.set(key, fresh);
+          acct.streams.push(fresh);
+        } else if (s.cluster?.leader && s.cluster.leader === sname) {
           entry.state = s.state;
           entry.cluster = s.cluster;
           entry.config = s.config;
-          acct.totals.streams++;
-          acct.totals.messages += s.state?.messages ?? 0;
-          acct.totals.bytes += s.state?.bytes ?? 0;
-          entry.consumers = [];
-          for (const c of s.consumer_detail ?? []) {
-            const cleader = c.cluster?.leader;
-            if (!cleader || cleader === sname) {
-              entry.consumers.push({
-                name: c.name,
-                stream: s.name,
-                account: a.name,
-                config: c.config,
-                created: c.created,
-                cluster: c.cluster,
-                num_pending: c.num_pending,
-                num_ack_pending: c.num_ack_pending,
-                num_redelivered: c.num_redelivered,
-                num_waiting: c.num_waiting,
-                delivered: c.delivered,
-              });
-              acct.totals.consumers++;
-            }
-          }
+        }
+        for (const c of s.consumer_detail ?? []) {
+          const ckey = `${key}/${c.name}`;
+          const leads = c.cluster?.leader && c.cluster.leader === sname;
+          if (consumerMap.has(ckey) && !leads) continue;
+          consumerMap.set(ckey, {
+            name: c.name,
+            stream: s.name,
+            account: a.name,
+            config: c.config,
+            created: c.created,
+            cluster: c.cluster,
+            num_pending: c.num_pending,
+            num_ack_pending: c.num_ack_pending,
+            num_redelivered: c.num_redelivered,
+            num_waiting: c.num_waiting,
+            delivered: c.delivered,
+          });
         }
       }
+    }
+  }
+
+  for (const c of consumerMap.values()) {
+    streamMap.get(`${c.account}/${c.stream}`)?.consumers.push(c);
+  }
+  for (const acct of accountMap.values()) {
+    for (const s of acct.streams) {
+      acct.totals.streams++;
+      acct.totals.consumers += s.consumers.length;
+      acct.totals.messages += s.state?.messages ?? 0;
+      acct.totals.bytes += s.state?.bytes ?? 0;
     }
   }
 
