@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/1995parham/cheshmhayash/internal/health"
 	"github.com/1995parham/cheshmhayash/internal/natsx"
 )
 
@@ -88,6 +90,19 @@ func buildTools(write bool) []tool {
 				"cluster": stringProp("Configured cluster name."),
 			}, []string{"cluster"}),
 			handler: toolJSMOverview,
+		},
+		{
+			name: "jetstream_health",
+			description: "Find JetStream assets that misbehave, from one JSZ fan-out: stale consumers " +
+				"(a backlog and no ack for min_idle), consumers at max_ack_pending, streams with no limits " +
+				"or near max_bytes/max_msgs, Raft groups without a leader or with offline or lagging replicas, " +
+				"ghost peers, and the stream placement per server. Findings come most severe first.",
+			inputSchema: schema(map[string]any{
+				"cluster":     stringProp("Configured cluster name."),
+				"min_idle":    stringProp("Go duration a consumer goes without an ack before it can be stale; default 24h."),
+				"min_pending": intProp("Smallest backlog that makes an idle consumer stale; default 1."),
+			}, []string{"cluster"}),
+			handler: toolJetStreamHealth,
 		},
 		{
 			name:        "stream_list",
@@ -452,6 +467,47 @@ func toolJSMOverview(_ context.Context, s *Server, args json.RawMessage) (string
 		return "", err
 	}
 	return rawArray(out), nil
+}
+
+type healthArg struct {
+	Cluster    string `json:"cluster"`
+	MinIdle    string `json:"min_idle"`
+	MinPending *int64 `json:"min_pending"`
+}
+
+func toolJetStreamHealth(_ context.Context, s *Server, args json.RawMessage) (string, error) {
+	var a healthArg
+	if err := decodeArgs(args, &a); err != nil {
+		return "", err
+	}
+	opts := health.DefaultOptions()
+	if a.MinIdle != "" {
+		d, err := time.ParseDuration(a.MinIdle)
+		if err != nil {
+			return "", fmt.Errorf("min_idle: %w", err)
+		}
+		opts.MinIdle = d
+	}
+	if a.MinPending != nil {
+		opts.MinPending = *a.MinPending
+	}
+	c, err := s.resolveCluster(a.Cluster)
+	if err != nil {
+		return "", err
+	}
+	out, err := c.JSMOverview()
+	if err != nil {
+		return "", err
+	}
+	rep, err := health.Analyze([]byte(rawArray(out)), time.Now(), opts)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(rep)
+	if err != nil {
+		return "", fmt.Errorf("encode report: %w", err)
+	}
+	return string(b), nil
 }
 
 type streamListArg struct {

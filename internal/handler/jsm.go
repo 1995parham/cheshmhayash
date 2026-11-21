@@ -20,6 +20,7 @@ type jsm struct {
 func (j *jsm) register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/overview", j.overview)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/overview/stream", j.overviewStream)
+	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/health", j.health)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams", j.listStreams)
 	mux.HandleFunc("GET /api/jsm/clusters/{cluster}/streams/{stream}", j.streamInfo)
 	mux.HandleFunc("PUT /api/jsm/clusters/{cluster}/streams/{stream}", j.updateStream)
@@ -74,20 +75,16 @@ func (j *jsm) overview(w http.ResponseWriter, r *http.Request) {
 	if c == nil {
 		return
 	}
-	live := r.URL.Query().Get("live") == "true"
-	if j.cache != nil && !live {
-		if snap, ok := j.cache.Get(c.Name()); ok {
-			if snap.Err != "" {
-				writeJSON(w, http.StatusBadGateway, apiError{Message: snap.Err})
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("X-Overview-Age-Seconds", fmt.Sprintf("%.1f", time.Since(snap.Updated).Seconds()))
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(snap.Data)
-			return
-		}
-		// Cache miss (cold start) — fall through to live fetch.
+	data, updated, ok := j.cachedOverview(w, c.Name(), r.URL.Query().Get("live") == "true")
+	if !ok {
+		return
+	}
+	if data != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Overview-Age-Seconds", fmt.Sprintf("%.1f", time.Since(updated).Seconds()))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
+		return
 	}
 	out, err := c.JSMOverview()
 	if err != nil {
@@ -95,6 +92,37 @@ func (j *jsm) overview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeRawArray(w, out)
+}
+
+// cachedOverview returns the cached overview of the cluster and its time.
+// It returns nil data when the caller must fetch a live one: live is set,
+// the cache is off, or no refresh has completed yet. It returns ok=false
+// after it wrote an error response for a failed refresh.
+func (j *jsm) cachedOverview(w http.ResponseWriter, cluster string, live bool) (json.RawMessage, time.Time, bool) {
+	if j.cache == nil || live {
+		return nil, time.Time{}, true
+	}
+	snap, ok := j.cache.Get(cluster)
+	if !ok {
+		return nil, time.Time{}, true
+	}
+	if snap.Err != "" {
+		writeJSON(w, http.StatusBadGateway, apiError{Message: snap.Err})
+		return nil, time.Time{}, false
+	}
+	return snap.Data, snap.Updated, true
+}
+
+// marshalReplies joins NATS replies into one JSON array.
+func marshalReplies(items []json.RawMessage) json.RawMessage {
+	if items == nil {
+		items = []json.RawMessage{}
+	}
+	b, err := json.Marshal(items)
+	if err != nil {
+		return json.RawMessage("[]")
+	}
+	return b
 }
 
 // overviewStream is an SSE endpoint that pushes a fresh overview on

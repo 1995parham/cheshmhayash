@@ -103,7 +103,7 @@ func TestToolsListReadOnly(t *testing.T) {
 	for _, t := range tools {
 		names[t.(map[string]any)["name"].(string)] = true
 	}
-	mustHave := []string{"cluster_list", "server_ping", "stream_info", "jsm_overview"}
+	mustHave := []string{"cluster_list", "server_ping", "stream_info", "jsm_overview", "jetstream_health"}
 	for _, n := range mustHave {
 		if !names[n] {
 			t.Errorf("tools/list missing read tool %q", n)
