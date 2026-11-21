@@ -11,7 +11,9 @@
     "lint:fix": "biome check --write",
     "format": "biome format --write",
     "ci": "biome ci",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "build:demo": "tsc -b && vite build --mode demo",
+    "dev:demo": "vite --mode demo"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",

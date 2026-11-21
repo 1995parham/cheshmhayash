@@ -1291,3 +1291,16 @@ dialog button.primary:hover {
     width: 100%;
   }
 }
+
+/* Demo ribbon: only the `--mode demo` build adds the element. */
+.demo-ribbon {
+  padding: 6px 16px;
+  font-size: 13px;
+  text-align: center;
+  color: var(--bg);
+  background: var(--accent);
+}
+.demo-ribbon a {
+  color: inherit;
+  font-weight: 600;
+}
