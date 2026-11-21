@@ -265,6 +265,9 @@ func ClassifyConsumer(info *api.ConsumerInfo, now time.Time, minIdle time.Durati
 	case r.NumPending == 0 && r.LastAck.IsZero():
 		// Never delivered, no backlog — too quiet to call stale.
 		r.Status = StatusOK
+	case r.LastAck.IsZero() && r.Idle < minIdle:
+		// Never acked, but created within MinIdle — too young to call stale.
+		r.Status = StatusOK
 	default:
 		r.Status = StatusStale
 	}
