@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://1995parham.github.io/cheshmhayash/"><b>Documentation</b></a> ·
-  <a href="https://1995parham.github.io/cheshmhayash/demo/"><b>Live demo</b></a>
+  <a href="https://1995parham.me/cheshmhayash/"><b>Documentation</b></a> ·
+  <a href="https://1995parham.me/cheshmhayash/demo/"><b>Live demo</b></a>
 </p>
 
 ## Introduction

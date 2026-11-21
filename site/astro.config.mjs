@@ -4,7 +4,7 @@ import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
 export default defineConfig({
-  site: "https://1995parham.github.io",
+  site: "https://1995parham.me",
   base: "/cheshmhayash",
   integrations: [
     starlight({

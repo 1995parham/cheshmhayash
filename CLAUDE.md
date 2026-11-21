@@ -140,7 +140,7 @@ config.yaml`; env overrides `CHESHMHAYASH_OPS_<SECTION>__<KEY>`). Invariants:
   the HMAC key of the per-manifest approval URLs.
 
 Docs site and demo — `site/` is an Astro Starlight site published to
-GitHub Pages (`https://1995parham.github.io/cheshmhayash/`) by
+GitHub Pages (`https://1995parham.me/cheshmhayash/`) by
 `.github/workflows/pages.yaml`. The workflow also builds the SPA with
 `npm run build:demo` (`vite --mode demo`, output `frontend/dist-demo`) and
 serves it at `/demo/`. Demo mode imports `src/demo/shim.ts`, which answers
