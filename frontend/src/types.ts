@@ -272,3 +272,65 @@ export interface TapStats {
   skipped: number;
   dropped: number;
 }
+
+// ---- Health --------------------------------------------------------------
+
+export type HealthSeverity = "critical" | "warning" | "info";
+
+export type HealthKind =
+  | "stale_consumer"
+  | "ack_pending_full"
+  | "no_leader"
+  | "replica_offline"
+  | "replica_lagging"
+  | "unlimited_stream"
+  | "near_limit"
+  | "under_replicated"
+  | "ghost_peer"
+  | "lagging_peer";
+
+export interface HealthFinding {
+  kind: HealthKind;
+  severity: HealthSeverity;
+  account?: string;
+  stream?: string;
+  consumer?: string;
+  peer?: string;
+  message: string;
+  pending?: number;
+  idle?: number; // nanoseconds
+  renamed_to?: string;
+  managed?: string;
+}
+
+export interface HealthPeer {
+  peer: string;
+  health: "OK" | "LAGGING" | "GHOST";
+  groups: number;
+  offline: number;
+  current: number;
+  leads: number;
+  sample?: string[];
+}
+
+export interface HealthServerLoad {
+  server: string;
+  leads: number;
+  replicas: number;
+}
+
+export interface HealthReport {
+  summary: {
+    critical: number;
+    warning: number;
+    info: number;
+    streams: number;
+    consumers: number;
+  };
+  findings: HealthFinding[];
+  peers: HealthPeer[] | null;
+  placement: HealthServerLoad[] | null;
+  updated: string;
+  min_idle: string;
+  min_pending: number;
+}

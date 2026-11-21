@@ -1,10 +1,11 @@
 import clsx from "clsx";
-import { Database, LogOut, Network, Radio, RefreshCw, Server, Users } from "lucide-react";
+import { Activity, Database, LogOut, Network, Radio, RefreshCw, Server, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { type ApiError, api } from "./api";
 import { AccountsView } from "./components/AccountsView";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { Footer } from "./components/Footer";
+import { HealthView } from "./components/HealthView";
 import { JetStreamView } from "./components/JetStreamView";
 import { LoginScreen } from "./components/LoginScreen";
 import { ServersView } from "./components/ServersView";
@@ -14,7 +15,16 @@ import { canWrite, displayName, useAuth } from "./hooks/useAuth";
 import { CanWriteProvider } from "./state/access";
 import { ToastProvider, useToast } from "./state/toast";
 
-type Tab = "servers" | "accounts" | "jetstream" | "topology" | "tap";
+type Tab = "servers" | "accounts" | "jetstream" | "health" | "topology" | "tap";
+
+const TABS: Tab[] = ["servers", "accounts", "jetstream", "health", "topology", "tap"];
+
+// The active tab lives in the URL hash (#health), so a tab can be linked
+// and survives a reload.
+function tabFromHash(): Tab {
+  const h = window.location.hash.slice(1);
+  return TABS.find((t) => t === h) ?? "servers";
+}
 
 export function App() {
   return (
@@ -30,7 +40,17 @@ function Shell() {
   const { status, logout } = useAuth();
   const [clusters, setClusters] = useState<string[]>([]);
   const [cluster, setCluster] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("servers");
+  const [tab, setTabState] = useState<Tab>(tabFromHash);
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    window.history.replaceState(null, "", `#${t}`);
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => setTabState(tabFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [bootErr, setBootErr] = useState<string | null>(null);
   const toast = useToast();
@@ -101,6 +121,9 @@ function Shell() {
             onClick={() => setTab("jetstream")}
           >
             <Database size={14} /> JetStream
+          </button>
+          <button className={clsx(tab === "health" && "active")} onClick={() => setTab("health")}>
+            <Activity size={14} /> Health
           </button>
           <button
             className={clsx(tab === "topology" && "active")}
@@ -178,6 +201,8 @@ function Shell() {
           <AccountsView cluster={cluster} />
         ) : tab === "jetstream" ? (
           <JetStreamView cluster={cluster} refreshKey={refreshKey} />
+        ) : tab === "health" ? (
+          <HealthView cluster={cluster} refreshKey={refreshKey} />
         ) : tab === "topology" ? (
           <TopologyView cluster={cluster} refreshKey={refreshKey} />
         ) : (

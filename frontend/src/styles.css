@@ -1150,3 +1150,144 @@ dialog button.primary:hover {
 .tap-list .tap-binary {
   color: var(--warn);
 }
+
+/* -------------------- health ---------------------- */
+
+.health h4 {
+  margin: 18px 0 8px;
+}
+.health-thresholds {
+  display: flex;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+.health-thresholds label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.health-thresholds select,
+.health-thresholds input {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.health-thresholds input {
+  width: 80px;
+}
+.health-stat {
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  opacity: 0.45;
+}
+.health-stat.on {
+  opacity: 1;
+}
+.health-stat.critical.on {
+  border-color: rgba(248, 113, 113, 0.6);
+}
+.health-stat.critical .value {
+  color: var(--danger);
+}
+.health-stat.warning.on {
+  border-color: rgba(243, 183, 96, 0.6);
+}
+.health-stat.warning .value {
+  color: var(--warn);
+}
+.health-stat.info .value {
+  color: var(--accent);
+}
+.health-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--good);
+  margin: 0 0 12px;
+}
+.health-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 10px;
+}
+.chip {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chip b {
+  color: var(--text);
+  margin-left: 4px;
+}
+.chip.on {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.health-search {
+  margin-left: auto;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 200px;
+}
+.sev {
+  display: inline-block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+}
+.sev.critical {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+.sev.warning {
+  color: var(--warn);
+  background: rgba(243, 183, 96, 0.12);
+  border-color: rgba(243, 183, 96, 0.4);
+}
+.sev.info {
+  color: var(--accent);
+  background: rgba(110, 168, 254, 0.12);
+  border-color: rgba(110, 168, 254, 0.4);
+}
+.health-findings .meta-badge {
+  margin-left: 6px;
+}
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+}
+.health-bar-cell {
+  width: 35%;
+}
+.health-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+@media (max-width: 640px) {
+  .health-search {
+    margin-left: 0;
+    min-width: 0;
+    width: 100%;
+  }
+}
