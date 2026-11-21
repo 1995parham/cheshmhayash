@@ -10,6 +10,11 @@
   <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge" />
 </p>
 
+<p align="center">
+  <a href="https://1995parham.github.io/cheshmhayash/"><b>Documentation</b></a> ·
+  <a href="https://1995parham.github.io/cheshmhayash/demo/"><b>Live demo</b></a>
+</p>
+
 ## Introduction
 
 `cheshmhayash` is a NATS administration dashboard and HTTP gateway. It talks
@@ -214,7 +219,7 @@ goes through `consumer scan` and `consumer apply`.
 ```sh
 cheshmhayash consumer scan --context prod-a --peer-context prod-b --emit-manifest cleanup.yaml
 cheshmhayash consumer apply cleanup.yaml --dry-run     # re-verifies every consumer first
-cheshmhayash consumer owner 'orders.>'                 # where did this subject's work move?
+cheshmhayash consumer owner --subject 'orders.>'                # where did this subject's work move?
 cheshmhayash peer check --context prod-a --ghosts-only
 cheshmhayash stream report --context prod-a --format pretty
 cheshmhayash bot serve                                 # schedules, chat, signed approvals, audit log

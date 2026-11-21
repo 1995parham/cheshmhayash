@@ -1,0 +1,14 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# the live demo: a static build of the dashboard, copied in by CI
+public/demo/
+
+# logs
+npm-debug.log*
+
+.DS_Store

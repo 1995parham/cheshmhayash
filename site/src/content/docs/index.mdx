@@ -1,0 +1,61 @@
+---
+title: cheshmhayash
+description: A Swiss Army knife for NATS — an admin dashboard, an MCP server, protobuf-aware pub/sub and safe JetStream operations in one binary.
+template: splash
+hero:
+  tagline: A Swiss Army knife for NATS. One binary gives you an admin dashboard, an MCP server for LLM agents, protobuf-aware pub/sub and safe JetStream cleanup. It needs only the NATS client port.
+  image:
+    file: ../../assets/banner.png
+    alt: cheshmhayash banner
+  actions:
+    - text: Try the live demo
+      link: /cheshmhayash/demo/
+      icon: external
+      variant: primary
+      attrs:
+        target: _blank
+    - text: Get started
+      link: /cheshmhayash/getting-started/
+      icon: right-arrow
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/1995parham/cheshmhayash
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+## What is in the box
+
+<CardGrid stagger>
+  <Card title="Dashboard" icon="laptop">
+    See servers, accounts, streams, consumers and Raft groups of every cluster. Edit stream config, step down leaders, purge and delete, with roles. The JetStream view updates live over SSE.
+  </Card>
+  <Card title="Health" icon="warning">
+    One list of what misbehaves, most severe first: stale consumers, full ack windows, streams near a limit, groups without a leader and ghost peers.
+  </Card>
+  <Card title="MCP server" icon="puzzle">
+    Give Claude or any MCP client tools to inspect a cluster. Read-only by default. Write tools and message sampling are opt-in.
+  </Card>
+  <Card title="Protobuf-aware pub/sub" icon="seti:json">
+    `sub` and `pub` decode and encode protobuf with schemas loaded at run time. Private `.proto` files never go into the binary.
+  </Card>
+  <Card title="Safe cleanup" icon="approve-check">
+    Find stale consumers, ghost peers and unbounded streams. Cleanup works like a code review: scan, edit a manifest, apply. Apply checks each consumer again just before it deletes it.
+  </Card>
+  <Card title="Chat bot" icon="comment">
+    Run the scans on a schedule, post the results to Slack or Mattermost, and approve a cleanup with a signed link.
+  </Card>
+</CardGrid>
+
+## Only port 4222
+
+cheshmhayash talks to your clusters over the NATS protocol itself. It uses the same system-account subjects (`$SYS.REQ.*`) and JetStream API (`$JS.API.*`) as `natscli`. You do not need to open the HTTP monitoring port (`:8222`).
+
+<CardGrid>
+  <LinkCard title="Install and run" href="/cheshmhayash/getting-started/" description="Go, Docker or Helm, in five minutes." />
+  <LinkCard title="Tour the dashboard" href="/cheshmhayash/dashboard/" description="What each tab shows and what you can do there." />
+  <LinkCard title="Decode your messages" href="/cheshmhayash/guides/schemas/" description="From a .proto file to decoded output, step by step." />
+  <LinkCard title="Connect an LLM" href="/cheshmhayash/guides/mcp/" description="Claude Code and Claude Desktop setup, and the tool list." />
+</CardGrid>

@@ -139,6 +139,16 @@ config.yaml`; env overrides `CHESHMHAYASH_OPS_<SECTION>__<KEY>`). Invariants:
   listener uses echo v5; `signing_key` is both the slash-command token and
   the HMAC key of the per-manifest approval URLs.
 
+Docs site and demo — `site/` is an Astro Starlight site published to
+GitHub Pages (`https://1995parham.github.io/cheshmhayash/`) by
+`.github/workflows/pages.yaml`. The workflow also builds the SPA with
+`npm run build:demo` (`vite --mode demo`, output `frontend/dist-demo`) and
+serves it at `/demo/`. Demo mode imports `src/demo/shim.ts`, which answers
+`/api/*` from the recorded snapshot in `frontend/demo/data` (one JSON file
+per API path; `health@<min_idle>.json` for health), refuses writes, moves
+the overview numbers and plays a synthetic tap. **The snapshot must hold no
+real names, IPs or server IDs:** rename everything before it is committed.
+
 ## Configuration
 
 Settings load in order:
