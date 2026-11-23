@@ -88,7 +88,7 @@ the dashboard and MCP Deployments — both open the same NATS connections.
 */}}
 {{- define "cheshmhayash-chart.natsAuthEnv" -}}
 {{- range $i, $c := .Values.clusters }}
-{{- if and $c.auth $c.auth.existingSecret }}
+{{- if dig "existingSecret" "" ($c.auth | default dict) }}
 - name: CHESHMHAYASH__NATS__{{ $i }}__USER
   valueFrom:
     secretKeyRef:
@@ -99,7 +99,7 @@ the dashboard and MCP Deployments — both open the same NATS connections.
     secretKeyRef:
       name: {{ $c.auth.existingSecret.name }}
       key: {{ $c.auth.existingSecret.passwordKey | default "password" }}
-{{- else if and $c.auth $c.auth.userPassword }}
+{{- else if dig "userPassword" "" ($c.auth | default dict) }}
 - name: CHESHMHAYASH__NATS__{{ $i }}__USER
   valueFrom:
     secretKeyRef:
@@ -138,7 +138,7 @@ NATS creds-file volumeMounts (shared by dashboard + MCP).
 */}}
 {{- define "cheshmhayash-chart.credsVolumeMounts" -}}
 {{- range $i, $c := .Values.clusters }}
-{{- if and $c.auth $c.auth.credsFileSecret }}
+{{- if dig "credsFileSecret" "" ($c.auth | default dict) }}
 - name: creds-{{ $c.name }}
   mountPath: /etc/cheshmhayash/creds/{{ $c.name }}.creds
   subPath: {{ $c.auth.credsFileSecret.key }}
@@ -152,7 +152,7 @@ NATS creds-file volumes (shared by dashboard + MCP).
 */}}
 {{- define "cheshmhayash-chart.credsVolumes" -}}
 {{- range $i, $c := .Values.clusters }}
-{{- if and $c.auth $c.auth.credsFileSecret }}
+{{- if dig "credsFileSecret" "" ($c.auth | default dict) }}
 - name: creds-{{ $c.name }}
   secret:
     secretName: {{ $c.auth.credsFileSecret.name }}
@@ -201,7 +201,7 @@ True when any cluster declares a chart-managed userPassword.
 {{- define "cheshmhayash-chart.hasManagedAuth" -}}
 {{- $managed := false -}}
 {{- range $i, $c := .Values.clusters -}}
-{{- if and $c.auth $c.auth.userPassword -}}
+{{- if dig "userPassword" "" ($c.auth | default dict) -}}
 {{- $managed = true -}}
 {{- end -}}
 {{- end -}}
@@ -252,10 +252,10 @@ request_timeout_ms = {{ $c.requestTimeoutMs }}
 {{- if $c.discoveryTimeoutMs }}
 discovery_timeout_ms = {{ $c.discoveryTimeoutMs }}
 {{- end }}
-{{- if and $c.auth $c.auth.credsFileSecret }}
+{{- if dig "credsFileSecret" "" ($c.auth | default dict) }}
 creds_file = "/etc/cheshmhayash/creds/{{ $c.name }}.creds"
 {{- end }}
-{{- if and $c.auth $c.auth.userPassword $c.auth.userPassword.user }}
+{{- if dig "userPassword" "user" "" ($c.auth | default dict) }}
 user = "{{ $c.auth.userPassword.user }}"
 {{- end }}
 {{ end }}

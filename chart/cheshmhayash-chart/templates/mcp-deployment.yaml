@@ -63,7 +63,7 @@ spec:
               protocol: TCP
           {{- $hasNatsAuthEnv := false }}
           {{- range $c := .Values.clusters }}
-            {{- if and $c.auth (or $c.auth.existingSecret $c.auth.userPassword) }}
+            {{- if or (dig "existingSecret" "" ($c.auth | default dict)) (dig "userPassword" "" ($c.auth | default dict)) }}
               {{- $hasNatsAuthEnv = true }}
             {{- end }}
           {{- end }}
