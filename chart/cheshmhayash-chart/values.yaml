@@ -718,7 +718,9 @@ bot:
   # `autoDelete: true` on a consumer-stale schedule deletes the stale consumers
   # it finds instead of storing a manifest and sending an approval link. It is
   # off unless you set it. Re-verification and the `protect` rules above still
-  # apply, and the run is announced to the notify sinks afterwards.
+  # apply, a consumer that is active on `peerContext` is kept, and the run is
+  # announced to the notify sinks afterwards. `autoDelete: false` turns the
+  # schedule back into the manifest and approval flow.
   schedules: []
   # - name: daily
   #   cron: "0 3 * * *"

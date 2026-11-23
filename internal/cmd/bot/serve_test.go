@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/1995parham/cheshmhayash/internal/ops/infra/config"
+	"github.com/1995parham/cheshmhayash/internal/ops/manifest"
 	"github.com/1995parham/cheshmhayash/internal/ops/scanner"
 )
 
@@ -79,5 +80,23 @@ func TestBuildStreamReportMessage(t *testing.T) {
 
 	if msg.ManifestID != "" {
 		t.Errorf("manifest id = %q, want empty (notify-only)", msg.ManifestID)
+	}
+}
+
+func TestSkipActivePeers(t *testing.T) {
+	m := &manifest.Manifest{Entries: []manifest.Entry{
+		{Consumer: "gone", PeerStatus: string(scanner.StatusAbsent)},
+		{Consumer: "failed-over", PeerStatus: string(scanner.StatusActive)},
+		{Consumer: "dead-both", PeerStatus: string(scanner.StatusStale)},
+		{Consumer: "no-peer"},
+	}}
+
+	skipActivePeers(m)
+
+	for _, e := range m.Entries {
+		want := e.Consumer == "failed-over"
+		if e.Skip != want {
+			t.Errorf("%s: skip = %v, want %v", e.Consumer, e.Skip, want)
+		}
 	}
 }

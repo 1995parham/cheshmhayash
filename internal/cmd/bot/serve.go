@@ -549,6 +549,8 @@ func runScan(ctx context.Context, s config.Schedule, manifestStore store.Store, 
 // the audit log, so an auto-delete run is as reconstructible after the fact
 // as an approved one.
 func autoDelete(ctx context.Context, s config.Schedule, m *manifest.Manifest, dispatch *dispatcher, auditLog *audit.Logger, guard *protect.Protector, logger *log.Logger) (int, error) {
+	skipActivePeers(m)
+
 	result, err := cleanup.Apply(ctx, m, cleanup.Options{
 		Connect: botConnector,
 		Protect: guard,
@@ -574,6 +576,20 @@ func autoDelete(ctx context.Context, s config.Schedule, m *manifest.Manifest, di
 	}
 
 	return result.Deleted, err
+}
+
+// skipActivePeers keeps a consumer that is stale here but active on the
+// schedule's peer cluster out of an unattended run. Its client has usually
+// failed over to the peer and will come back; a deleted durable is then
+// re-created with the client's own deliver policy, which can replay the whole
+// stream. A human may still delete it through an approved manifest.
+func skipActivePeers(m *manifest.Manifest) {
+	for i := range m.Entries {
+		if m.Entries[i].PeerStatus == string(scanner.StatusActive) {
+			m.Entries[i].Skip = true
+			m.Entries[i].Reason = "active on the peer cluster"
+		}
+	}
 }
 
 func errText(err error) string {

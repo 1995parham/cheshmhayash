@@ -217,7 +217,10 @@ bot:
       # Delete instead of proposing. No manifest is stored and no approve
       # link is sent; the run is announced to notify sinks afterwards and
       # recorded in the audit log. Re-verification and protect rules still
-      # apply. Only valid on consumer-stale schedules.
+      # apply, and a consumer that is active on peer_context is kept: its
+      # client failed over and will come back. Set it to false (or remove
+      # it) to go back to the manifest and approve link. Only valid on
+      # consumer-stale schedules.
       auto_delete: true
 
   notify:
